@@ -487,3 +487,4 @@ body.bare { background: #eef3f8; }
 .eod-dialog-actions { display: flex; gap: .6rem; justify-content: flex-end; margin-top: 1rem; }
 .notice.ok { background: rgba(30,142,90,.12); color: #14663f; border: 1px solid #1e8e5a; }
 .eod-all { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.eod-all-h { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; } .eod-master { margin-top: .8rem; }

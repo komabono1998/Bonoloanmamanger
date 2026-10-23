@@ -85,17 +85,41 @@ page_head('End of Day', '', 'One click closes the day: it backs up, closes and l
 if (!Eod::adminMode()) echo '<div class="notice">This institution uses the two-person workflow (finance prepares, a manager approves). The one-step process is switched off in Settings → Cash &amp; End of Day.</div>';
 if (!$branches) echo '<div class="card"><p class="muted">No branches yet.</p></div>';
 
-$readyBranches = [];
-foreach ($branches as $rb => $rn) { $rd = current_bd((int)$rb); if ($rd && !Eod::blockers($rd, (int)$rb) && !Eod::alignmentBlock((int)$rb, $rd)) $readyBranches[] = $rn; }
-if (count($readyBranches) > 1 && can('eod.run') && Eod::adminMode()) {
-    echo '<div class="card eod-all"><div><b>Close the day for every ready branch</b><br><span class="muted">' . e(implode(', ', $readyBranches)) . '</span></div><button type="button" class="btn primary eod-btn" data-eod-all>' . icon('check', 18) . ' Run End of Day for all ' . count($readyBranches) . ' ready branches</button></div>';
+// ---- institution-wide End of Day: every office on the same date closes together
+$offices = [];   // offices with an open day
+foreach ($branches as $ob => $on) { $od = current_bd((int)$ob); if ($od) $offices[(int)$ob] = ['name' => $on, 'date' => $od]; }
+$minDate = $offices ? min(array_column($offices, 'date')) : null;
+$part = []; $waiting = [];   // participants (on the earliest date) and offices already ahead
+foreach ($offices as $ob => $o) { if ($o['date'] === $minDate || setting('eod_align_branches') === '0') $part[$ob] = $o; else $waiting[$ob] = $o; }
+$problems = [];
+foreach ($part as $ob => $o) foreach (Eod::blockers($o['date'], $ob) as $bl) $problems[] = $o['name'] . ': ' . $bl['label'] . ' (' . $bl['detail'] . ')';
+$canRunAll = can('eod.run') && Eod::adminMode();
+echo '<div class="card eod-all"><div class="eod-all-h"><div><h2>' . icon('check', 18) . ' End of Day &mdash; all offices</h2>';
+if ($part) {
+    echo '<p class="muted" style="margin:.2rem 0 0">System date <b>' . e(fmt_date($minDate)) . '</b> &middot; ' . count($part) . ' office' . (count($part) === 1 ? '' : 's') . ' close together: ' . e(implode(', ', array_column($part, 'name'))) . '.</p>';
+    if ($waiting) echo '<p class="muted" style="margin:.2rem 0 0">Already on a later date, waiting for the rest to catch up: ' . e(implode(', ', array_map(fn($w) => $w['name'] . ' (' . fmt_date($w['date']) . ')', $waiting))) . '.</p>';
+} else echo '<p class="muted" style="margin:.2rem 0 0">No office has an open business day. Start a business day below.</p>';
+echo '</div>';
+if ($part && $canRunAll) {
+    $catchTo = $waiting ? max(array_column($waiting, 'date')) : '';
+    echo '<button type="button" class="btn primary eod-btn" data-eod-all' . ($catchTo ? ' data-catchup="' . e($catchTo) . '" data-catchup-label="' . e(fmt_date($catchTo)) . '"' : '') . ($problems ? ' disabled title="Every office must be ready first"' : '') . '>' . icon('check', 18) . ' Run End of Day for all ' . count($part) . ' office' . (count($part) === 1 ? '' : 's') . '</button>';
+} elseif ($part) echo '<p class="muted">You do not have permission to run End of Day.</p>';
+echo '</div>';
+if ($part && $canRunAll) echo '<details class="eod-note"><summary>Add a note (optional)</summary><textarea data-eod-notes-global rows="2" placeholder="Anything worth recording about today"></textarea></details>';
+if ($part && $problems) {
+    echo '<div class="eod-wait"><b>Not every office is ready yet</b><ul>';
+    foreach ($problems as $pm) echo '<li>' . e($pm) . '</li>';
+    echo '</ul><span class="muted">Close and count the tills below (or use "Close the open tills now"), then the button unlocks.</span></div>';
 }
+echo '<div class="eod-master" data-eod-master hidden><div class="eod-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span data-master-fill></span></div><div class="eod-pct" data-master-pct>0%</div><div class="eod-result" data-master-result hidden></div></div>';
+echo '</div>';
+
 foreach ($branches as $bid => $bn) {
     $bd = current_bd((int)$bid);
     $last = val("SELECT MAX(business_date) FROM business_days WHERE branch_id = ? AND status = 'Closed'", [$bid]);
     echo '<div class="card eod-card"><div class="card-h"><h2>' . icon('building', 18) . ' ' . e($bn) . '</h2><span class="sysdate-pill">' . icon('calendar', 14) . ' System date <b>' . ($bd ? e(fmt_date($bd)) : 'no day open') . '</b></span></div>';
     if (!$bd) {
-        echo '<p class="muted">' . ($last ? 'Last closed business date: <b>' . e(fmt_date($last)) . '</b>.' : 'No business day has been opened yet.') . ' Start the next day to open the branch for work.</p>';
+        echo '<p class="muted">' . ($last ? 'Last closed business date: <b>' . e(fmt_date($last)) . '</b>.' : 'No business day has been opened yet.') . ' Start the next day to open the office for work.</p>';
         form_open(url('eodsys', ['a' => 'startday']), ['attrs' => 'style="grid-template-columns:1fr 1fr auto;align-items:end"']);
         field('branch', '', ['type' => 'hidden', 'value' => $bid]);
         field('date', 'Business date', ['type' => 'date', 'value' => Eod::suggestNextDate((int)$bid), 'required' => true]);
@@ -105,12 +129,11 @@ foreach ($branches as $bid => $bn) {
         continue;
     }
     $blockers = Eod::blockers($bd, (int)$bid);
-    $align = Eod::alignmentBlock((int)$bid, $bd);
-    if ($align) $blockers[] = ['label' => 'Wait for the other branch so every branch keeps the same system date', 'detail' => $align[0] . ' is still on ' . fmt_date($align[1]) . ' and must run End of Day first'];
-    $canRun = can('eod.run') && Eod::adminMode();
-    echo '<div class="eod-go" data-eod data-branch="' . (int)$bid . '" data-date="' . e($bd) . '" data-datelabel="' . e(fmt_date($bd)) . '" data-url="' . e(url('eodsys', ['a' => 'step'])) . '" data-csrf="' . e(csrf_token()) . '" data-branchname="' . e($bn) . '">';
+    $isPart = isset($part[(int)$bid]);
+    echo '<div class="eod-go" data-eod' . ($isPart ? ' data-participant="1"' : '') . ' data-branch="' . (int)$bid . '" data-date="' . e($bd) . '" data-datelabel="' . e(fmt_date($bd)) . '" data-url="' . e(url('eodsys', ['a' => 'step'])) . '" data-csrf="' . e(csrf_token()) . '" data-branchname="' . e($bn) . '">';
     echo '<div class="eod-ready">';
-    if ($blockers) {
+    if (!$isPart) echo '<p class="muted"><b>Waiting.</b> This office is already on ' . e(fmt_date($bd)) . '; it moves on again once the others reach this date.</p>';
+    elseif ($blockers) {
         echo '<div class="eod-wait"><b>Not ready to close yet</b><ul>';
         foreach ($blockers as $b) echo '<li>' . e($b['label']) . ' <span class="muted">&mdash; ' . e($b['detail']) . '</span></li>';
         echo '</ul><a class="btn sm" href="' . e(url('till')) . '">Open Cashier &amp; Till</a></div>';
@@ -119,22 +142,15 @@ foreach ($branches as $bid => $bn) {
             echo '<div class="eod-tills"><b>Close the open tills now</b><p class="muted">As administrator you can count and reconcile every open till here. Enter the cash actually counted (it starts at the expected amount); a difference needs a reason.</p>';
             form_open(url('eodsys', ['a' => 'closetills']), ['attrs' => 'style="display:block" data-confirm="Count and reconcile these tills for ' . e($bn) . '?"']);
             echo '<input type="hidden" name="branch" value="' . (int)$bid . '"><table class="tbl"><thead><tr><th>Till</th><th>Cashier</th><th>Status</th><th class="r">Expected cash</th><th class="r">Counted cash</th><th>Reason if different</th></tr></thead><tbody>';
-            foreach ($open as $s) {
-                $exp = Cash::expected((int)$s['id']);
-                echo '<tr><td>' . e($s['session_no']) . '</td><td>' . e($s['cashier']) . '</td><td>' . badge($s['status']) . '</td><td class="r">' . num($exp) . '</td>'
-                    . '<td class="r">' . ($s['status'] === 'Submitted' ? '<span class="muted">' . num((int)$s['counted_cash']) . '</span>' : '<input type="text" inputmode="numeric" class="money" name="counted[' . (int)$s['id'] . ']" value="' . $exp . '">') . '</td>'
-                    . '<td>' . ($s['status'] === 'Submitted' ? '<span class="muted">already counted</span>' : '<input type="text" name="reason[' . (int)$s['id'] . ']" placeholder="Only if the count differs">') . '</td></tr>';
+            foreach ($open as $s2) {
+                $exp = Cash::expected((int)$s2['id']);
+                echo '<tr><td>' . e($s2['session_no']) . '</td><td>' . e($s2['cashier']) . '</td><td>' . badge($s2['status']) . '</td><td class="r">' . num($exp) . '</td>'
+                    . '<td class="r">' . ($s2['status'] === 'Submitted' ? '<span class="muted">' . num((int)$s2['counted_cash']) . '</span>' : '<input type="text" inputmode="numeric" class="money" name="counted[' . (int)$s2['id'] . ']" value="' . $exp . '">') . '</td>'
+                    . '<td>' . ($s2['status'] === 'Submitted' ? '<span class="muted">already counted</span>' : '<input type="text" name="reason[' . (int)$s2['id'] . ']" placeholder="Only if the count differs">') . '</td></tr>';
             }
             echo '</tbody></table><div class="form-actions" style="margin-top:.6rem">'; submit_btn('Count and reconcile these tills'); echo '</div>'; form_close(); echo '</div>';
         }
-    } else {
-        echo '<p>The branch is ready: every till is counted and reconciled. Running End of Day backs up the database, closes and locks <b>' . e(fmt_date($bd)) . '</b>, posts the day to the ledger and opens the next working day.</p>';
-    }
-    if ($canRun) {
-        echo '<details class="eod-note"><summary>Add a note (optional)</summary><textarea data-eod-notes rows="2" placeholder="Anything worth recording about today"></textarea></details>';
-        echo '<button type="button" class="btn primary eod-btn" data-eod-start' . ($blockers ? ' disabled title="Close and count every till first"' : '') . '>' . icon('check', 18) . ' Run End of Day for ' . e(fmt_date($bd)) . '</button>';
-        if ($blockers) echo '<p class="muted" style="margin:.4rem 0 0;font-size:.82rem">The button unlocks once every till is closed and reconciled.</p>';
-    } else echo '<p class="muted">You do not have permission to run End of Day.</p>';
+    } else echo '<p class="muted">Ready: every till is counted and reconciled.</p>';
     echo '</div><div class="eod-run" hidden><div class="eod-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span data-eod-fill></span></div>'
         . '<div class="eod-pct" data-eod-pct>0%</div><ol class="eod-list">';
     foreach (Eod::PHASES as $k => $label) echo '<li data-phase="' . e($k) . '"><span class="eod-ic"></span><span class="eod-lb">' . e($label) . '</span><small data-msg></small></li>';
@@ -142,7 +158,7 @@ foreach ($branches as $bid => $bn) {
     echo '</ol><div class="eod-result" data-eod-result hidden></div></div></div></div>';
 }
 echo '<div class="eod-modal" data-eod-modal hidden role="dialog" aria-modal="true" aria-labelledby="eod-q"><div class="eod-dialog"><h2 id="eod-q">Run End of Day?</h2>'
-    . '<p data-eod-question></p><p class="muted">The business date will be closed and locked, and the system date moves to the next working day. This cannot be undone without a manager reopening the date.</p>'
+    . '<p data-eod-question></p><p class="muted">Every office will be closed and locked for its business date, and the system date moves to the next working day for all of them together.</p>'
     . '<div class="eod-dialog-actions"><button type="button" class="btn" data-eod-no>No, not yet</button><button type="button" class="btn primary" data-eod-yes>Yes, run End of Day</button></div></div></div>';
 echo '<script src="' . e(asset('eod_run.js')) . '"></script>';
 

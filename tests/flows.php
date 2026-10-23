@@ -191,8 +191,8 @@ echo "
 ";
 $admin->get($admin->url('eodsys'));
 step('the End of Day page shows each branch with its system date', $admin->code === 200 && str_contains($admin->body, 'Run End of Day') && str_contains($admin->body, 'System date'), info($admin));
-preg_match('~data-eod data-branch="' . $B . '" data-date="([^"]+)" data-datelabel="[^"]*" data-url="([^"]+)" data-csrf="([^"]+)"~', $admin->body, $em);
-step('a ready branch offers one Run End of Day button with a progress runner', count($em) === 4 && str_contains($admin->body, 'eod-bar') && str_contains($admin->body, 'data-eod-start'), info($admin));
+preg_match('~data-eod(?: data-participant="1")? data-branch="' . $B . '" data-date="([^"]+)" data-datelabel="[^"]*" data-url="([^"]+)" data-csrf="([^"]+)"~', $admin->body, $em);
+step('a ready branch offers one Run End of Day button with a progress runner', count($em) === 4 && str_contains($admin->body, 'eod-bar') && str_contains($admin->body, 'data-eod-all'), info($admin));
 $eodStep = function (string $phase) use ($admin, $em, $B) { $admin->req(html_entity_decode($em[2]), ['_csrf' => $em[3], 'branch' => (string)$B, 'date' => $em[1], 'phase' => $phase, 'notes' => 'flow test close']); return json_decode($admin->body, true) ?: ['ok' => false, 'message' => substr($admin->body, 0, 120)]; };
 $r = $eodStep('close');
 step('the day cannot be closed before the backup', !$r['ok'] && str_contains($r['message'], 'backup first'), json_encode($r));
@@ -200,7 +200,7 @@ $allOk = true; $trace = [];
 foreach (['check', 'backup', 'close', 'ledger', 'closing_backup', 'next', 'done'] as $ph) { $r = $eodStep($ph); $trace[] = $ph . ':' . ($r['ok'] ? 'ok' : 'FAIL ' . $r['message']); if (!$r['ok']) $allOk = false; }
 step('run End of Day step by step: backup, close, ledger, closing backup, next day, notice', $allOk, implode(' | ', $trace));
 $admin->get($admin->url('eodsys'));
-preg_match('~data-eod data-branch="' . $B . '" data-date="([^"]+)"~', $admin->body, $nd);
+preg_match('~data-eod(?: data-participant="1")? data-branch="' . $B . '" data-date="([^"]+)"~', $admin->body, $nd);
 step('the system date moved to the next working day straight after End of Day', !empty($nd[1]) && $nd[1] > $em[1], 'before ' . $em[1] . ' after ' . ($nd[1] ?? 'none'));
 $bm->get($bm->url('eod'));
 step('the branch manager sees the new system date and no approval step', $bm->code === 200 && !str_contains($bm->body, 'a=approve'), info($bm));

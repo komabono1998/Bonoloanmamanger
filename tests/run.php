@@ -739,8 +739,8 @@ eq(current_bd($C), $res['next_date'], 'closing End-of-Day moves the system date'
 ok(current_bd($C) !== null && current_bd($C) > $dC, 'the new system date is after the closed one (' . current_bd($C) . ')');
 as_('admin');
 $h = $render('eodsys', []);
-ok((str_contains($h, 'Run End of Day') || str_contains($h, 'Not ready to close yet')) && str_contains($h, 'Kampala Main') && str_contains($h, 'System date') && str_contains($h, 'One click'), 'the administrator sees each branch with its system date and the one-click Run End of Day (or what is still pending)');
-ok(str_contains($h, 'data-eod-modal') && (str_contains($h, 'data-eod-start') || str_contains($h, 'You do not have permission to run End of Day')), 'every branch shows the Run End of Day button, with a yes/no confirmation and the progress runner');
+ok((str_contains($h, 'Run End of Day') || str_contains($h, 'Not ready to close yet') || str_contains($h, 'all offices')) && str_contains($h, 'Kampala Main') && str_contains($h, 'System date') && str_contains($h, 'One click'), 'the administrator sees each branch with its system date and the one-click Run End of Day (or what is still pending)');
+ok(str_contains($h, 'data-eod-modal') && (str_contains($h, 'data-eod-all') || str_contains($h, 'You do not have permission to run End of Day') || str_contains($h, 'No office has an open business day')), 'every branch shows the Run End of Day button, with a yes/no confirmation and the progress runner');
 ok(!str_contains($h, 'Cash in tills') && !str_contains($h, 'UGX'), 'the administrator page shows no financial figures');
 section('Report Centre: 104 reports, access by role, scoped data');
 $cat = ReportCatalog::all();
