@@ -126,6 +126,29 @@ final class Cash
         });
     }
 
+    /**
+     * System Administrator: count and reconcile every open till of a branch at End of Day. $counts = [session id => [counted cash, reason]].
+     * A variance still needs its explanation; the cashier's own approval is not needed because the administrator is independent of the till.
+     */
+    public static function closeOpenTills(int $branch, string $date, array $counts): int
+    {
+        require_perm('till.reconcile');
+        require_perm('eod.run');
+        $n = 0;
+        foreach (rows("SELECT * FROM cashier_sessions WHERE branch_id = ? AND business_date = ? AND status IN ('Open','Submitted','Investigation') ORDER BY id", [$branch, $date]) as $s) {
+            must((int)$s['cashier_id'] !== (int)uid(), 'Your own till cannot be reconciled by you; ask another authorised user to close it.');
+            if ($s['status'] !== 'Submitted') {
+                $c = $counts[$s['id']] ?? null;
+                $counted = $c && $c[0] !== '' ? parse_money($c[0], 'Counted cash for ' . $s['session_no'], true) : self::expected((int)$s['id']);
+                self::submitCount((int)$s['id'], $counted, trim((string)($c[1] ?? '')), []);
+            }
+            self::reconcile((int)$s['id'], 'Closed and reconciled by the administrator at End of Day');
+            audit('Till closed by administrator at End of Day', 'Cashier', 'cashier_session', (int)$s['id'], $s['status'], 'Reconciled', '', '', null, null, $branch);
+            $n++;
+        }
+        return $n;
+    }
+
     public static function reconcile(int $sessionId, string $notes): void
     {
         require_perm('till.reconcile');

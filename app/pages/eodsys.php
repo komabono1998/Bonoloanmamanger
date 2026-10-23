@@ -16,6 +16,17 @@ if (get('a') === 'backup') post_action(function () use ($branches) {
     must($b['ok'], 'The backup failed: ' . $b['message']);
     return 'Verified backup taken for ' . branch_name($bid) . ' — ' . fmt_date($bd) . '. You can now run End of Day.';
 });
+if (get('a') === 'closetills') post_action(function () use ($branches) {
+    require_perm('till.reconcile');
+    $bid = (int)post('branch');
+    must(isset($branches[$bid]), 'Choose a branch.');
+    $bd = current_bd($bid);
+    must($bd !== null, 'This branch has no open business day.');
+    $counts = [];
+    foreach ((array)($_POST['counted'] ?? []) as $sid => $v) $counts[(int)$sid] = [trim((string)$v), trim((string)($_POST['reason'][$sid] ?? ''))];
+    $n = Cash::closeOpenTills($bid, $bd, $counts);
+    return $n ? $n . ' till(s) counted and reconciled for ' . branch_name($bid) . '. You can now run End of Day.' : 'There were no open tills to close.';
+});
 if (get('a') === 'run') post_action(function () use ($branches) {
     require_perm('eod.run');
     $bid = (int)post('branch');
@@ -92,6 +103,19 @@ foreach ($branches as $bid => $bn) {
         echo '<div class="eod-wait"><b>Not ready to close yet</b><ul>';
         foreach ($blockers as $b) echo '<li>' . e($b['label']) . ' <span class="muted">&mdash; ' . e($b['detail']) . '</span></li>';
         echo '</ul><a class="btn sm" href="' . e(url('till')) . '">Open Cashier &amp; Till</a></div>';
+        $open = rows("SELECT s.*, u.full_name AS cashier FROM cashier_sessions s JOIN users u ON u.id = s.cashier_id WHERE s.branch_id = ? AND s.business_date = ? AND s.status IN ('Open','Submitted','Investigation') ORDER BY s.id", [$bid, $bd]);
+        if ($open && can('till.reconcile') && can('eod.run')) {
+            echo '<div class="eod-tills"><b>Close the open tills now</b><p class="muted">As administrator you can count and reconcile every open till here. Enter the cash actually counted (it starts at the expected amount); a difference needs a reason.</p>';
+            form_open(url('eodsys', ['a' => 'closetills']), ['attrs' => 'style="display:block" data-confirm="Count and reconcile these tills for ' . e($bn) . '?"']);
+            echo '<input type="hidden" name="branch" value="' . (int)$bid . '"><table class="tbl"><thead><tr><th>Till</th><th>Cashier</th><th>Status</th><th class="r">Expected cash</th><th class="r">Counted cash</th><th>Reason if different</th></tr></thead><tbody>';
+            foreach ($open as $s) {
+                $exp = Cash::expected((int)$s['id']);
+                echo '<tr><td>' . e($s['session_no']) . '</td><td>' . e($s['cashier']) . '</td><td>' . badge($s['status']) . '</td><td class="r">' . num($exp) . '</td>'
+                    . '<td class="r">' . ($s['status'] === 'Submitted' ? '<span class="muted">' . num((int)$s['counted_cash']) . '</span>' : '<input type="text" inputmode="numeric" class="money" name="counted[' . (int)$s['id'] . ']" value="' . $exp . '">') . '</td>'
+                    . '<td>' . ($s['status'] === 'Submitted' ? '<span class="muted">already counted</span>' : '<input type="text" name="reason[' . (int)$s['id'] . ']" placeholder="Only if the count differs">') . '</td></tr>';
+            }
+            echo '</tbody></table><div class="form-actions" style="margin-top:.6rem">'; submit_btn('Count and reconcile these tills'); echo '</div>'; form_close(); echo '</div>';
+        }
     } else {
         echo '<p>The branch is ready: every till is counted and reconciled. Running End of Day backs up the database, closes and locks <b>' . e(fmt_date($bd)) . '</b>, posts the day to the ledger and opens the next working day.</p>';
     }
