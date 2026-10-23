@@ -12,7 +12,7 @@ assigned to them (the COO sees all). Cross-branch access by guessing an ID is re
 | **Finance Officer** | Opens/prepares the business day and EOD, reconciles till counts, reviews collections, cashbook & expenses, requests payment reversals, financial reports | assigned branch(es) |
 | **Branch Manager** | Approves loans within limit, authorizes disbursement, approves reversals / expenses / EOD within limit, reconciles variances, branch reports | assigned branch(es) |
 | **COO** | Institution-wide oversight; approves everything above Branch Manager limits (escalations), approves policy, sets approval limits, authorizes system recovery | all branches |
-| **System Administrator** | Users, branch access, role permissions, organization & security settings, backups, health. **No financial authority.** No access to client or loan records by default | system |
+| **System Administrator** | Every user right, all reports and all configuration (users, branches, settings, backups, health, approvals, finance). Actions are audited.| system |
 | *Cashier* (optional) | Teller: receives payments, releases approved disbursements, runs a till. The spec lets a Finance Officer be granted collection rights instead (add `payment.record` + `till.use` to that user) | assigned branch(es) |
 
 ## Default access matrix (summary — full matrix: Users & access → Access matrix)
@@ -51,7 +51,7 @@ assigned to them (the COO sees all). Cross-branch access by guessing an ID is re
 | EOD reopening: requester ≠ authorizer; authority Branch Manager or COO by policy | `Eod::decideReopen` |
 | Disbursement authorized by a manager with authority for the amount; not by the originating officer | `Loans::disburse` |
 | System recovery: administrator requests, **COO authorizes**, administrator executes | `Backup::requestRestore / authorizeRestore / restore` |
-| System Administrator can never hold financial authority; technical rights stay with that role | permission boundaries (`assert_permission_boundaries`) on every role / user permission change |
+| Technical rights (users, settings, backups, security) are reserved for the System Administrator role; the administrator holds every right | permission boundaries (`assert_permission_boundaries`), `user_permissions()` |
 | Closed EOD cannot be modified without the reopening process; history is corrected by reversal/adjustment only | `posting_date()` + database triggers |
 | Audit log, ledger, cash movements, login history cannot be edited or deleted (even by administrators) | database triggers (SQLite & PostgreSQL) |
 

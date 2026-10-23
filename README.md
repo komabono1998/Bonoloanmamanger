@@ -53,7 +53,7 @@ backup / restore (SQLite `VACUUM INTO`, PostgreSQL `pg_dump`/`pg_restore`), the 
 | Deployment | Cloud web app: HTTPS (HSTS, secure cookies, CSP), `.env` / secret-manager configuration, Docker image + Compose (Caddy TLS, PostgreSQL), `/health` probe, stderr logging, shared DB sessions for several app servers |
 | Database | PostgreSQL (managed) **and** SQLite from one portable schema; append-only triggers generated for both; concurrent-safe numbering and duplicate-posting protection |
 | Branches | Branch master data, per-branch cash accounts, **business date and EOD per branch** (a branch closing never blocks another), branch switcher, branch-scoped lists / reports / downloads / audit, institution-wide COO view |
-| Roles | Loan Officer, Finance Officer, Branch Manager, COO, System Administrator (+ optional Cashier profile); permission boundaries (administrator can never approve or post money) |
+| Roles | Loan Officer, Finance Officer, Branch Manager, COO, System Administrator (+ optional Cashier profile); the System Administrator holds every right, technical rights are reserved to that role |
 | Approvals | Configurable limits per category and branch, automatic routing to the COO, *My Approvals* inbox, voluntary escalation, approver level recorded |
 | Separation of duties | No self-approval anywhere; EOD preparer ≠ approver; reversals are request + independent approval; recovery needs COO authorization; reopening by policy |
 | Security | TOTP MFA (mandatory roles configurable) with encrypted seeds and recovery codes; login history, lock-out, IP throttling, new-IP detection, password policy / expiry; security monitoring page |

@@ -1,6 +1,6 @@
 # Administrator manual (System Administrator)
 
-The System Administrator runs the platform: accounts, branch set-up, access, security, backups and health. The role has **no financial authority** and no access to client or loan
+The System Administrator runs the platform: accounts, branch set-up, access, security, backups and health. The role holds **every user right**, with access to all reports and all configuration; every action is still recorded in the audit trail.
 records by default — it cannot approve loans, post payments, approve End-of-Day or waive penalties, and the system refuses to let anyone grant it those rights.
 
 ## 1. First-time setup
@@ -109,7 +109,7 @@ Every report page has a filter panel: **period presets** (today, yesterday, this
 
 ## General Ledger (chart of accounts, journals, trial balance)
 
-* **Where:** Cash > General Ledger (Finance Manager, Finance Officer, COO, Auditor can view; only the Finance Manager can post or change the chart; the System Administrator has no access).
+* **Where:** Cash > General Ledger (Finance Manager, Finance Officer, COO, Auditor can view; the Finance Manager and the System Administrator can post or change the chart).
 * **Automatic posting:** loan disbursements, interest, fees and penalties charged, repayments and their reversals, waivers, customer credits, cash/bank/mobile-money movements, expenses, transfers, floats and cash variances are posted to double-entry journals when End of Day runs. "Post pending now" posts anything outstanding. Every business event is posted exactly once.
 * **Basis:** interest, fees and penalties are income when received (cash basis); amounts still owed are shown as receivables against "unearned" liability accounts. Loan receivable accounts always equal the loan sub-ledger; the clearing accounts (1900, 1950, 1960) should be nil.
 * **Manual journals:** for capital, opening balances and bank charges. They must balance, cannot be dated in the future, can never be edited or deleted, and are corrected by a reversing journal.
