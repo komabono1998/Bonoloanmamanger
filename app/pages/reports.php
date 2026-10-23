@@ -17,25 +17,25 @@ if ($id === '') {
         return;
     }
     $cats = ReportCatalog::byCategory();
-    echo '<div class="rep-top"><div class="gsearch rep-search">' . icon('search', 18) . '<input type="search" placeholder="Search reports by name, ID or content…" data-report-search aria-label="Search reports"></div></div>';
-    echo '<div class="rep-cats"><button type="button" class="chip on" data-cat-filter="">All <span class="count">' . count($mine) . '</span></button>';
+    $first = ''; foreach (ReportCatalog::CATEGORIES as $k => $_) { if (array_filter($cats[$k] ?? [], fn($r) => isset($mine[$r['id']]))) { $first = $k; break; } }
+    echo '<div class="rep-layout"><aside class="rep-rail"><div class="gsearch rep-search">' . icon('search', 18) . '<input type="search" placeholder="Find a report…" data-report-search aria-label="Search reports"></div>';
+    echo '<div class="rep-rail-h">Report categories</div>';
+    echo '<button type="button" class="rail-b" data-cat-filter=""><span class="rl">∗</span><span class="rn">All reports</span><span class="count">' . count($mine) . '</span></button>';
     foreach (ReportCatalog::CATEGORIES as $k => [$name]) {
         $n = count(array_filter($cats[$k] ?? [], fn($r) => isset($mine[$r['id']])));
-        if ($n) echo '<button type="button" class="chip" data-cat-filter="' . $k . '"><b>' . $k . '</b> ' . e($name) . ' <span class="count">' . $n . '</span></button>';
+        if ($n) echo '<button type="button" class="rail-b' . ($k === $first ? ' on' : '') . '" data-cat-filter="' . $k . '"><span class="rl">' . $k . '</span><span class="rn">' . e($name) . '</span><span class="count">' . $n . '</span></button>';
     }
-    echo '</div>';
+    echo '</aside><div class="rep-main">';
     foreach (ReportCatalog::CATEGORIES as $k => [$name, $desc]) {
         $items = array_filter($cats[$k] ?? [], fn($r) => isset($mine[$r['id']]));
-        $hidden = count($cats[$k] ?? []) - count($items);
-        if (!$items && !$hidden) continue;
         if (!$items) continue;
-        echo '<div class="card rep-cat" id="cat-' . $k . '" data-report-cat data-cat="' . $k . '"><div class="card-h"><h2><span class="rep-letter">' . $k . '</span> ' . e($name) . '</h2><span class="muted">' . count($items) . ' report' . (count($items) === 1 ? '' : 's') . '</span></div><p class="muted" style="margin:-.3rem 0 .6rem">' . e($desc) . '</p><div class="rep-list">';
+        echo '<section class="card rep-cat" id="cat-' . $k . '" data-report-cat data-cat="' . $k . '"' . ($k === $first ? '' : ' hidden') . '><div class="card-h"><h2><span class="rep-letter">' . $k . '</span> ' . e($name) . '</h2><span class="muted">' . count($items) . ' report' . (count($items) === 1 ? '' : 's') . '</span></div><p class="muted" style="margin:-.3rem 0 .6rem">' . e($desc) . '</p><div class="rep-list">';
         foreach ($items as $r) {
-            echo '<a class="rep-item" data-report-item data-text="' . e(strtolower($r['id'] . ' ' . $r['title'] . ' ' . $r['info'])) . '" href="' . e(url('reports', ['r' => $r['id']])) . '"><span class="rep-id">' . e($r['id']) . '</span><span class="rep-body"><b>' . e($r['title']) . '</b><small>' . e($r['info']) . '</small></span><span class="rep-go">' . icon('chevron', 16) . '</span></a>';
+            echo '<a class="rep-item" data-report-item data-text="' . e(strtolower($r['id'] . ' ' . $r['title'] . ' ' . $r['info'])) . '"' . ($k === $first ? '' : ' hidden') . ' href="' . e(url('reports', ['r' => $r['id']])) . '"><span class="rep-id">' . e($r['id']) . '</span><span class="rep-body"><b>' . e($r['title']) . '</b><small>' . e($r['info']) . '</small></span><span class="rep-go">' . icon('chevron', 16) . '</span></a>';
         }
-        echo '</div>' . ($hidden ? '<p class="muted" style="margin:.6rem 0 0;font-size:.82rem">' . $hidden . ' other report' . ($hidden === 1 ? '' : 's') . ' in this category ' . ($hidden === 1 ? 'is' : 'are') . ' not part of your profile.</p>' : '') . '</div>';
+        echo '</div></section>';
     }
-    echo '<p class="muted" data-report-none hidden>No report matches your search.</p>';
+    echo '<p class="muted" data-report-none hidden>No report matches your search.</p></div></div>';
     return;
 }
 
@@ -72,32 +72,47 @@ page_head($def['title'], $act, ReportCatalog::CATEGORIES[$def['cat']][0] . ' · 
 
 // ---- filters
 $pick = fn(array $keys) => array_diff_key($q, array_flip($keys));
-echo '<form method="get" action="' . e(base_url() . '/index.php') . '" class="card filters2"><input type="hidden" name="p" value="reports"><input type="hidden" name="r" value="' . e($id) . '">';
-if ($periodic) {
-    echo '<div class="presets"><span class="muted">Period</span>';
-    foreach (ReportRun::PRESETS as $k => $l) echo '<a class="pill' . ($p['preset'] === $k ? ' on' : '') . '" href="' . e(url('reports', $pick(['from', 'to', 'preset']) + ['preset' => $k])) . '">' . e($l) . '</a>';
-    echo '</div><div class="fgrid"><div class="fld"><label>From</label><input type="date" name="from" value="' . e($p['from']) . '"></div><div class="fld"><label>To</label><input type="date" name="to" value="' . e($p['to']) . '"></div>';
-} else echo '<div class="fgrid">';
-$sel = function (string $name, string $label, array $opts, $val, string $all = 'All') {
-    echo '<div class="fld"><label>' . e($label) . '</label><select name="' . e($name) . '"><option value="">' . e($all) . '</option>';
-    foreach ($opts as $k => $v) echo '<option value="' . e($k) . '"' . ((string)$k === (string)$val ? ' selected' : '') . '>' . e($v) . '</option>';
-    echo '</select></div>';
+$offOpts = [];
+if ((str_contains($uses, 'o') || $app['officer']) && !portfolio_restricted()) foreach (rows("SELECT id, full_name FROM users WHERE role IN ('Loan Officer','Branch Manager','COO') ORDER BY full_name") as $u) $offOpts[$u['id']] = $u['full_name'];
+$scopes = [];
+if ((str_contains($uses, 'b') || $app['branch']) && count(accessible_branch_ids()) > 1) $scopes['branch'] = ['By branch', 'Branch', branch_options(), $p['branch'] ?: '', 'All my branches'];
+if ($offOpts) $scopes['officer'] = ['By loan officer', 'Loan officer', $offOpts, $p['officer'] ?: '', 'All loan officers'];
+if ($app['loan']) $scopes['type'] = ['By loan type', 'Loan type (repayment)', ['daily' => 'Daily repayment loans', 'weekly' => 'Weekly repayment loans', 'monthly' => 'Monthly repayment loans'], $p['type'], 'All loan types'];
+$curScope = ''; foreach ($scopes as $k => $sc) if ((string)$sc[3] !== '') { $curScope = $k; break; }
+$selHtml = function (string $name, string $label, array $opts, $val, string $all = 'All') {
+    $h = '<div class="fld"><label>' . e($label) . '</label><select name="' . e($name) . '"><option value="">' . e($all) . '</option>';
+    foreach ($opts as $k => $v) $h .= '<option value="' . e($k) . '"' . ((string)$k === (string)$val ? ' selected' : '') . '>' . e($v) . '</option>';
+    return $h . '</select></div>';
 };
-if ((str_contains($uses, 'b') || $app['branch']) && count(accessible_branch_ids()) > 1) $sel('branch', 'Branch', branch_options(), $p['branch'] ?: '', 'All my branches');
-if ((str_contains($uses, 'o') || $app['officer']) && !portfolio_restricted()) { $o = []; foreach (rows("SELECT id, full_name FROM users WHERE role IN ('Loan Officer','Branch Manager','COO') ORDER BY full_name") as $u) $o[$u['id']] = $u['full_name']; $sel('officer', 'Loan officer', $o, $p['officer'] ?: ''); }
-if ((str_contains($uses, 'c') || $app['cashier']) && !ReportEngines::ownCashierOnly()) { $o = []; foreach (rows("SELECT id, full_name FROM users WHERE role IN ('Cashier','Finance Officer','Finance Manager','Branch Manager') ORDER BY full_name") as $u) $o[$u['id']] = $u['full_name']; $sel('cashier', 'Cashier', $o, $p['cashier'] ?: ''); }
-if (str_contains($uses, 'm') || $app['method']) $sel('method', 'Payment channel', array_combine(Payments::METHODS, Payments::METHODS), $p['method']);
-if (str_contains($uses, 'k') || $app['client']) $sel('client', 'Client', client_select_options(), $p['client'] ?: '');
+echo '<form method="get" action="' . e(base_url() . '/index.php') . '" class="card filters2 qf"><input type="hidden" name="p" value="reports"><input type="hidden" name="r" value="' . e($id) . '">';
+if ($periodic) {
+    echo '<div class="qf-row"><div class="qf-label">1 · Date range</div><div class="qf-body"><div class="presets">';
+    foreach (ReportRun::PRESETS as $k => $l) echo '<a class="pill' . ($p['preset'] === $k ? ' on' : '') . '" href="' . e(url('reports', $pick(['from', 'to', 'preset']) + ['preset' => $k])) . '">' . e($l) . '</a>';
+    echo '</div><div class="qf-dates"><div class="fld"><label>From</label><input type="date" name="from" value="' . e($p['from']) . '"></div><div class="fld"><label>To</label><input type="date" name="to" value="' . e($p['to']) . '"></div></div></div></div>';
+}
+if ($scopes) {
+    echo '<div class="qf-row"><div class="qf-label">' . ($periodic ? '2' : '1') . ' · Scope</div><div class="qf-body"><div class="seg" role="tablist">';
+    echo '<button type="button" class="seg-b' . ($curScope === '' ? ' on' : '') . '" data-scope="">Everything</button>';
+    foreach ($scopes as $k => $sc) echo '<button type="button" class="seg-b' . ($curScope === $k ? ' on' : '') . '" data-scope="' . $k . '">' . e($sc[0]) . '</button>';
+    echo '</div><div class="qf-scopes">';
+    foreach ($scopes as $k => $sc) echo '<div class="qf-scope" data-scope-box="' . $k . '"' . ($curScope === $k ? '' : ' hidden') . '>' . $selHtml($k, $sc[1], $sc[2], $sc[3], $sc[4]) . '</div>';
+    echo '</div></div></div>';
+}
+echo '<div class="qf-row"><div class="qf-label">' . ($periodic ? ($scopes ? '3' : '2') : ($scopes ? '2' : '1')) . ' · Narrow down</div><div class="qf-body"><div class="fgrid">';
+if ((str_contains($uses, 'c') || $app['cashier']) && !ReportEngines::ownCashierOnly()) { $o = []; foreach (rows("SELECT id, full_name FROM users WHERE role IN ('Cashier','Finance Officer','Finance Manager','Branch Manager') ORDER BY full_name") as $u) $o[$u['id']] = $u['full_name']; echo $selHtml('cashier', 'Cashier', $o, $p['cashier'] ?: ''); }
+if (str_contains($uses, 'm') || $app['method']) echo $selHtml('method', 'Payment channel', array_combine(Payments::METHODS, Payments::METHODS), $p['method']);
+if (str_contains($uses, 'k') || $app['client']) echo $selHtml('client', 'Client', client_select_options(), $p['client'] ?: '');
 if (str_contains($uses, 'l') || $app['loan']) echo '<div class="fld"><label>Loan number</label><input type="text" name="loan" value="' . e($p['loan']) . '" placeholder="e.g. BLM-2026-000001"></div>';
-if (str_contains($uses, 'v')) $sel('view', 'Statement', Gl::VIEWS, $p['view'] ?: 'tb', 'Trial balance');
-if ($app['status']) $sel('status', 'Status', array_combine($app['status'], $app['status']), $p['status']);
+if (str_contains($uses, 'v')) echo $selHtml('view', 'Statement', Gl::VIEWS, $p['view'] ?: 'tb', 'Trial balance');
+if ($app['status']) echo $selHtml('status', 'Status', array_combine($app['status'], $app['status']), $p['status']);
 if (str_contains($uses, 'd')) echo '<div class="fld"><label>Days</label><input type="number" min="0" name="days" value="' . e($p['days'] ?: '') . '" placeholder="threshold"></div>';
 if ($app['amount']) echo '<div class="fld"><label>Amount from</label><input type="text" name="min" value="' . e($p['min']) . '" placeholder="0"></div><div class="fld"><label>Amount to</label><input type="text" name="max" value="' . e($p['max']) . '" placeholder="any"></div>';
 echo '<div class="fld wide"><label>Search in results</label><input type="search" name="q" value="' . e($p['q']) . '" placeholder="name, reference, phone…"></div>';
-echo '<div class="fld actions-col"><label>&nbsp;</label><div class="fbtns"><button class="btn primary" type="submit">' . icon('search', 14) . ' Apply filters</button><a class="btn" href="' . e(url('reports', ['r' => $id])) . '">Reset</a></div></div></div></form>';
+echo '</div></div></div><div class="qf-actions"><button class="btn primary" type="submit">' . icon('search', 14) . ' Run report</button><a class="btn" href="' . e(url('reports', ['r' => $id])) . '">Reset</a></div></form>';
+echo '<script>document.querySelectorAll(".qf").forEach(function(f){f.querySelectorAll("[data-scope]").forEach(function(b){b.addEventListener("click",function(){var s=b.getAttribute("data-scope");f.querySelectorAll("[data-scope]").forEach(function(x){x.classList.toggle("on",x===b)});f.querySelectorAll("[data-scope-box]").forEach(function(box){var on=box.getAttribute("data-scope-box")===s;box.hidden=!on;if(!on){var sel=box.querySelector("select");if(sel)sel.value=""}})})})})</script>';
 
 // ---- what is applied
-$labels = ['Period' => ['from', 'to', 'preset'], 'Branch' => ['branch'], 'Loan officer' => ['officer'], 'Cashier' => ['cashier'], 'Channel' => ['method'], 'Client' => ['client'], 'Loan' => ['loan'], 'Days' => ['days'], 'Status' => ['status'], 'Statement' => ['view'], 'Amount from' => ['min'], 'Amount to' => ['max'], 'Text' => ['q']];
+$labels = ['Period' => ['from', 'to', 'preset'], 'Branch' => ['branch'], 'Loan officer' => ['officer'], 'Cashier' => ['cashier'], 'Channel' => ['method'], 'Client' => ['client'], 'Loan' => ['loan'], 'Days' => ['days'], 'Status' => ['status'], 'Statement' => ['view'], 'Loan type' => ['type'], 'Amount from' => ['min'], 'Amount to' => ['max'], 'Text' => ['q']];
 $chips = '';
 $dflt = ReportRun::params([]);
 foreach (ReportRun::filterText($def, $p) as $lab => $val) {

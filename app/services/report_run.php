@@ -37,7 +37,7 @@ final class ReportRun
         $days = max(1, setting_int('report_default_days'));
         $p = ['from' => date('Y-m-d', strtotime("-$days days", strtotime($asOf))), 'to' => $asOf, 'preset' => '',
             'branch' => (int)$g('branch'), 'officer' => (int)$g('officer'), 'cashier' => (int)$g('cashier'), 'method' => $g('method'), 'client' => (int)$g('client'),
-            'loan' => $g('loan'), 'days' => (int)$g('days'), 'status' => $g('status'), 'view' => $g('view'), 'q' => $g('q'), 'min' => $g('min'), 'max' => $g('max')];
+            'loan' => $g('loan'), 'days' => (int)$g('days'), 'status' => $g('status'), 'view' => $g('view'), 'type' => in_array($g('type'), ['daily', 'weekly', 'monthly'], true) ? $g('type') : '', 'q' => $g('q'), 'min' => $g('min'), 'max' => $g('max')];
         if (is_date($g('from'))) $p['from'] = $g('from');
         if (is_date($g('to'))) $p['to'] = $g('to');
         if (isset(self::PRESETS[$g('preset')]) && ($r = self::presetRange($g('preset'), $asOf))) { [$p['from'], $p['to']] = $r; $p['preset'] = $g('preset'); }
@@ -49,7 +49,7 @@ final class ReportRun
     public static function query(array $p, bool $periodic = true): array
     {
         $o = [];
-        foreach (['branch', 'officer', 'cashier', 'method', 'client', 'loan', 'days', 'status', 'view', 'q', 'min', 'max'] as $k) if ($p[$k] !== '' && $p[$k] !== 0) $o[$k] = $p[$k];
+        foreach (['branch', 'officer', 'cashier', 'method', 'client', 'loan', 'days', 'status', 'view', 'type', 'q', 'min', 'max'] as $k) if ($p[$k] !== '' && $p[$k] !== 0) $o[$k] = $p[$k];
         if ($periodic) { $o['from'] = $p['from']; $o['to'] = $p['to']; if ($p['preset']) $o['preset'] = $p['preset']; }
         return $o;
     }
@@ -70,6 +70,13 @@ final class ReportRun
 
         $name = fn(string $sql, int $id) => (string)(val($sql, [$id]) ?: '');
         $m = [];
+        if ($p['type'] !== '' && $applicable['loan']) {
+            $freq = [];
+            foreach (array_chunk(array_values(array_unique(array_filter(array_column($rows, 'loan_no')))), 400) as $ch) {
+                foreach (rows('SELECT loan_no, frequency FROM loans WHERE loan_no IN (' . implode(',', array_fill(0, count($ch), '?')) . ')', $ch) as $fr) $freq[$fr['loan_no']] = $fr['frequency'];
+            }
+            $m[] = fn($r) => ($freq[$r['loan_no'] ?? ''] ?? '') === $p['type'];
+        }
         if ($p['loan'] !== '' && $applicable['loan']) $m[] = fn($r) => stripos((string)($r['loan_no'] ?? ''), $p['loan']) !== false;
         if ($p['client'] && $applicable['client']) {
             $c = row('SELECT client_no, full_name FROM clients WHERE id = ?', [$p['client']]);
@@ -112,6 +119,7 @@ final class ReportRun
         if ($p['loan'] !== '') $o['Loan'] = $p['loan'];
         if ($p['days']) $o['Days'] = (string)$p['days'];
         if ($p['status'] !== '') $o['Status'] = $p['status'];
+        if ($p['type'] !== '') $o['Loan type'] = ucfirst($p['type']) . ' repayment loans';
         if ($p['view'] !== '' && isset(Gl::VIEWS[$p['view']])) $o['Statement'] = Gl::VIEWS[$p['view']];
         if ($p['min'] !== '') $o['Amount from'] = $p['min'];
         if ($p['max'] !== '') $o['Amount to'] = $p['max'];

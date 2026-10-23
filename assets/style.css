@@ -409,3 +409,29 @@ body.bare { background: #eef3f8; }
 .report-doc table thead th { background: var(--bc) !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .report-doc .rep-foot { border-top: 2px solid var(--bc); }
 @media (max-width: 640px) { .report-doc .rep-banner { flex-direction: column; align-items: flex-start; } .report-doc .rep-stamp { text-align: left; } }
+
+/* Report Centre: category rail + one category at a time */
+.rep-layout { display: grid; grid-template-columns: 270px 1fr; gap: 1.1rem; align-items: start; }
+.rep-rail { position: sticky; top: 76px; display: grid; gap: .3rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .8rem; max-height: calc(100vh - 100px); overflow: auto; }
+.rep-rail .rep-search { max-width: none; margin-bottom: .4rem; }
+.rep-rail-h { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: .4rem .3rem .1rem; }
+.rail-b { display: flex; align-items: center; gap: .55rem; width: 100%; text-align: left; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: .88rem; padding: .45rem .5rem; border-radius: 8px; cursor: pointer; }
+.rail-b:hover { background: var(--brand-soft); }
+.rail-b.on { background: var(--brand); color: #fff; }
+.rail-b .rl { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--brand-soft); color: var(--brand); font-weight: 700; font-size: .78rem; flex: none; }
+.rail-b.on .rl { background: rgba(255,255,255,.22); color: #fff; }
+.rail-b .rn { flex: 1; line-height: 1.2; }
+.rail-b .count { font-size: .72rem; opacity: .8; }
+.rep-main .rep-list { grid-template-columns: 1fr; }
+@media (max-width: 900px) { .rep-layout { grid-template-columns: 1fr; } .rep-rail { position: static; max-height: none; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } .rep-rail .rep-search, .rep-rail-h { grid-column: 1 / -1; } }
+/* report filters: three clear steps */
+.qf { display: grid; gap: .9rem; }
+.qf-row { display: grid; grid-template-columns: 150px 1fr; gap: 1rem; align-items: start; padding-bottom: .8rem; border-bottom: 1px dashed var(--line); }
+.qf-label { font-weight: 700; font-size: .85rem; color: var(--brand); padding-top: .35rem; }
+.qf-dates { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: .6rem; } .qf-dates .fld { min-width: 170px; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg-b { border: 0; background: var(--card); color: var(--ink); font: inherit; font-size: .86rem; padding: .45rem .9rem; cursor: pointer; border-right: 1px solid var(--line); }
+.seg-b:last-child { border-right: 0; } .seg-b.on { background: var(--brand); color: #fff; }
+.qf-scopes { margin-top: .6rem; max-width: 340px; } .qf-scope[hidden] { display: none; }
+.qf-actions { display: flex; gap: .5rem; }
+@media (max-width: 700px) { .qf-row { grid-template-columns: 1fr; gap: .3rem; } }
