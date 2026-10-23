@@ -58,3 +58,30 @@ function profile_gaps(): array
     if (setting('business_logo') === '') $gaps[] = 'logo';
     return $gaps;
 }
+
+/** [h(0-360), s(0-1), l(0-1)] from #rrggbb */
+function hex_to_hsl(string $hex): array
+{
+    [$r, $g, $b] = array_map(fn($x) => hexdec($x) / 255, str_split(ltrim($hex, '#'), 2));
+    $max = max($r, $g, $b); $min = min($r, $g, $b); $l = ($max + $min) / 2; $d = $max - $min;
+    if ($d == 0) return [0, 0, $l];
+    $s = $l > .5 ? $d / (2 - $max - $min) : $d / ($max + $min);
+    $h = match (true) { $max == $r => fmod(($g - $b) / $d + 6, 6), $max == $g => ($b - $r) / $d + 2, default => ($r - $g) / $d + 4 } * 60;
+    return [$h, $s, $l];
+}
+
+/** The app's colour theme, derived from the institution brand colour so the whole interface matches the letterhead. */
+function brand_theme_css(): string
+{
+    $hex = preg_match('/^#[0-9A-Fa-f]{6}$/', setting('brand_color')) ? setting('brand_color') : '#e8631a';
+    [$h, $s] = hex_to_hsl($hex);
+    $s = max(.35, $s);
+    $c = fn(float $hh, float $ss, float $ll) => sprintf('hsl(%d,%d%%,%d%%)', round(fmod($hh + 360, 360)), round($ss * 100), round($ll * 100));
+    $vars = ['--brand' => $hex, '--brand-2' => $c($h, $s, .42), '--brand-soft' => $c($h, min(1, $s), .95), '--side' => $c($h - 8, .55, .17), '--side-on' => $hex, '--side-ink' => $c($h - 8, .25, .85)];
+    $dark = ['--brand-soft' => $c($h, .35, .2), '--side' => $c($h - 8, .5, .1)];
+    $o = ':root{';
+    foreach ($vars as $k => $v) $o .= "$k:$v;";
+    $o .= '}@media (prefers-color-scheme:dark){:root{';
+    foreach ($dark as $k => $v) $o .= "$k:$v;";
+    return $o . '}}';
+}

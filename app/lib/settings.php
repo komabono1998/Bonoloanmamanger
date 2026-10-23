@@ -18,7 +18,7 @@ function setting_defaults(): array
         'registration_no' => '',
         'tax_id' => '',
         'institution_code' => '',
-        'brand_color' => '#0b5c4d',
+        'brand_color' => '#e8631a',
         'staff_prefix' => 'S',
         'setup_lending_confirmed' => '0',
         'admin_manages_policy' => '1',

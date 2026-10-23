@@ -16,7 +16,7 @@ $GROUPS = [
         'institution_code' => ['Institution code', 'text', 'Short code used in staff IDs, e.g. EMG-S-0001 (2–6 letters/numbers).'], 'registration_no' => ['Registration number', 'text'], 'tax_id' => ['Tax ID (TIN)', 'text'],
         'business_address' => ['Street / address', 'text'], 'business_city' => ['Town / district', 'text'], 'business_country' => ['Country', 'text'],
         'business_phone' => ['Telephone', 'text'], 'business_phone2' => ['Alternative telephone', 'text'], 'business_email' => ['Email', 'text'], 'business_website' => ['Website', 'text'],
-        'brand_color' => ['Brand colour', 'color', 'Used for the letterhead line and headings on documents.'],
+        'brand_color' => ['Brand colour', 'color', 'Colours the whole interface (menu, buttons, charts) and the letterhead line on documents.'],
         'currency' => ['Currency', 'text', 'Display label only (amounts are whole UGX).'], 'receipt_footer' => ['Receipt / document footer', 'text'],
         'receipt_paper' => ['Receipt paper size', 'select', ['A4' => 'A4', '80mm' => '80 mm roll']],
     ]],

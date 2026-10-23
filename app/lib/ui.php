@@ -296,7 +296,10 @@ function icon(string $name, int $size = 18): string
         'inbox' => 'M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
         'trend' => 'M23 6l-9.5 9.5-5-5L1 18 M17 6h6v6',
         'eye' => 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+        'bell' => 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.7 21a2 2 0 0 1-3.4 0',
+        'menu' => 'M3 6h18 M3 12h18 M3 18h18',
         'chevron' => 'M9 18l6-6-6-6',
+        'down' => 'M6 9l6 6 6-6',
         'download' => 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
     ];
     $d = $p[$name] ?? $p['file'];
@@ -306,7 +309,7 @@ function icon(string $name, int $size = 18): string
 /** Route key => icon name for the sidebar and quick links. */
 function route_icon(string $key): string
 {
-    return ['dashboard' => 'home', 'inbox' => 'inbox', 'compliance' => 'trend', 'clients' => 'users', 'guarantors' => 'user', 'loans' => 'clipboard', 'assessment' => 'search', 'approvals' => 'check',
+    return ['dashboard' => 'home', 'inbox' => 'inbox', 'compliance' => 'trend', 'search' => 'search', 'clients' => 'users', 'guarantors' => 'user', 'loans' => 'clipboard', 'assessment' => 'search', 'approvals' => 'check',
         'disbursements' => 'dollar', 'securities' => 'shield', 'schedules' => 'calendar', 'payments' => 'card', 'receipts' => 'file', 'portfolio' => 'briefcase', 'arrears' => 'alert', 'till' => 'clock',
         'cashbook' => 'layers', 'eod' => 'calendar', 'reports' => 'bar', 'importexport' => 'download', 'audit' => 'eye', 'users' => 'users', 'branches' => 'building', 'settings' => 'settings',
         'backup' => 'database', 'security' => 'lock', 'system' => 'activity', 'account' => 'user', 'mfa' => 'key'][$key] ?? 'file';
@@ -319,6 +322,17 @@ function quick_tiles(array $items): string
     foreach ($items as [$pg, $pa, $label, $ic, $perm]) {
         if ($perm && !can_any($perm)) continue;
         $o .= '<a class="tile" href="' . e(url($pg, $pa)) . '">' . icon($ic, 24) . '<span>' . e($label) . '</span></a>';
+    }
+    return $o . '</div>';
+}
+
+/** Soft rounded quick-action buttons for the dashboard: [[page, params, label, icon, permission|null], ...]. */
+function quick_actions(array $items): string
+{
+    $o = '<div class="qa">';
+    foreach ($items as [$pg, $pa, $label, $ic, $perm]) {
+        if ($perm && !can_any($perm)) continue;
+        $o .= '<a href="' . e(url($pg, $pa)) . '">' . icon($ic, 28) . '<span>' . e($label) . '</span></a>';
     }
     return $o . '</div>';
 }

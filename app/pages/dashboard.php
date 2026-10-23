@@ -77,11 +77,96 @@ $lastEod = row("SELECT business_date FROM eod_records WHERE status = 'Closed' AN
 $awaitingEod = (int)val("SELECT COUNT(*) FROM eod_records e WHERE e.status IN ('Awaiting Manager Review','Escalated to COO') AND " . branch_scope('e.branch_id', $only) . ' AND e.version = (SELECT MAX(version) FROM eod_records x WHERE x.branch_id = e.branch_id AND x.business_date = e.business_date)');
 
 $scope = $only ? branch_name($only[0]) : (count(accessible_branch_ids()) > 1 ? 'all your branches' : branch_name(branch_id()));
-$tilesHtml = quick_tiles([['clients', ['a' => 'new'], 'Register client', 'user-plus', 'client.manage'], ['loans', ['a' => 'new'], 'New loan application', 'clipboard', 'loan.create'], ['payments', [], 'Receive payment', 'card', 'payment.record'],
-    ['till', [], 'Cashier & till', 'clock', 'till.use'], ['cashbook', [], 'Record expense', 'layers', 'expense.create'], ['inbox', [], 'My approvals', 'inbox', 'loan.approve|payment.reverse|expense.approve|till.reconcile|eod.approve|backup.authorize'],
-    ['arrears', [], 'Arrears', 'alert', 'portfolio.view'], ['eod', [], 'End of day', 'calendar', 'eod.view'], ['reports', [], 'Reports', 'bar', 'report.view']]);
-page_head('Dashboard', '', 'Scope: ' . $scope . ' · as at ' . fmt_date($asOf) . ' (business date). Accrued amounts are shown separately from cash actually received.');
-echo $tilesHtml;
+// ------------------------------------------------------------------ headline view (branch-scoped, ignores the filters below)
+$mStart = date('Y-m-01', strtotime($asOf));
+$pStart = date('Y-m-01', strtotime('-1 month', strtotime($mStart)));
+$pEnd = date('Y-m-d', strtotime('-1 day', strtotime($mStart)));
+$BLo = branch_scope('l.branch_id', $only);
+$totClients = (int)val('SELECT COUNT(*) FROM clients WHERE ' . $BP);
+$clientsPrev = (int)val('SELECT COUNT(*) FROM clients WHERE substr(registered_at,1,10) <= ? AND ' . $BP, [$pEnd]);
+$activeLoans = (int)val("SELECT COUNT(*) FROM loans l WHERE $BLo AND l.status IN ('Active','Overdue')");
+$overdueLoans = (int)val("SELECT COUNT(*) FROM loans l WHERE $BLo AND l.status = 'Overdue'");
+$disbSum = fn(string $a, string $b) => (int)val("SELECT COALESCE(SUM(d.approved_principal),0) FROM disbursements d JOIN loans l ON l.id = d.loan_id WHERE $BLo AND d.business_date BETWEEN ? AND ?", [$a, $b]);
+$collSum = fn(string $a, string $b) => (int)val("SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.status = 'Posted' AND p.business_date BETWEEN ? AND ? AND " . branch_scope('p.branch_id', $only), [$a, $b]);
+$disbNow = $disbSum($mStart, $asOf); $disbPrev = $disbSum($pStart, $pEnd);
+$collNow = $collSum($mStart, $asOf); $collPrev = $collSum($pStart, $pEnd);
+$trend = function (int $cur, int $prev): string {
+    if ($prev <= 0) return '<div class="trend">' . ($cur > 0 ? '<i class="up">new</i> this month' : 'no change yet') . '</div>';
+    $pc = round(($cur - $prev) / $prev * 100);
+    return '<div class="trend"><i class="' . ($pc >= 0 ? 'up' : 'down') . '">' . ($pc >= 0 ? '↑ ' : '↓ ') . abs($pc) . '%</i> from last month</div>';
+};
+$first = explode(' ', trim(user()['full_name']))[0];
+$hour = (int)date('G');
+echo '<div class="welcome"><div><h1>' . ($hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening')) . ', ' . e($first) . '!</h1><p>Here’s what’s happening at ' . ($only ? e(branch_name($only[0])) : (count(accessible_branch_ids()) > 1 ? 'your branches' : 'your branch')) . ' today.</p></div>'
+    . '<div class="when"><span>' . icon('calendar', 18) . e(date('D, j M Y', strtotime($asOf))) . '</span><span>' . icon('building', 18) . e($scope) . '</span></div></div>';
+echo '<div class="stats">'
+    . '<div class="stat"><span class="stat-ic">' . icon('users', 26) . '</span><div><b>' . num($totClients) . '</b><div class="sl">Total clients</div>' . $trend($totClients, $clientsPrev) . '</div></div>'
+    . '<div class="stat"><span class="stat-ic">' . icon('clipboard', 26) . '</span><div><b>' . num($activeLoans) . '</b><div class="sl">Active loans</div><div class="trend">' . ($overdueLoans ? '<i class="down">' . $overdueLoans . ' overdue</i>' : '<i class="up">none overdue</i>') . '</div></div></div>'
+    . '<div class="stat"><span class="stat-ic">' . icon('dollar', 26) . '</span><div><b>' . ugx($disbNow) . '</b><div class="sl">Disbursed this month</div>' . $trend($disbNow, $disbPrev) . '</div></div>'
+    . '<div class="stat"><span class="stat-ic">' . icon('card', 26) . '</span><div><b>' . ugx($collNow) . '</b><div class="sl">Collected this month</div>' . $trend($collNow, $collPrev) . '</div></div>'
+    . '</div>';
+
+// collections trend (daily, current month) + loan status donut
+$daily = [];
+foreach (rows("SELECT p.business_date AS d, SUM(p.amount) AS s FROM payments p WHERE p.status = 'Posted' AND p.business_date BETWEEN ? AND ? AND " . branch_scope('p.branch_id', $only) . ' GROUP BY p.business_date', [$mStart, $asOf]) as $r) $daily[$r['d']] = (int)$r['s'];
+$dim = (int)date('t', strtotime($mStart));
+$maxV = max(1, ...array_values($daily ?: [1]));
+$mag = 10 ** max(0, strlen((string)$maxV) - 1); $top = (int)(ceil($maxV / $mag) * $mag);
+$W = 640; $H = 250; $L = 46; $B = 28; $T = 10; $cw = ($W - $L - 8) / $dim; $ph = $H - $B - $T;
+$svg = '<svg class="chart" viewBox="0 0 ' . $W . ' ' . $H . '" role="img" aria-label="Collections per day this month">';
+for ($i = 0; $i <= 4; $i++) {
+    $y = $T + $ph - $ph * $i / 4; $v = $top * $i / 4;
+    $svg .= '<line class="gl" x1="' . $L . '" x2="' . $W . '" y1="' . $y . '" y2="' . $y . '"/><text x="' . ($L - 6) . '" y="' . ($y + 4) . '" text-anchor="end">' . ($v >= 1000000 ? round($v / 1000000, 1) . 'M' : ($v >= 1000 ? round($v / 1000) . 'k' : (int)$v)) . '</text>';
+}
+for ($d = 1; $d <= $dim; $d++) {
+    $date = date('Y-m-', strtotime($mStart)) . str_pad((string)$d, 2, '0', STR_PAD_LEFT);
+    $v = $daily[$date] ?? 0; $bh = $v ? max(2, $ph * $v / $top) : 0;
+    $x = $L + ($d - 1) * $cw + $cw * .18;
+    if ($v) $svg .= '<rect class="bar" rx="2" x="' . round($x, 1) . '" y="' . round($T + $ph - $bh, 1) . '" width="' . round($cw * .64, 1) . '" height="' . round($bh, 1) . '"><title>' . e(fmt_date($date) . ': ' . ugx($v)) . '</title></rect>';
+    if ($d === 1 || $d % 5 === 0) $svg .= '<text x="' . round($x + $cw * .32, 1) . '" y="' . ($H - 8) . '" text-anchor="middle">' . $d . ' ' . date('M', strtotime($mStart)) . '</text>';
+}
+$svg .= '</svg>';
+$st = ['Active' => 0, 'Overdue' => 0, 'Closed' => 0];
+foreach (rows("SELECT l.status AS s, COUNT(*) AS n FROM loans l WHERE $BLo AND l.status IN ('Active','Overdue','Closed') GROUP BY l.status") as $r) $st[$r['s']] = (int)$r['n'];
+$stTot = array_sum($st);
+$cols = ['Active' => 'var(--side)', 'Overdue' => 'var(--brand)', 'Closed' => 'color-mix(in srgb, var(--brand) 32%, #fff)'];
+$circ = 2 * M_PI * 62; $off = 0; $arcs = '';
+if ($stTot) foreach ($st as $k => $n) {
+    if (!$n) continue;
+    $len = $circ * $n / $stTot;
+    $arcs .= '<circle cx="85" cy="85" r="62" fill="none" stroke="' . $cols[$k] . '" stroke-width="24" stroke-dasharray="' . round($len, 2) . ' ' . round($circ - $len, 2) . '" stroke-dashoffset="' . round(-$off, 2) . '" transform="rotate(-90 85 85)"><title>' . e($k . ': ' . $n) . '</title></circle>';
+    $off += $len;
+} else $arcs = '<circle cx="85" cy="85" r="62" fill="none" stroke="var(--line)" stroke-width="24"/>';
+echo '<div class="dash-grid"><div class="card"><div class="card-h"><h2>Collections trend</h2><span class="muted">' . e(date('F Y', strtotime($mStart))) . '</span></div>' . ($daily ? $svg : '<p class="muted">No collections posted this month yet.</p>') . '</div>';
+echo '<div class="card"><div class="card-h"><h2>Loan status</h2></div><div class="donut-wrap"><svg class="donut" viewBox="0 0 170 170" role="img" aria-label="Loan status">' . $arcs
+    . '<text class="dn" x="85" y="88" text-anchor="middle">' . $stTot . '</text><text class="dl" x="85" y="106" text-anchor="middle">Total loans</text></svg><ul class="legend">';
+foreach ($st as $k => $n) echo '<li><i style="background:' . $cols[$k] . '"></i>' . e($k) . '<b>' . $n . ($stTot ? ' (' . round($n / $stTot * 100) . '%)' : '') . '</b></li>';
+echo '</ul></div></div></div>';
+
+// quick actions + recent activity
+$acts = [];
+foreach (rows('SELECT registered_at AS t, full_name, client_no FROM clients WHERE ' . $BP . ' ORDER BY registered_at DESC LIMIT 4') as $r) $acts[] = [$r['t'], 'user-plus', 'New client registered', $r['full_name']];
+foreach (rows("SELECT l.application_date AS t, l.loan_no, c.full_name FROM loans l JOIN clients c ON c.id = l.client_id WHERE $BLo ORDER BY l.id DESC LIMIT 4") as $r) $acts[] = [$r['t'], 'clipboard', 'Loan application', $r['loan_no'] . ' · ' . $r['full_name']];
+foreach (rows("SELECT p.created_at AS t, p.amount, c.full_name FROM payments p JOIN clients c ON c.id = p.client_id WHERE p.status = 'Posted' AND " . branch_scope('p.branch_id', $only) . ' ORDER BY p.id DESC LIMIT 4') as $r) $acts[] = [$r['t'], 'card', 'Collection recorded', ugx($r['amount']) . ' from ' . $r['full_name']];
+foreach (rows("SELECT d.created_at AS t, d.approved_principal AS a, c.full_name FROM disbursements d JOIN loans l ON l.id = d.loan_id JOIN clients c ON c.id = l.client_id WHERE $BLo ORDER BY d.id DESC LIMIT 4") as $r) $acts[] = [$r['t'], 'dollar', 'Loan disbursed', ugx($r['a']) . ' to ' . $r['full_name']];
+usort($acts, fn($a, $b) => strcmp((string)$b[0], (string)$a[0]));
+$acts = array_slice($acts, 0, 6);
+echo '<div class="dash-grid2"><div class="card"><div class="card-h"><h2>Quick actions</h2></div>' . quick_actions([['clients', ['a' => 'new'], 'Register client', 'user-plus', 'client.manage'], ['loans', ['a' => 'new'], 'New loan application', 'clipboard', 'loan.create'], ['payments', [], 'Record collection', 'card', 'payment.record'],
+    ['clients', [], 'View clients', 'users', 'client.view'], ['loans', [], 'Loan list', 'file', 'loan.view'], ['disbursements', [], 'Disburse loan', 'dollar', 'loan.disburse|loan.disburse.authorize'], ['till', [], 'Cashier & till', 'clock', 'till.use'],
+    ['cashbook', [], 'Record expense', 'layers', 'expense.create'], ['inbox', [], 'My approvals', 'inbox', 'loan.approve|payment.reverse|expense.approve|till.reconcile|eod.approve|backup.authorize'], ['arrears', [], 'Arrears', 'alert', 'portfolio.view'],
+    ['eod', [], 'End of day', 'calendar', 'eod.view'], ['reports', [], 'Reports', 'bar', 'report.view']]) . '</div>';
+echo '<div class="card"><div class="card-h"><h2>Recent activities</h2><a class="more" href="' . e(url('audit')) . '">' . (can_any('audit.own|audit.financial|audit.branch|audit.all') ? 'View all ›' : '') . '</a></div>';
+if (!$acts) echo '<p class="muted">Nothing has happened yet.</p>';
+else {
+    echo '<ul class="activity">';
+    foreach ($acts as [$t, $ic, $h, $sub]) {
+        $when = strlen((string)$t) > 10 ? (substr((string)$t, 0, 10) === $asOf || substr((string)$t, 0, 10) === today() ? date('g:i A', strtotime($t)) : date('j M', strtotime($t))) : date('j M', strtotime((string)$t));
+        echo '<li><span class="ai">' . icon($ic, 18) . '</span><span class="at"><b>' . e($h) . '</b><small>' . e($sub) . '</small></span><time>' . e($when) . '</time></li>';
+    }
+    echo '</ul>';
+}
+echo '</div></div>';
+echo '<div class="detail-t">Detailed analysis</div><p class="muted" style="margin:.1rem 0 .6rem">Scope: ' . e($scope) . ' · as at ' . e(fmt_date($asOf)) . ' (business date). Accrued amounts are shown separately from cash actually received.</p>';
 $officers = []; foreach (rows("SELECT id, full_name FROM users WHERE role IN ('Loan Officer','Branch Manager','COO') ORDER BY full_name") as $u) $officers[$u['id']] = $u['full_name'];
 $cashiers = []; foreach (rows("SELECT id, full_name FROM users WHERE role IN ('Cashier','Finance Officer','Branch Manager') ORDER BY full_name") as $u) $cashiers[$u['id']] = $u['full_name'];
 $sts = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Active', 'Overdue', 'Closed', 'Rejected'];

@@ -47,6 +47,7 @@ $ROUTES = [
     'backup'        => ['backup', 'backup.manage|backup.request|backup.authorize', 'Administration', 'Backup & Recovery'],
     'security'      => ['security', 'security.monitor', 'Administration', 'Security Monitoring'],
     'system'        => ['system', 'system.health|compliance.view', 'Administration', 'System Health'],
+    'search'        => ['search', 'client.view|loan.view|payment.view', null, null],
     'account'       => ['account', null, null, null],
     'mfa'           => ['mfa', null, null, null],
     'print'         => ['print', null, null, null],
