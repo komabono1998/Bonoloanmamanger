@@ -9,7 +9,7 @@ if ($a === 'save') {
         $d = [
             'surname' => clean(post('surname')), 'first_name' => clean(post('first_name')), 'gender' => post('gender') ?: null,
             'dob' => must_date(post('dob'), 'Date of birth', false), 'phone' => preg_replace('/[^\d+]/', '', post('phone')),
-            'nin' => strtoupper(str_replace(' ', '', post('nin'))) ?: null, 'address' => clean(post('address')) ?: null, 'village' => clean(post('village')) ?: null,
+            'nin' => strtoupper(str_replace(' ', '', post('nin'))) ?: null, 'address' => clean(post('address')) ?: null, 'village' => clean(post('village')) ?: null, 'county' => clean(post('county')) ?: null,
             'parish' => clean(post('parish')) ?: null, 'subcounty' => clean(post('subcounty')) ?: null, 'district' => clean(post('district')) ?: null,
             'housing_status' => post('housing_status') ?: null, 'landlord_contact' => clean(post('landlord_contact')) ?: null, 'marital_status' => post('marital_status') ?: null,
             'spouse_name' => clean(post('spouse_name')) ?: null, 'spouse_phone' => preg_replace('/[^\d+]/', '', post('spouse_phone')) ?: null,
@@ -63,10 +63,7 @@ if ($a === 'new' || $a === 'edit') {
     photo_field('photo', 'Photograph');
     echo '<h3 class="full">Residence</h3>';
     field('address', 'Residential address', ['value' => $v('address'), 'span' => 2]);
-    field('village', 'Village', ['value' => $v('village')]);
-    field('parish', 'Parish / Ward', ['value' => $v('parish')]);
-    field('subcounty', 'Sub-county / Division', ['value' => $v('subcounty')]);
-    field('district', 'District / City', ['value' => $v('district')]);
+    address_fields($g ?? []);
     field('housing_status', 'Housing status', ['type' => 'select', 'options' => ['Owner' => 'Owner', 'Tenant' => 'Tenant', 'Family home' => 'Family home', 'Other' => 'Other'], 'blank' => true, 'value' => $v('housing_status')]);
     field('landlord_contact', 'Landlord contact (if tenant)', ['value' => $v('landlord_contact'), 'span' => 2]);
     echo '<h3 class="full">Family</h3>';

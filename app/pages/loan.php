@@ -142,7 +142,7 @@ if ($wfh) {
     echo '</details>';
 }
 echo '</div>';
-$tabs = ['overview' => 'Overview', 'schedule' => 'Repayment schedule', 'statement' => 'Statement', 'payments' => 'Payments', 'guarantors' => 'Guarantors', 'securities' => 'Securities', 'documents' => 'Documents', 'history' => 'History'];
+$tabs = ['overview' => 'Application', 'guarantors' => 'Guarantors', 'securities' => 'Security', 'documents' => 'Documents', 'schedule' => 'Repayment schedule', 'statement' => 'Statement', 'payments' => 'Payments', 'history' => 'History'];
 tabs($tabs, $tab);
 
 // ------------------------------------------------------------------ overview

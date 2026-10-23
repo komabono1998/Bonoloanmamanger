@@ -7,7 +7,7 @@ if ($a === 'save') {
     post_action(function () use ($id) {
         $lid = Loans::saveApplication($_POST, $id ?: null);
         if (post('submit_now') === '1') { Loans::submit($lid); return ['Application saved and submitted for review.', url('loan', ['id' => $lid])]; }
-        return ['Application saved as draft.', url('loan', ['id' => $lid])];
+        return [$id ? 'Application updated.' : 'Application saved as a draft. Now add the guarantors, security and documents, then submit it.', $id ? url('loan', ['id' => $lid]) : url('loan', ['id' => $lid, 'tab' => 'guarantors'])];
     });
 }
 
@@ -25,6 +25,9 @@ if ($a === 'new' || $a === 'edit') {
         elseif ($ex['outstanding']) echo '<div class="notice">This client already owes <b>' . ugx($ex['outstanding']) . '</b> on active loans.</div>';
         if ($client['status'] !== 'Active') echo '<div class="notice bad">This client is ' . e(strtolower($client['status'])) . '; new loans cannot be created.</div>';
     }
+    echo '<nav class="tabs app-steps"><a class="on" href="#">1 &middot; Application details</a>';
+    foreach (['guarantors' => '2 · Guarantors', 'securities' => '3 · Security', 'documents' => '4 · Documents'] as $tk => $tl) echo $id ? '<a href="' . e(url('loan', ['id' => $id, 'tab' => $tk])) . '">' . $tl . '</a>' : '<span class="off" title="Save the application first">' . $tl . '</span>';
+    echo '</nav>' . ($id ? '' : '<p class="muted" style="margin:-.4rem 0 .8rem">Save the application as a draft and the Guarantors, Security and Documents tabs open straight away so everything is linked to it.</p>');
     echo '<div class="card">';
     form_open(url('loans', ['a' => 'save', 'id' => $id ?: '']));
     $v = fn($k, $d = '') => $l[$k] ?? $d;
@@ -32,8 +35,15 @@ if ($a === 'new' || $a === 'edit') {
         echo '<div class="fld span2"><label>Client</label><div style="padding:.5rem 0;font-weight:600">' . e($l['client_name']) . ' · ' . e($l['client_no']) . '</div></div>';
         field('client_id', '', ['type' => 'hidden', 'value' => $cid]);
     } else {
-        field('client_id', 'Client', ['type' => 'select', 'options' => client_select_options(), 'blank' => 'Select client…', 'value' => $cid, 'required' => true, 'span' => 2,
-            'attrs' => 'data-goto="' . e(url('loans', ['a' => 'new']) . '&client_id={v}') . '"']);
+        echo '<div class="fld span4 client-pick" data-lookup="' . e(url('clientlookup')) . '"><label for="client_q">Client <b class="req">*</b></label>';
+        if ($client) {
+            echo '<div class="client-chosen"><div><b>' . e($client['full_name']) . '</b> &middot; ' . e($client['client_no']) . ' &middot; ' . e($client['phone']) . ' &middot; ' . badge($client['status']) . ' KYC ' . badge($client['kyc_status']) . '</div>'
+                . '<a class="btn sm" href="' . e(url('loans', ['a' => 'new'])) . '">Choose a different client</a></div>';
+        } else {
+            echo '<input type="search" id="client_q" data-client-q autocomplete="off" placeholder="Search an existing client by name, phone, client ID or NIN…"><div class="client-results" data-client-results hidden></div>'
+                . '<small>Attach an existing client here. Not registered yet? ' . (can('client.manage') ? '<a href="' . e(url('clients', ['a' => 'new'])) . '">Register a new client</a> first, then return.' : 'Ask for the client to be registered first.') . '</small>';
+        }
+        echo '<input type="hidden" name="client_id" value="' . (int)$cid . '"></div>';
     }
     field('application_date', 'Application date', ['type' => 'date', 'value' => $v('application_date', reporting_date()), 'required' => true]);
     field('requested_disb_date', 'Requested disbursement date', ['type' => 'date', 'value' => $v('requested_disb_date')]);

@@ -49,6 +49,7 @@ foreach ([['coo', 'Dr. Agnes Tumusiime', 'COO', []], ['bm', 'Grace Namukasa', 'B
     foreach ($br as $i => $b) q('INSERT INTO user_branches(user_id, branch_id, is_primary) VALUES (?,?,?)', [$id, $b, $i === 0 ? 1 : 0]);
 }
 update('branches', ['manager_id' => nu('bm')], 'id = :id', ['id' => $A]);
+foreach (['cashier', 'cashierg'] as $__cu) if (nu($__cu)) q("INSERT INTO user_permissions(user_id, permission, granted) VALUES (?, 'loan.disburse', 1)", [nu($__cu)]);   // the demo cashiers release funds (the administrator can grant this)
 update('branches', ['manager_id' => nu('bmg')], 'id = :id', ['id' => $B]);
 
 // demo approval limits (the real institution sets its own; the system ships with none)
@@ -118,7 +119,7 @@ foreach ([[$loanA, 'Land title', 'Plot 12 Kisenyi, title deed', 4500000], [$loan
         'status' => 'Pledged', 'date_pledged' => $D0, 'storage_location' => 'Office safe', 'created_by' => nu('lo'), 'created_at' => now()]);
     insert('security_history', ['security_id' => $sid, 'old_status' => null, 'new_status' => 'Pledged', 'changed_by' => nu('lo'), 'changed_at' => now(), 'note' => 'Registered']);
 }
-as_('bm', $A);
+as_('cashier', $A);
 $sid0 = Cash::openSession(0, true);
 Cash::transfer('from_account', 4000000, safe($A), null, 'Cash for disbursements');
 foreach ([$loanA, $loanB, $loanC] as $lid) Loans::disburse($lid, ['method' => 'Cash', 'doc_verified' => 1, 'client_ack' => 1, 'authorized_by' => nu('bm')]);

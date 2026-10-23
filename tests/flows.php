@@ -75,6 +75,21 @@ foreach (['overview', 'loans', 'payments', 'guarantors', 'securities'] as $tab) 
 $lo->get($lo->url('guarantors', ['a' => 'new']));
 $lo->submit('a=save', ['surname' => 'Guarantor', 'first_name' => 'Flow', 'phone' => '07' . rand(10000000, 99999999), 'nin' => 'CF' . rand(10000000, 99999999) . 'GG', 'address' => 'Gulu', 'gender' => 'Male']);
 step('register a guarantor', flashOk($lo, 'egistered') || flashOk($lo, 'saved') || flashOk($lo), info($lo));
+$lo->get($lo->url('loans', ['a' => 'new']));
+step('the new application offers a search to attach an existing client', str_contains($lo->body, 'data-client-q') && str_contains($lo->body, 'Attach an existing client'), info($lo));
+$cl = json_decode($lo->get($lo->url('clientlookup', ['q' => 'Flow Client'])), true);
+step('the client search finds the existing client', is_array($cl) && count($cl) >= 1 && str_contains($cl[0]['name'], 'Flow Client') && str_contains($cl[0]['url'], 'client_id='), json_encode($cl));
+$dist = json_decode($lo->get($lo->url('geo', ['level' => 'district'])), true);
+step('the address drop-down lists the districts of Uganda', is_array($dist) && count($dist) >= 130 && in_array('Gulu', $dist, true) && in_array('Wakiso', $dist, true), 'count ' . count((array)$dist));
+$cty = json_decode($lo->get($lo->url('geo', ['level' => 'county', 'district' => 'Gulu'])), true);
+$sub = is_array($cty) && $cty ? json_decode($lo->get($lo->url('geo', ['level' => 'subcounty', 'district' => 'Gulu', 'county' => $cty[0]])), true) : [];
+$par = !empty($sub) ? json_decode($lo->get($lo->url('geo', ['level' => 'parish', 'district' => 'Gulu', 'county' => $cty[0], 'subcounty' => $sub[0]])), true) : [];
+$vil = !empty($par) ? json_decode($lo->get($lo->url('geo', ['level' => 'village', 'district' => 'Gulu', 'county' => $cty[0], 'subcounty' => $sub[0], 'parish' => $par[0]])), true) : [];
+step('Gulu opens down to counties, sub-counties, parishes and villages', !empty($cty) && !empty($sub) && !empty($par) && !empty($vil), json_encode([count((array)$cty), count((array)$sub), count((array)$par), count((array)$vil)]));
+$lo->get($lo->url('clients', ['a' => 'new']));
+step('the client form has linked address drop-downs and a profession list', str_contains($lo->body, 'data-geo-level="district"') && str_contains($lo->body, 'data-geo-level="village"') && str_contains($lo->body, 'dl_professions') && str_contains($lo->body, 'Boda boda rider'), info($lo));
+$lo->get($lo->url('dashboard'));
+step('Guarantors is no longer a separate menu item', !preg_match('~class="nav-link[^"]*"[^>]*href="[^"]*p=guarantors"~', $lo->body), info($lo));
 $lo->get($lo->url('loans', ['a' => 'new', 'client_id' => $clientId]));
 $lo->submit('a=save', ['client_id' => (string)$clientId, 'amount_requested' => '1,000,000', 'period_months' => '1', 'purpose' => 'Stock', 'monthly_income' => '2,000,000', 'monthly_expenses' => '800,000', 'frequency' => 'monthly']);
 step('create a loan application (draft)', flashOk($lo), info($lo));
@@ -119,6 +134,10 @@ echo "\n== Branch Manager: approve the application\n";
 $bm = $W['fbm' . $sfx];
 $bm->get($bm->url('approvals'));
 step('the approvals queue lists the application', $bm->code === 200 && str_contains($bm->body, 'Flow Client'), info($bm));
+foreach (['documents' => 'Documents attached', 'guarantors' => 'Guarantors', 'security' => 'Security'] as $rt => $rl) {
+    $bm->get($bm->url('approvals', ['id' => $loanId, 'rtab' => $rt]));
+    step("the review has a tab to check: $rl", $bm->code === 200 && str_contains($bm->body, $rl) && str_contains($bm->body, 'rtab=decision') === false && !str_contains($bm->body, 'Something went wrong'), info($bm));
+}
 $bm->get($bm->url('approvals', ['id' => $loanId]));
 step('the approval screen opens', $bm->code === 200 && !str_contains($bm->body, 'Something went wrong'), info($bm));
 $bm->submitByField('approved_principal', ['approved_principal' => '1,000,000', 'months' => '1', 'rate_pct' => '20', 'processing_pct' => '3']);

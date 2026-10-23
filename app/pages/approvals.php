@@ -5,6 +5,15 @@ $id = (int)get('id');
 if ($id) {
     $l = Loans::get($id);
     $dec = post('decision');
+    $wf = get('wf');
+    if ($wf !== '') post_action(function () use ($id, $wf, $l) {   // verify / reject a document, guarantor or the client KYC while reviewing
+        $ok = post('decision') === 'verify'; $note = clean(post('note'));
+        if ($wf === 'doc') Workflow::verifyDocument((int)post('att'), $ok, $note);
+        elseif ($wf === 'guarantor') Workflow::verifyGuarantor((int)post('lg_id'), $ok, $note);
+        elseif ($wf === 'client') Workflow::verifyClient((int)$l['client_id'], $ok, $note);
+        else throw new AppError('Choose an action.');
+        return [$ok ? 'Verified.' : 'Rejected.', url('approvals', ['id' => $id, 'rtab' => get('rtab', 'documents')])];
+    });
     post_action(function () use ($id, $dec) {
         if ($dec === 'approve') { Loans::approve($id, $_POST); return ['Loan approved. Offer terms are now locked.', url('loan', ['id' => $id])]; }
         if ($dec === 'reject') { Loans::reject($id, clean(post('reason'))); return ['Application rejected.', url('approvals')]; }
@@ -30,6 +39,47 @@ if ($id) {
         . (Approvals::limit('loan', (int)$l['branch_id']) === null ? ' (no loan limit configured — Branch Manager level applies)' : ' (Branch Manager limit ' . ugx((int)Approvals::limit('loan', (int)$l['branch_id'])) . ')')
         . '. Your authority: <b>' . e($haveAuth ?? 'none') . '</b>.' . ($l['escalated_at'] ? ' Escalated: ' . e($l['escalation_note']) : '') . '</div>';
     if ($isAdjust) echo '<div class="notice">Adjusting approved terms resets client acceptance and requires a reason. This is audited.</div>';
+
+    // ---- review tabs: check what is attached before deciding
+    $docs = rows("SELECT a.*, u.full_name AS up_by, v.full_name AS ver_by,
+                  CASE a.entity_type WHEN 'client' THEN 'Client (KYC)' WHEN 'loan' THEN 'Application' WHEN 'security' THEN 'Security' ELSE a.entity_type END AS source
+                  FROM attachments a LEFT JOIN users u ON u.id = a.uploaded_by LEFT JOIN users v ON v.id = a.verified_by
+                  WHERE (a.entity_type = 'client' AND a.entity_id = ?) OR (a.entity_type = 'loan' AND a.entity_id = ?) OR (a.entity_type = 'security' AND a.entity_id IN (SELECT id FROM securities WHERE loan_id = ?))
+                  ORDER BY a.id DESC", [$l['client_id'], $id, $id]);
+    $gs = rows("SELECT lg.*, g.guarantor_no, g.surname || ' ' || g.first_name AS name, g.phone, g.nin, v.full_name AS ver_by FROM loan_guarantors lg JOIN guarantors g ON g.id = lg.guarantor_id LEFT JOIN users v ON v.id = lg.verified_by WHERE lg.loan_id = ? AND lg.status = 'Active' ORDER BY lg.id", [$id]);
+    $secs = rows("SELECT s.*, g.surname || ' ' || g.first_name AS guarantor_name FROM securities s LEFT JOIN guarantors g ON g.id = s.guarantor_id WHERE s.loan_id = ? ORDER BY s.id", [$id]);
+    $rtab = in_array(get('rtab'), ['documents', 'guarantors', 'security'], true) ? get('rtab') : 'review';
+    tabs(['review' => 'Decision', 'documents' => 'Documents attached (' . count($docs) . ')', 'guarantors' => 'Guarantors (' . count($gs) . ')', 'security' => 'Security (' . count($secs) . ')'], $rtab, 'rtab');
+    if ($rtab !== 'review') {
+        $stg = Workflow::prerequisites($l);
+        $issues = []; foreach ([2, 3, 4] as $n) foreach ($stg[$n]['issues'] as $m) $issues[$n][] = $m;
+        $stageIssues = ['documents' => $issues[2] ?? [], 'guarantors' => $issues[3] ?? [], 'security' => $issues[4] ?? []][$rtab];
+        $note = ['documents' => $stg[2]['note'], 'guarantors' => $stg[3]['note'], 'security' => $stg[4]['note']][$rtab];
+        if ($stageIssues) echo '<div class="notice bad"><b>Still to be resolved before approval:</b><ul style="margin:.3rem 0 0 1.1rem">' . implode('', array_map(fn($m) => '<li>' . e($m) . '</li>', $stageIssues)) . '</ul></div>';
+        else echo '<div class="notice ok">This part of the file is complete' . ($note ? ' (' . e($note) . ')' : '') . '.</div>';
+        $back = fn(string $wfk, array $extra = []) => url('approvals', ['id' => $id, 'rtab' => $rtab, 'wf' => $wfk]);
+        if ($rtab === 'documents') {
+            echo '<div class="card"><div class="card-h"><h2>Documents attached to this application</h2><span>' . badge($l['client_id'] ? (string)val('SELECT kyc_status FROM clients WHERE id = ?', [$l['client_id']]) : 'Pending') . ' client KYC</span></div>';
+            data_table(['original_name' => ['File', fn($r) => '<a target="_blank" href="' . e(attachment_url((int)$r['id'])) . '">' . e($r['original_name']) . '</a>'], 'source' => 'From', 'kind' => ['Kind', fn($r) => e(Workflow::KYC_KINDS[$r['kind']] ?? str_replace('_', ' ', $r['kind']))],
+                'uploaded_at' => ['Uploaded', 'dt'], 'up_by' => 'By', 'verify_status' => ['Verification', fn($r) => badge($r['verify_status']) . (can('kyc.verify') && $r['verify_status'] === 'Pending' ? decision_form($back('doc'), ['att' => $r['id']]) : '')]],
+                $docs, ['empty' => 'No documents have been attached.', 'class' => 'nofilter']);
+            echo '</div>';
+        }
+        if ($rtab === 'guarantors') {
+            echo '<div class="card"><h2>Guarantors</h2>';
+            data_table(['guarantor_no' => 'ID', 'name' => 'Name', 'phone' => 'Phone', 'nin' => 'NIN', 'guarantee_amount' => ['Guarantee limit', 'money'], 'declaration_accepted' => ['Consent', fn($r) => $r['declaration_accepted'] ? badge('Accepted') : badge('Pending')],
+                'verify_status' => ['Verification', fn($r) => badge($r['verify_status']) . (can('kyc.verify') && $r['verify_status'] !== 'Verified' ? decision_form($back('guarantor'), ['lg_id' => $r['id']]) : '')]],
+                $gs, ['empty' => 'No guarantors are linked to this application.', 'class' => 'nofilter', 'link' => fn($r) => url('guarantors', ['a' => 'view', 'id' => $r['guarantor_id']])]);
+            echo '</div>';
+        }
+        if ($rtab === 'security') {
+            echo '<div class="card"><h2>Security / collateral</h2>';
+            data_table(['security_no' => 'ID', 'type' => 'Type', 'description' => 'Description', 'owner_type' => 'Owner', 'est_value' => ['Estimated value', 'money'], 'valuation_date' => ['Valued', 'date'], 'status' => ['Status', 'badge']],
+                $secs, ['empty' => 'No security has been registered.', 'class' => 'nofilter', 'totals' => ['est_value']]);
+            echo '<p class="muted" style="margin-top:.6rem">' . btn('Open the security register', url('loan', ['id' => $id, 'tab' => 'securities']), 'sm') . '</p></div>';
+        }
+        return;
+    }
 
     if (!$own) {
         $def = Loans::defaultTerms($l);

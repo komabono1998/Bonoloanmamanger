@@ -134,13 +134,9 @@ if ($a === 'new' || $a === 'edit') {
     field('phone', 'Primary phone', ['type' => 'tel', 'value' => $v('phone'), 'required' => true]);
     field('phone2', 'Alternative phone', ['type' => 'tel', 'value' => $v('phone2')]);
     field('address', 'Residential address', ['value' => $v('address'), 'span' => 2]);
-    field('village', 'Village / Cell', ['value' => $v('village')]);
-    field('parish', 'Parish / Ward', ['value' => $v('parish')]);
-    field('subcounty', 'Sub-county', ['value' => $v('subcounty')]);
-    field('county', 'County', ['value' => $v('county')]);
-    field('district', 'District / City', ['value' => $v('district')]);
+    address_fields($c ?: []);
     echo '<h3 class="full">Economic information</h3>';
-    field('occupation', 'Occupation', ['value' => $v('occupation')]);
+    profession_field('occupation', 'Occupation / profession', (string)$v('occupation'));
     field('employer', 'Employer', ['value' => $v('employer')]);
     field('business_name', 'Business name', ['value' => $v('business_name')]);
     field('business_location', 'Business location', ['value' => $v('business_location')]);

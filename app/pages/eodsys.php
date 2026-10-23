@@ -171,7 +171,7 @@ echo '<div class="eod-modal" data-eod-modal hidden role="dialog" aria-modal="tru
 echo '<script src="' . e(asset('eod_run.js')) . '"></script>';
 
 if (can('eod.reset')) {
-    echo '<div class="card eod-reset"><h2>' . icon('lock', 18) . ' Something went wrong? Reset the End-of-Day position</h2>'
+    echo '<div class="card eod-reset"><h2>' . icon('lock', 18) . ' Made a mistake? Reset the End-of-Day position</h2>'
         . '<p class="muted">Takes an office back one day: the last closed business date is reopened and the empty day that opened after it is withdrawn, so the system date goes back. Use it when End of Day closed on a mistake. It is refused if the later day already has transactions. For a damaged database, restore the closing backup under <a href="' . e(url('backup')) . '">Backup &amp; Recovery</a> instead.</p>';
     foreach ($branches as $rbid => $rbn) {
         $rl = val("SELECT MAX(business_date) FROM business_days WHERE branch_id = ? AND status = 'Closed'", [$rbid]);

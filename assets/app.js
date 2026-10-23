@@ -235,3 +235,43 @@
   // ---- auto-dismiss success notices
   document.querySelectorAll('.flash.ok').forEach(function (f) { setTimeout(function () { f.style.display = 'none'; }, 9000); });
 })();
+
+/* Linked address drop-downs: district > county > sub-county > parish > village (names under the parent value; typing is always allowed). */
+(function () {
+  var box = document.querySelector('[data-geo]');
+  if (!box) return;
+  var base = box.getAttribute('data-geo'), order = ['district', 'county', 'subcounty', 'parish', 'village'], inp = {}, cache = {};
+  order.forEach(function (k) { inp[k] = box.querySelector('[data-geo-level="' + k + '"]'); });
+  function chain(upTo) { var q = ''; for (var i = 0; i < upTo; i++) q += '&' + order[i] + '=' + encodeURIComponent(inp[order[i]].value.trim()); return q; }
+  function load(i) {
+    var k = order[i], url = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'level=' + k + chain(i);
+    if (i > 0 && !inp[order[i - 1]].value.trim()) { inp[k].list.innerHTML = ''; return; }
+    (cache[url] ? Promise.resolve(cache[url]) : fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { cache[url] = d; return d; })).then(function (names) {
+      var dl = inp[k].list; dl.innerHTML = ''; names.forEach(function (n) { var o = document.createElement('option'); o.value = n; dl.appendChild(o); });
+    }).catch(function () {});
+  }
+  order.forEach(function (k, i) {
+    inp[k].addEventListener('change', function () { for (var j = i + 1; j < order.length; j++) { inp[order[j]].value = ''; } for (var j2 = i + 1; j2 < order.length; j2++) load(j2); });
+    inp[k].addEventListener('input', function () { if (i + 1 < order.length) load(i + 1); });
+    inp[k].addEventListener('focus', function () { load(i); });
+  });
+  load(0); for (var i = 1; i < order.length; i++) load(i);
+})();
+
+/* Attach an existing client to a new loan application: search as you type. */
+(function () {
+  var box = document.querySelector('.client-pick[data-lookup]'), q = box && box.querySelector('[data-client-q]');
+  if (!q) return;
+  var res = box.querySelector('[data-client-results]'), t = null;
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  q.addEventListener('input', function () {
+    clearTimeout(t); var v = q.value.trim();
+    if (v.length < 2) { res.hidden = true; return; }
+    t = setTimeout(function () {
+      fetch(box.getAttribute('data-lookup') + (box.getAttribute('data-lookup').indexOf('?') >= 0 ? '&' : '?') + 'q=' + encodeURIComponent(v), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (list) {
+        res.hidden = false;
+        res.innerHTML = list.length ? list.map(function (c) { return '<a href="' + esc(c.url) + '" class="client-hit' + (c.status !== 'Active' ? ' off' : '') + '"><b>' + esc(c.name) + '</b><span>' + esc(c.no) + ' &middot; ' + esc(c.phone) + ' &middot; ' + esc(c.branch) + ' &middot; ' + esc(c.status) + (c.kyc !== 'Verified' ? ' &middot; KYC ' + esc(c.kyc) : '') + '</span></a>'; }).join('') : '<div class="client-none">No client matches. Check the spelling or register the client first.</div>';
+      });
+    }, 200);
+  });
+})();
