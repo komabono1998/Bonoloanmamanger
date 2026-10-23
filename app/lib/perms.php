@@ -29,7 +29,7 @@ function permission_catalogue(): array
         ],
         'End of Day' => [
             'eod.view' => 'View End-of-Day', 'eod.manage' => 'Open day / prepare and submit EOD', 'eod.approve' => 'Approve & lock the business day',
-            'eod.run' => 'Run End of Day (one step, after a backup)', 'eod.reopen' => 'Request / authorize reopening',
+            'eod.run' => 'Run End of Day (one step, after a backup)', 'eod.reset' => 'Reset the End-of-Day position (reopen the last closed day after an error)', 'eod.reopen' => 'Request / authorize reopening',
         ],
         'Verification' => ['kyc.verify' => 'Verify client KYC, documents and guarantors'],
         'General ledger' => ['gl.view' => 'View chart of accounts, journals, trial balance and statements', 'gl.post' => 'Post / reverse manual journals and run ledger posting', 'gl.manage' => 'Maintain the chart of accounts'],
@@ -69,7 +69,7 @@ function financial_authority_permissions(): array
 /** Technical permissions that only the System Administrator role may hold. */
 function technical_permissions(): array
 {
-    return ['user.manage', 'settings.manage', 'branch.manage', 'backup.manage', 'system.health', 'security.monitor', 'audit.technical', 'eod.run'];
+    return ['user.manage', 'settings.manage', 'branch.manage', 'backup.manage', 'system.health', 'security.monitor', 'audit.technical', 'eod.run', 'eod.reset'];
 }
 
 function role_descriptions(): array

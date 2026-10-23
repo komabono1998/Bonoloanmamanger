@@ -4,7 +4,7 @@
  * Even a database administrator running a stray UPDATE/DELETE gets an error (superusers can still drop triggers,
  * which is why production should use a limited application role - see docs/CLOUD_DEPLOYMENT.md).
  */
-const TRIGGERS_VERSION = 'v3.3';
+const TRIGGERS_VERSION = 'v3.4';
 
 /** [table, event (UPDATE|DELETE), columns|null, message] */
 function protection_rules(): array
@@ -32,6 +32,8 @@ function protection_rules(): array
         ['approval_requests', 'DELETE', null, 'Approval requests cannot be deleted.'],
         ['loan_workflow_log', 'UPDATE', null, 'The workflow log cannot be modified.'],
         ['loan_workflow_log', 'DELETE', null, 'The workflow log cannot be deleted.'],
+        ['eod_resets', 'UPDATE', null, 'End-of-Day reset records cannot be modified.'],
+        ['eod_resets', 'DELETE', null, 'End-of-Day reset records cannot be deleted.'],
         ['gl_journals', 'UPDATE', null, 'Journals cannot be modified. Post a reversing journal instead.'],
         ['gl_journals', 'DELETE', null, 'Journals cannot be deleted. Post a reversing journal instead.'],
         ['gl_journal_lines', 'UPDATE', null, 'Journal lines cannot be modified. Post a reversing journal instead.'],

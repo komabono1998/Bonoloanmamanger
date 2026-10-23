@@ -27,6 +27,14 @@ if (get('a') === 'closetills') post_action(function () use ($branches) {
     $n = Cash::closeOpenTills($bid, $bd, $counts);
     return $n ? $n . ' till(s) counted and reconciled for ' . branch_name($bid) . '. You can now run End of Day.' : 'There were no open tills to close.';
 });
+if (get('a') === 'reset') post_action(function () use ($branches) {
+    require_perm('eod.reset');
+    $bid = (int)post('branch');
+    must(isset($branches[$bid]), 'Choose a branch.');
+    must(!empty($_POST['confirm']), 'Tick the confirmation to reset the End-of-Day position.');
+    $r = Eod::resetPosition($bid, clean(post('reason')));
+    return 'End-of-Day position reset for ' . branch_name($bid) . ': ' . fmt_date($r['reopened']) . ' is open again' . ($r['removed'] ? ' (the empty day ' . fmt_date($r['removed']) . ' was withdrawn)' : '') . '. Correct what went wrong, then run End of Day again.';
+});
 if (get('a') === 'run') post_action(function () use ($branches) {
     require_perm('eod.run');
     $bid = (int)post('branch');
@@ -162,6 +170,23 @@ echo '<div class="eod-modal" data-eod-modal hidden role="dialog" aria-modal="tru
     . '<div class="eod-dialog-actions"><button type="button" class="btn" data-eod-no>No, not yet</button><button type="button" class="btn primary" data-eod-yes>Yes, run End of Day</button></div></div></div>';
 echo '<script src="' . e(asset('eod_run.js')) . '"></script>';
 
+if (can('eod.reset')) {
+    echo '<div class="card eod-reset"><h2>' . icon('lock', 18) . ' Something went wrong? Reset the End-of-Day position</h2>'
+        . '<p class="muted">Takes an office back one day: the last closed business date is reopened and the empty day that opened after it is withdrawn, so the system date goes back. Use it when End of Day closed on a mistake. It is refused if the later day already has transactions. For a damaged database, restore the closing backup under <a href="' . e(url('backup')) . '">Backup &amp; Recovery</a> instead.</p>';
+    foreach ($branches as $rbid => $rbn) {
+        $rl = val("SELECT MAX(business_date) FROM business_days WHERE branch_id = ? AND status = 'Closed'", [$rbid]);
+        if (!$rl) { echo '<p class="muted"><b>' . e($rbn) . '</b>: no closed business date yet.</p>'; continue; }
+        $ro = current_bd((int)$rbid);
+        $act = $ro ? Eod::activityOn((int)$rbid, $ro) : [];
+        echo '<form method="post" action="' . e(url('eodsys', ['a' => 'reset'])) . '" class="eod-reset-row" data-confirm="Reset ' . e($rbn) . ' back to ' . e(fmt_date($rl)) . '?">' . csrf_field() . '<input type="hidden" name="branch" value="' . (int)$rbid . '">'
+            . '<div><b>' . e($rbn) . '</b><br><span class="muted">Last closed ' . e(fmt_date($rl)) . ($ro ? ' &middot; open day ' . e(fmt_date($ro)) . ($act ? ' <span class="warn">(has ' . e(implode(', ', $act)) . ': cannot be taken back)</span>' : ' (empty)') : ' &middot; no day open') . '</span></div>'
+            . '<input type="text" name="reason" required placeholder="Why is the position being reset?"><label class="chk"><input type="checkbox" name="confirm" value="1"> I understand</label>'
+            . '<button class="btn danger" type="submit"' . ($act ? ' disabled' : '') . '>Reset to ' . e(fmt_date($rl)) . '</button></form>';
+    }
+    echo '</div>';
+    $resets = rows('SELECT r.*, b.name AS branch, u.full_name AS who FROM eod_resets r JOIN branches b ON b.id = r.branch_id LEFT JOIN users u ON u.id = r.user_id ORDER BY r.id DESC LIMIT 20');
+    if ($resets) { echo '<div class="card"><h2>Reset history</h2>'; data_table(['at' => ['When', 'dt'], 'branch' => 'Branch', 'reopened_date' => ['Reopened date', 'date'], 'removed_date' => ['Empty day withdrawn', 'date'], 'who' => 'By', 'reason' => 'Reason'], $resets, ['class' => 'nofilter']); echo '</div>'; }
+}
 echo '<div class="card"><h2>End-of-Day history</h2>';
 data_table(['branch' => 'Branch', 'business_date' => ['Business date', 'date'], 'status' => ['Status', 'badge'], 'closed_at' => ['Closed', 'dt'], 'closer' => 'Closed by', 'backup' => 'Closing backup'],
     rows("SELECT br.name AS branch, d.business_date, d.status, d.closed_at, u.full_name AS closer,

@@ -488,3 +488,4 @@ body.bare { background: #eef3f8; }
 .notice.ok { background: rgba(30,142,90,.12); color: #14663f; border: 1px solid #1e8e5a; }
 .eod-all { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .eod-all-h { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; } .eod-master { margin-top: .8rem; }
+.eod-reset-row { display: grid; grid-template-columns: 1.2fr 2fr auto auto; gap: .8rem; align-items: center; padding: .6rem 0; border-top: 1px dashed var(--line); } @media (max-width: 800px) { .eod-reset-row { grid-template-columns: 1fr; } }

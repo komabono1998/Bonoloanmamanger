@@ -132,3 +132,7 @@ The loan application (Application ID = loan number) is the central record. Its s
 ## Loan Process Roles (who does what)
 
 Administration > Loan Process Roles shows every step of the loan process against the roles that can carry it. The default is two roles: the **Loan Officer** registers clients, captures guarantors and collateral, prepares the application and the credit assessment; the **Branch Manager** verifies KYC, documents and guarantors, approves or returns the application, authorises disbursement and releases the funds (with the till). The System Administrator can change the matrix at any time or switch to the "separated duties" profile (finance officer verifies, cashier releases funds); menus and permissions follow immediately. A warning appears if a step has no responsible role. Whoever holds a step, nobody can approve, authorise or verify their own work.
+
+## Resetting the End-of-Day position (System Administrator)
+
+If End of Day closed on a mistake, End of Day > "Something went wrong? Reset the End-of-Day position" takes an office back one day: the last closed business date is reopened and the empty day that opened after it is withdrawn, so the system date goes back. Give a reason; the reset is written to the audit trail and a reset history. It is refused when the later day already has transactions (the page lists them): reverse those items first, or restore the closing backup under Backup & Recovery. After correcting the error, run End of Day again. The permission is `eod.reset` (administrator only).

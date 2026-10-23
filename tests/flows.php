@@ -202,6 +202,17 @@ step('run End of Day step by step: backup, close, ledger, closing backup, next d
 $admin->get($admin->url('eodsys'));
 preg_match('~data-eod(?: data-participant="1")? data-branch="' . $B . '" data-date="([^"]+)"~', $admin->body, $nd);
 step('the system date moved to the next working day straight after End of Day', !empty($nd[1]) && $nd[1] > $em[1], 'before ' . $em[1] . ' after ' . ($nd[1] ?? 'none'));
+$admin->get($admin->url('eodsys'));
+step('the administrator sees the reset panel', str_contains($admin->body, 'Reset the End-of-Day position'), info($admin));
+$admin->submitWhere('a=reset', ['branch' => (string)$B], ['reason' => 'flow test: closed by mistake', 'confirm' => '1']);
+step('the administrator resets the End-of-Day position after an error', flashOk($admin, 'position reset'), info($admin));
+$admin->get($admin->url('eodsys'));
+preg_match('~data-eod(?: data-participant="1")? data-branch="' . $B . '" data-date="([^"]+)"~', $admin->body, $rd);
+step('the system date went back to the reopened day', !empty($rd[1]) && $rd[1] === $em[1], 'expected ' . $em[1] . ' got ' . ($rd[1] ?? 'none'));
+$em[1] = $rd[1] ?? $em[1];
+$allOk2 = true; $trace2 = [];
+foreach (['check', 'backup', 'close', 'ledger', 'closing_backup', 'next', 'done'] as $ph) { $r = $eodStep($ph); if (!$r['ok']) { $allOk2 = false; $trace2[] = $ph . ': ' . $r['message']; } }
+step('End of Day runs again cleanly after the reset', $allOk2, implode(' | ', $trace2));
 $bm->get($bm->url('eod'));
 step('the branch manager sees the new system date and no approval step', $bm->code === 200 && !str_contains($bm->body, 'a=approve'), info($bm));
 $bm->get($bm->url('dashboard'));

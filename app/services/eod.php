@@ -186,6 +186,48 @@ final class Eod
         audit('End-of-Day notice sent', 'End of Day', 'business_day', $date, null, count(array_unique($to)) . ' recipient(s)', '', '', null, null, $branch);
     }
 
+    /** Financial and till activity already recorded on a business date (what would be lost by taking that date back). */
+    public static function activityOn(int $branch, string $date): array
+    {
+        $o = [];
+        foreach (['cash_movements' => 'cash movements', 'payments' => 'payments', 'disbursements' => 'disbursements', 'expenses' => 'expenses', 'cashier_sessions' => 'cashier tills'] as $t => $label) {
+            $n = (int)val("SELECT COUNT(*) FROM $t WHERE branch_id = ? AND business_date = ?", [$branch, $date]);
+            if ($n) $o[] = $n . ' ' . $label;
+        }
+        return $o;
+    }
+
+    /**
+     * System Administrator: reset the End-of-Day position after an error. The most recent closed business date is reopened and the (empty) day that
+     * opened after it is withdrawn, so the system date goes back one day. Refused when the later day already has transactions. Everything is recorded.
+     */
+    public static function resetPosition(int $branch, string $reason): array
+    {
+        require_perm('eod.reset');
+        must(trim($reason) !== '', 'A reason is required to reset the End-of-Day position.');
+        $br = branch_row($branch);
+        must($br && $br['status'] === 'active', 'This branch is inactive.');
+        return tx(function () use ($branch, $reason) {
+            $last = row("SELECT * FROM business_days WHERE branch_id = ? AND status = 'Closed' ORDER BY business_date DESC LIMIT 1", [$branch]);
+            must((bool)$last, 'This branch has no closed business date to go back to.');
+            $open = current_bd($branch);
+            $removed = null;
+            if ($open) {
+                must($open > $last['business_date'], 'The open business date is not after the last closed date; nothing to reset.');
+                $act = self::activityOn($branch, $open);
+                must(!$act, 'Business date ' . fmt_date($open) . ' already has ' . implode(', ', $act) . ', so it cannot be taken back. Reverse those items first, or restore a backup from Backup & Recovery.');
+                q("DELETE FROM business_days WHERE branch_id = ? AND business_date = ? AND status = 'Open'", [$branch, $open]);
+                $removed = $open;
+            }
+            q("UPDATE business_days SET status = 'Reopened' WHERE branch_id = ? AND business_date = ?", [$branch, $last['business_date']]);
+            insert('eod_resets', ['branch_id' => $branch, 'reopened_date' => $last['business_date'], 'removed_date' => $removed, 'reason' => trim($reason), 'user_id' => uid(), 'at' => now()]);
+            bd_changed();
+            audit('End-of-Day position reset', 'End of Day', 'business_day', $last['business_date'], 'Closed', 'Reopened', $reason, $removed ? 'removed empty day ' . $removed : '', null, null, $branch);
+            Loans::refreshStatuses(null, $branch);
+            return ['reopened' => $last['business_date'], 'removed' => $removed];
+        });
+    }
+
     public static function suggestNextDate(?int $branch = null): string
     {
         $branch = $branch ?? branch_id();
