@@ -98,3 +98,7 @@ The sign-in page has **Set up a new organisation**. Each organisation gets its o
 * Not available: FN-12 Trial Balance / Financial Statements (Bono keeps no general ledger). AR-08 and AR-09 list restructuring / write-off adjustments once those workflows are used. Scheduled reports and a custom report builder (specification phase 3) are not built yet.
 * Monthly collection targets (BP-05) are entered on the branch and on loan-officer user records.
 * New built-in roles: **Finance Manager** and **Auditor** (read-only, institution-wide).
+
+## 2e. End of Day (one step, run by the System Administrator)
+
+End of Day is a single process in a single place: **Administration → End of Day**. For each branch the page shows the system date and three steps: (0) the branch is ready (every till counted and reconciled by finance/managers), (1) **Back up** — a verified backup of the whole database, (2) **Run End of Day** — enabled only after the backup. Running it records the day's summary, closes and locks the business date, takes the closing backup and opens the next working day, so the **system date** (shown under every profile in the top bar) moves on. Finance and managers no longer submit or approve End of Day; the previous two-person workflow can be switched on in Settings → Cash & End of Day ("Who runs End of Day").

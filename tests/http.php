@@ -90,6 +90,20 @@ final class Web
         return '';
     }
 
+    /** Submit the form whose action contains $needle AND whose named fields have the given values (for repeated per-row forms). */
+    public function submitWhere(string $needle, array $match, array $override = []): string
+    {
+        foreach ($this->forms() as $f) {
+            if (!str_contains($f['action'], $needle)) continue;
+            foreach ($match as $k => $v) if ((string)($f['fields'][$k] ?? '') !== (string)$v) continue 2;
+            $data = $f['fields'];
+            foreach ($override as $k => $v) { if ($v === null) unset($data[$k]); else $data[$k] = $v; }
+            return $this->req($f['action'] === '' ? $this->lastUrl : $f['action'], $data);
+        }
+        $this->err = "no form with action containing \"$needle\" matching " . json_encode($match) . ' on ' . $this->lastUrl;
+        return '';
+    }
+
     /** Submit the first form on the current page that contains a field called $field. */
     public function submitByField(string $field, array $override = []): string
     {

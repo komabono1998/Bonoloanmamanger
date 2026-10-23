@@ -4,6 +4,7 @@ $a = get('a');
 if ((int)get('branch') && in_array((int)get('branch'), accessible_branch_ids(), true) && (int)get('branch') !== branch_id()) set_branch_context((int)get('branch'));
 $bd = current_bd();
 
+if (Eod::adminMode() && in_array($a, ['submit', 'approve', 'return'], true)) { flash('warn', Eod::ADMIN_MSG); redirect(url('eod')); }
 if ($a === 'open') post_action(function () {
     Eod::openDay(post('date'), (bool)post('allow_nonworking'));
     return 'Business day ' . fmt_date(post('date')) . ' is open.';
@@ -34,6 +35,7 @@ if ($a === 'reopen_decide') post_action(function () {
     return post('decision') === 'approve' ? 'Business date reopened by authorization. It must be reconciled and approved again.' : 'Reopen request rejected.';
 });
 
+if (Eod::adminMode()) echo '<div class="notice info"><b>End of Day is run once, by the System Administrator.</b> Reconcile every till here; the Administrator then takes a backup and runs End of Day from Administration → End of Day. This page shows the status and the checklist.</div>';
 page_head('End of Day — ' . branch_name(branch_id()), '', 'Each branch runs its own business date. Finance prepares; an independent Branch Manager (or the COO, when a cash variance exceeds the limit) approves and locks it.');
 $viewDate = get('date');
 
@@ -104,7 +106,8 @@ if (!$bd) {
         (can_any('till.use|till.reconcile') ? ['link' => fn($r) => url('till', ['tab' => 'sessions', 'session' => $r['id']])] : []) + ['class' => 'nofilter', 'empty' => 'No tills opened yet.']);
     echo '</div></div>';
 
-    if ($status === 'Awaiting Manager Review' && $rec) {
+    if (Eod::adminMode()) { /* nothing to submit or approve: the Administrator closes the day */ }
+    elseif ($status === 'Awaiting Manager Review' && $rec) {
         echo '<div class="card"><h2>' . ($rec['status'] === 'Escalated to COO' ? 'Escalated to the COO' : 'Awaiting manager approval') . '</h2>' . ($rec['status'] === 'Escalated to COO' ? '<div class="notice bad">The cash variance (' . ugx(Eod::absVariance($bd)) . ') exceeds the Branch Manager limit. Only the COO can approve this End-of-Day.</div>' : '') . '<p>Submitted by ' . e(val('SELECT full_name FROM users WHERE id = ?', [$rec['submitted_by']])) . ' on ' . e(fmt_dt($rec['submitted_at'])) . ($rec['notes'] ? ' — ' . e($rec['notes']) : '') . '. Version ' . (int)$rec['version'] . '.</p>';
         if (can('eod.approve')) {
             echo '<div class="grid g2"><div>';

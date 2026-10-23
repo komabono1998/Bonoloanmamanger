@@ -141,3 +141,17 @@ function assert_portfolio_client(array $client): void
     must(!portfolio_restricted() || (int)($client['registered_by'] ?? 0) === (int)uid()
         || (int)val('SELECT COUNT(*) FROM loans WHERE client_id = ? AND officer_id = ?', [$client['id'], uid()]) > 0, 'This client is not in your portfolio.');
 }
+
+/** The date shown under the signed-in profile: the open business date of the user's branch (or of all branches, for the administrator). */
+function system_date_label(): string
+{
+    try {
+        $own = branch_id() ? current_bd(branch_id()) : null;
+        if ($own) return fmt_date($own);
+        $dates = [];
+        foreach (array_keys(all_branch_options(false)) as $b) { $d = current_bd((int)$b); if ($d) $dates[$d] = 1; }
+        if (count($dates) === 1) return fmt_date((string)array_key_first($dates));
+        if (count($dates) > 1) return 'varies by branch';
+    } catch (Throwable $e) {}
+    return 'no day open';
+}

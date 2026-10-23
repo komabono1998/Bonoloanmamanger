@@ -297,3 +297,10 @@ table.matrix thead th { position: sticky; top: 66px; background: var(--card); z-
 
 .nav-link.disabled { opacity: .45; cursor: not-allowed; }
 .nav-link.disabled:hover { background: transparent; color: var(--side-ink); }
+
+/* End of Day (one step) and system date under the profile */
+.me .me-t small.sysdate { display: flex; align-items: center; gap: .25rem; color: var(--brand); font-weight: 500; } .me .me-t small.sysdate b { color: var(--ink); }
+.sysdate-pill { display: inline-flex; align-items: center; gap: .35rem; background: var(--brand-soft); color: var(--brand); border-radius: 999px; padding: .25rem .75rem; font-size: .9rem; } .sysdate-pill b { color: var(--ink); }
+.eod-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; counter-reset: s; }
+.eod-steps li { border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 10px; padding: .7rem .9rem; } .eod-steps li.done { border-left-color: var(--ok); background: var(--ok-bg); } .eod-steps li.locked { border-left-color: var(--line); opacity: .75; } .eod-steps li.ready { border-left-color: var(--brand); background: var(--brand-soft); }
+.eod-steps li > div { color: var(--muted); margin-top: .15rem; }

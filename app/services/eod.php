@@ -60,6 +60,65 @@ final class Eod
         return row('SELECT * FROM eod_records WHERE branch_id = ? AND business_date = ? ORDER BY version DESC LIMIT 1', [$branch ?? branch_id(), $date]);
     }
 
+    public const ADMIN_MSG = 'End of Day is run once by the System Administrator (Administration → End of Day) after a verified backup.';
+
+    /** One-step mode (default): the System Administrator closes the day. The alternative is the two-person workflow (finance prepares, a manager approves). */
+    public static function adminMode(): bool { return setting('eod_mode') !== 'workflow'; }
+
+    /** Has a verified "Pre-EOD" backup been taken for this business date? */
+    public static function preBackupDone(string $date): bool
+    {
+        return (int)val("SELECT COUNT(*) FROM backup_history WHERE type = 'Pre-EOD' AND status = 'Success' AND file LIKE ?", ['%_bd' . str_replace('-', '', $date) . '%']) > 0;
+    }
+
+    public static function lastPreBackup(string $date): ?array
+    {
+        return row("SELECT * FROM backup_history WHERE type = 'Pre-EOD' AND status = 'Success' AND file LIKE ? ORDER BY id DESC LIMIT 1", ['%_bd' . str_replace('-', '', $date) . '%']) ?: null;
+    }
+
+    /** Start the first business day (or the next one) of a branch. */
+    public static function startDay(string $date, bool $allowNonWorking, int $branch): void
+    {
+        require_perm('eod.run');
+        self::openDayCore($date, $allowNonWorking, $branch);
+    }
+
+    /**
+     * The one-step End of Day, run by the System Administrator after the backup: accrues penalties, records the day's summary,
+     * closes and locks the business date, takes the closing backup and moves the system date to the next working day.
+     */
+    public static function runDay(string $date, string $notes, int $branch): array
+    {
+        require_perm('eod.run');
+        $br = branch_row($branch);
+        must($br && $br['status'] === 'active', 'This branch is inactive.');
+        $day = self::day($date, $branch);
+        must($day && $day['status'] !== 'Closed' && current_bd($branch) === $date, 'That business date is not the open day of this branch.');
+        $blockers = self::blockers($date, $branch);
+        must(!$blockers, 'End of Day cannot run yet: ' . implode('; ', array_map(fn($b) => $b['label'] . ' (' . $b['detail'] . ')', $blockers)) . '.');
+        must(self::preBackupDone($date), 'Take the verified backup first, then run End of Day.');
+        $rid = tx(function () use ($date, $notes, $branch) {
+            Penalty::accrue($date, $branch);
+            Loans::refreshStatuses(null, $branch);
+            $rec = self::latestRecord($date, $branch);
+            $var = self::absVariance($date, $branch);
+            $id = insert('eod_records', ['branch_id' => $branch, 'business_date' => $date, 'version' => $rec ? $rec['version'] + 1 : 1, 'status' => 'Closed', 'summary_json' => json_encode(self::summary($date, $branch)),
+                'submitted_by' => uid(), 'submitted_at' => now(), 'reviewed_by' => uid(), 'reviewed_at' => now(), 'notes' => $notes ?: null, 'review_notes' => 'Run by the System Administrator', 'required_authority' => 'System Administrator']);
+            update('business_days', ['status' => 'Closed', 'closed_by' => uid(), 'closed_at' => now()], 'branch_id = :b AND business_date = :d', ['b' => $branch, 'd' => $date]);
+            bd_changed();
+            audit('End of Day run and business date locked', 'End of Day', 'eod_record', $id, null, ['date' => $date, 'cash variance (absolute)' => $var], $notes, 'run by the System Administrator', null, null, $branch);
+            return $id;
+        });
+        $b = Backup::create('EOD', $date);
+        update('eod_records', ['backup_status' => $b['ok'] ? 'Verified' : 'FAILED: ' . $b['message'], 'backup_file' => $b['file'] ?? null], 'id = :id', ['id' => $rid]);
+        if (setting('eod_auto_open_next') === '1') {
+            try { self::openDayCore(self::suggestNextDate($branch), false, $branch); }
+            catch (Throwable $e) { error_log('Next business day was not opened automatically: ' . $e->getMessage()); }
+        }
+        $b['next_date'] = current_bd($branch);
+        return $b;
+    }
+
     public static function suggestNextDate(?int $branch = null): string
     {
         $branch = $branch ?? branch_id();
@@ -79,7 +138,7 @@ final class Eod
     private static function openDayCore(string $date, bool $allowNonWorking = false, ?int $branch = null): void
     {
         $branch = $branch ?? branch_id();
-        assert_active_branch($branch);
+        if (can('eod.run')) { $br = branch_row($branch); must($br && $br['status'] === 'active', 'This branch is inactive.'); } else assert_active_branch($branch);
         must(is_date($date), 'Business date is not a valid date.');
         tx(function () use ($date, $allowNonWorking, $branch) {
             $open = current_bd($branch);
@@ -251,6 +310,7 @@ final class Eod
 
     public static function submit(string $date, string $notes = '', ?int $branch = null): int
     {
+        must(!self::adminMode(), self::ADMIN_MSG);
         require_perm('eod.manage');
         $branch = $branch ?? branch_id();
         assert_active_branch($branch);
@@ -279,6 +339,7 @@ final class Eod
     /** Independent review: closes and locks the branch business date, then takes a verified backup. */
     public static function approve(string $date, string $notes = '', ?int $branch = null, bool $backupFirst = false): array
     {
+        must(!self::adminMode(), self::ADMIN_MSG);
         require_perm('eod.approve');
         $branch = $branch ?? branch_id();
         assert_active_branch($branch);
@@ -320,6 +381,7 @@ final class Eod
 
     public static function returnForInvestigation(string $date, string $notes, ?int $branch = null): void
     {
+        must(!self::adminMode(), self::ADMIN_MSG);
         require_perm('eod.approve');
         $branch = $branch ?? branch_id();
         assert_active_branch($branch);

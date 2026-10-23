@@ -103,6 +103,7 @@ eq($sig['signature'], 'f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c60
 section('Installation, roles and permission boundaries');
 migrate();
 seed_reference_data();
+set_setting('eod_mode', 'workflow', null, false);   // the two-person tests below; the one-step mode has its own section
 $A = create_branch('KLA', 'Kampala Main');
 $B = create_branch('GLU', 'Gulu');
 mkuser('admin', 'System Administrator');
@@ -728,7 +729,7 @@ eq(current_bd($C), $res['next_date'], 'closing End-of-Day moves the system date'
 ok(current_bd($C) !== null && current_bd($C) > $dC, 'the new system date is after the closed one (' . current_bd($C) . ')');
 as_('admin');
 $h = $render('eodsys', []);
-ok(str_contains($h, 'System date by branch') && str_contains($h, 'Back up now') && str_contains($h, 'Kampala Main'), 'the administrator sees the system date of each branch and a backup-before-EOD button');
+ok(str_contains($h, 'Run End of Day') && str_contains($h, 'Back up') && str_contains($h, 'Kampala Main') && str_contains($h, 'System date'), 'the administrator sees each branch with its system date, the backup step and the Run End of Day step');
 ok(!str_contains($h, 'Cash in tills') && !str_contains($h, 'UGX'), 'the administrator page shows no financial figures');
 section('Report Centre: 104 reports, access by role, scoped data');
 $cat = ReportCatalog::all();
@@ -813,6 +814,29 @@ ok(isset($d['penalty_cap_pct'], $d['password_max_age_days']), 'every number show
 as_('lo');
 $h = $render('search', ['q' => 'Akello']);
 ok(str_contains($h, 'Akello') && !str_contains($h, 'Something went wrong'), 'global search runs on both database engines (ESCAPE clause)');
+section('End of Day: one step, run by the System Administrator');
+set_setting('eod_mode', 'admin', null, false); $GLOBALS['__settings_dirty'] = true;
+ok(Eod::adminMode(), 'one-step mode is on');
+as_('admin');
+ok(can('eod.run') && !can('eod.approve'), 'the administrator can run End of Day but holds no approval authority');
+$bdC = current_bd($C);
+ok($bdC !== null, 'branch C has an open day to close');
+throws(fn() => Eod::runDay($bdC, 'try', $C), 'backup first', 'End of Day cannot run before the backup');
+$pre = Backup::create('Pre-EOD', $bdC);
+ok($pre['ok'] && Eod::preBackupDone($bdC), 'the verified backup is recorded against the business date');
+$res = Eod::runDay($bdC, 'one-step close', $C);
+eq(Eod::status($bdC, $C), 'Closed', 'the business date is closed and locked in one step');
+eq((int)val('SELECT reviewed_by FROM eod_records WHERE branch_id = ? AND business_date = ? ORDER BY version DESC LIMIT 1', [$C, $bdC]), (int)$U['admin'], 'the record shows the administrator as the person who ran it');
+ok($res['next_date'] !== null && $res['next_date'] > $bdC && current_bd($C) === $res['next_date'], 'the system date moved to the next working day (' . $res['next_date'] . ')');
+as_('foc', $C);
+throws(fn() => Eod::submit(current_bd($C), '', $C), 'run once by the System Administrator', 'finance can no longer submit End of Day');
+as_('bmc', $C);
+throws(fn() => Eod::approve(current_bd($C), '', $C), 'run once by the System Administrator', 'a manager can no longer approve End of Day');
+throws(fn() => Eod::runDay(current_bd($C), '', $C), 'permission', 'only the administrator can run End of Day');
+as_('admin');
+ok(system_date_label() !== '', 'the system date is shown under the administrator profile (' . system_date_label() . ')');
+as_('foc', $C);
+eq(system_date_label(), fmt_date(current_bd($C)), 'a branch user sees their branch system date under the profile');
 echo "\n----------------------------------------\n";
 echo "Passed: $pass   Failed: $fail   (" . db_driver() . ")\n";
 db_close();

@@ -152,14 +152,26 @@ $fo->submit('a=reconcile', ['notes' => 'Count verified']);
 step('approve the cashier reconciliation', flashOk($fo, 'reconciled'), info($fo));
 $fo->get($fo->url('eod'));
 step('the End-of-Day screen opens', $fo->code === 200 && !str_contains($fo->body, 'Something went wrong'), info($fo));
-$fo->submit('a=submit', ['notes' => 'Day complete']);
-step('prepare and submit End-of-Day for approval', flashOk($fo), info($fo));
+$fo->get($fo->url('eod'));
+step('finance sees that End of Day is run by the System Administrator (no submit button)', str_contains($fo->body, 'run once, by the System Administrator') && !str_contains($fo->body, 'a=submit'), info($fo));
 
-echo "\n== Branch Manager: approve End-of-Day\n";
+echo "
+== System Administrator: back up, then run End of Day (one step, one place)
+";
+$admin->get($admin->url('eodsys'));
+step('the End of Day page shows each branch with its system date', $admin->code === 200 && str_contains($admin->body, 'Run End of Day') && str_contains($admin->body, 'System date'), info($admin));
+$admin->submitWhere('a=run', ['branch' => (string)$B], ['confirm' => '1']);
+step('End of Day cannot run before the backup', str_contains($admin->flashText(), 'backup first'), info($admin));
+$admin->get($admin->url('eodsys'));
+$admin->submitWhere('a=backup', ['branch' => (string)$B]);
+step('take the backup before End of Day', flashOk($admin, 'Verified backup'), info($admin));
+$admin->get($admin->url('eodsys'));
+$admin->submitWhere('a=run', ['branch' => (string)$B], ['confirm' => '1', 'notes' => 'flow test close']);
+step('run End of Day: the day is closed, locked and the system date moves on', flashOk($admin, 'End of Day complete') && str_contains($admin->flashText(), 'system date is now'), info($admin));
 $bm->get($bm->url('eod'));
-step('the manager sees the submitted End-of-Day with the backup option', str_contains($bm->body, 'backup_first') && str_contains($bm->body, 'Approve'), info($bm));
-$bm->submit('a=approve', ['notes' => 'Approved', 'backup_first' => '1']);
-step('approve End-of-Day (backup first), lock the date and move the system date', flashOk($bm, 'locked') && str_contains($bm->flashText(), 'system date'), info($bm));
+step('the branch manager sees the new system date and no approval step', $bm->code === 200 && !str_contains($bm->body, 'a=approve'), info($bm));
+$bm->get($bm->url('dashboard'));
+step('the system date is shown under the profile', str_contains($bm->body, 'System date'), info($bm));
 
 // ================================================================= E. day-to-day screens for every profile
 echo "\n== Every profile: the screens in their menu open and their filters work\n";
@@ -237,7 +249,7 @@ $admin->get($admin->url('backup'));
 $admin->submit('a=create');
 step('take a backup now', flashOk($admin) || str_contains($admin->flashText(), 'ackup'), info($admin));
 $admin->get($admin->url('eodsys'));
-step('the End of Day & System Date page opens for the administrator', $admin->code === 200 && str_contains($admin->body, 'System date by branch'), info($admin));
+step('the End of Day & System Date page opens for the administrator', $admin->code === 200 && str_contains($admin->body, 'Run End of Day'), info($admin));
 foreach (['audit', 'security', 'system', 'branches', 'users'] as $pg) { $admin->get($admin->url($pg)); step("administrator page: $pg", $admin->code === 200 && !str_contains($admin->body, 'Something went wrong'), info($admin)); }
 
 // ================================================================= G. corrections, follow-up, collateral, files

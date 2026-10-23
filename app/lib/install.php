@@ -99,10 +99,10 @@ function ensure_default_roles(): void
         foreach (default_role_permissions()[$role] ?? [] as $p) q('INSERT INTO role_permissions(role, permission) VALUES (?,?) ON CONFLICT (role, permission) DO NOTHING', [$role, $p]);
     }
     // role templates that gained access to the Report Centre (applied once to existing systems)
-    foreach (['Cashier', 'System Administrator'] as $r) {
-        $mk = 'report_view_' . strtolower(str_replace(' ', '_', $r));
+    foreach ([['Cashier', 'report.view'], ['System Administrator', 'report.view'], ['System Administrator', 'eod.run']] as [$r, $perm]) {
+        $mk = str_replace('.', '_', $perm) . '_' . strtolower(str_replace(' ', '_', $r));
         if (in_array($r, $have, true) && !val('SELECT COUNT(*) FROM schema_migrations WHERE name = ?', [$mk])) {
-            q('INSERT INTO role_permissions(role, permission) VALUES (?, ?) ON CONFLICT (role, permission) DO NOTHING', [$r, 'report.view']);
+            q('INSERT INTO role_permissions(role, permission) VALUES (?, ?) ON CONFLICT (role, permission) DO NOTHING', [$r, $perm]);
             q('INSERT INTO schema_migrations(name, applied_at) VALUES (?, ?) ON CONFLICT (name) DO NOTHING', [$mk, date('Y-m-d H:i:s')]);
         }
     }

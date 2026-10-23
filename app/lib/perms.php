@@ -29,7 +29,7 @@ function permission_catalogue(): array
         ],
         'End of Day' => [
             'eod.view' => 'View End-of-Day', 'eod.manage' => 'Open day / prepare and submit EOD', 'eod.approve' => 'Approve & lock the business day',
-            'eod.reopen' => 'Request / authorize reopening',
+            'eod.run' => 'Run End of Day (one step, after a backup)', 'eod.reopen' => 'Request / authorize reopening',
         ],
         'Reports & data' => ['report.view' => 'View reports', 'report.export' => 'Export reports (CSV / Excel)', 'import.run' => 'Import data', 'export.run' => 'Export sensitive records'],
         'Oversight' => [
@@ -67,7 +67,7 @@ function financial_authority_permissions(): array
 /** Technical permissions that only the System Administrator role may hold. */
 function technical_permissions(): array
 {
-    return ['user.manage', 'settings.manage', 'branch.manage', 'backup.manage', 'system.health', 'security.monitor', 'audit.technical'];
+    return ['user.manage', 'settings.manage', 'branch.manage', 'backup.manage', 'system.health', 'security.monitor', 'audit.technical', 'eod.run'];
 }
 
 function role_descriptions(): array
@@ -102,7 +102,7 @@ function default_role_permissions(): array
         'COO' => ['dashboard.view', 'client.view', 'client.sensitive', 'loan.view', 'loan.approve', 'loan.disburse.authorize', 'loan.close', 'loan.adjust', 'payment.view', 'payment.reverse',
             'portfolio.view', 'arrears.manage', 'penalty.adjust', 'expense.view', 'expense.approve', 'till.reconcile', 'eod.view', 'eod.approve', 'eod.reopen', 'report.view', 'report.export',
             'export.run', 'authority.institution', 'branch.all', 'compliance.view', 'limits.manage', 'settings.policy', 'backup.authorize', 'audit.all'],
-        'System Administrator' => ['dashboard.view', 'report.view', 'user.manage', 'settings.manage', 'branch.manage', 'backup.manage', 'system.health', 'security.monitor', 'audit.technical'],
+        'System Administrator' => ['dashboard.view', 'report.view', 'eod.run', 'user.manage', 'settings.manage', 'branch.manage', 'backup.manage', 'system.health', 'security.monitor', 'audit.technical'],
         'Finance Manager' => ['dashboard.view', 'client.view', 'loan.view', 'payment.view', 'payment.reverse.request', 'receipt.reprint', 'portfolio.view', 'expense.view', 'expense.approve', 'till.reconcile', 'eod.view', 'eod.manage', 'eod.reopen', 'report.view', 'report.export', 'audit.financial'],
         'Auditor' => ['dashboard.view', 'client.view', 'loan.view', 'payment.view', 'portfolio.view', 'expense.view', 'eod.view', 'report.view', 'report.export', 'audit.all', 'branch.all', 'compliance.view'],
         'Cashier' => ['dashboard.view', 'report.view', 'client.view', 'loan.view', 'loan.disburse', 'payment.view', 'payment.record', 'receipt.reprint', 'portfolio.view', 'till.use', 'expense.view', 'expense.create', 'eod.view'],
