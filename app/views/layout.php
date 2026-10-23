@@ -106,6 +106,7 @@ $pwReminder = is_installed() && user() && !empty(user()['must_change_password'])
             <?php if ($bd): ?>
               <span class="chip"><?= icon('calendar', 14) ?> Business date <b><?= e(fmt_date($bd)) ?></b></span>
               <span class="chip"><?= badge($eodStatus) ?></span>
+              <?php $__ds = []; if (can('branch.all') || can('eod.run')) foreach (array_keys(all_branch_options(false)) as $__b) { $__d = current_bd((int)$__b); if ($__d) $__ds[$__d] = 1; } if (count($__ds) > 1): ?><span class="chip warn" title="Branches are on different business dates: <?= e(implode(', ', array_map('fmt_date', array_keys($__ds)))) ?>. Run End of Day for the branch on the earliest date.">Branches on different dates</span><?php endif; ?>
             <?php else: ?>
               <span class="chip warn">No business day open</span>
               <?php if (can('eod.manage')): ?><a class="chip link" href="<?= e(url('eod')) ?>">Start business day →</a><?php endif; ?>

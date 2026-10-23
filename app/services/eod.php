@@ -99,6 +99,21 @@ final class Eod
         return $b;
     }
 
+    /**
+     * One system date for the whole institution: a branch may not close its day while another active branch is still on an earlier date.
+     * Returns [branch name, date] of the earliest branch that must close first, or null. (Setting "eod_align_branches", on by default.)
+     */
+    public static function alignmentBlock(int $branch, string $date): ?array
+    {
+        if (setting('eod_align_branches') === '0') return null;
+        $worst = null;
+        foreach (rows("SELECT id, name FROM branches WHERE status = 'active' AND id <> ?", [$branch]) as $b) {
+            $d = current_bd((int)$b['id']);
+            if ($d && $d < $date && (!$worst || $d < $worst[1])) $worst = [$b['name'], $d];
+        }
+        return $worst;
+    }
+
     /** The phases of the one-step End of Day, in order. The screen runs them one after the other and shows each as it completes. */
     public const PHASES = ['check' => 'Checking the branch is ready', 'backup' => 'Backing up the database', 'close' => 'Accruing penalties and closing the business date',
         'ledger' => 'Posting the day to the general ledger', 'closing_backup' => 'Taking the closing backup', 'next' => 'Opening the next business day'];

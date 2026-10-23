@@ -65,6 +65,10 @@ if (get('a') === 'step' && is_post()) {   // one phase of End of Day, answered a
             echo json_encode(['ok' => true, 'message' => 'Notice sent to the branch manager and the COO.', 'next_date' => $nx ? fmt_date($nx) : '']);
         } else {
             must(isset(Eod::PHASES[$ph]), 'Unknown step.');
+            if ($ph === 'check') {
+                $al = Eod::alignmentBlock($bid, $date);
+                must(!$al, 'All branches share one system date. ' . $al[0] . ' is still on ' . fmt_date($al[1]) . ' and must close first.');
+            }
             $r = Eod::runPhase($ph, $date, clean(post('notes')), $bid);
             echo json_encode(['ok' => (bool)($r['ok'] ?? true), 'message' => (string)($r['message'] ?? '')]);
         }
@@ -82,7 +86,7 @@ if (!Eod::adminMode()) echo '<div class="notice">This institution uses the two-p
 if (!$branches) echo '<div class="card"><p class="muted">No branches yet.</p></div>';
 
 $readyBranches = [];
-foreach ($branches as $rb => $rn) { $rd = current_bd((int)$rb); if ($rd && !Eod::blockers($rd, (int)$rb)) $readyBranches[] = $rn; }
+foreach ($branches as $rb => $rn) { $rd = current_bd((int)$rb); if ($rd && !Eod::blockers($rd, (int)$rb) && !Eod::alignmentBlock((int)$rb, $rd)) $readyBranches[] = $rn; }
 if (count($readyBranches) > 1 && can('eod.run') && Eod::adminMode()) {
     echo '<div class="card eod-all"><div><b>Close the day for every ready branch</b><br><span class="muted">' . e(implode(', ', $readyBranches)) . '</span></div><button type="button" class="btn primary eod-btn" data-eod-all>' . icon('check', 18) . ' Run End of Day for all ' . count($readyBranches) . ' ready branches</button></div>';
 }
@@ -101,6 +105,8 @@ foreach ($branches as $bid => $bn) {
         continue;
     }
     $blockers = Eod::blockers($bd, (int)$bid);
+    $align = Eod::alignmentBlock((int)$bid, $bd);
+    if ($align) $blockers[] = ['label' => 'Wait for the other branch so every branch keeps the same system date', 'detail' => $align[0] . ' is still on ' . fmt_date($align[1]) . ' and must run End of Day first'];
     $canRun = can('eod.run') && Eod::adminMode();
     echo '<div class="eod-go" data-eod data-branch="' . (int)$bid . '" data-date="' . e($bd) . '" data-datelabel="' . e(fmt_date($bd)) . '" data-url="' . e(url('eodsys', ['a' => 'step'])) . '" data-csrf="' . e(csrf_token()) . '" data-branchname="' . e($bn) . '">';
     echo '<div class="eod-ready">';

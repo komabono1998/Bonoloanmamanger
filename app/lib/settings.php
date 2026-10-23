@@ -23,7 +23,7 @@ function setting_defaults(): array
         'setup_lending_confirmed' => '0',
         'admin_manages_policy' => '1',
         'collection_target_monthly' => '0', 'penalty_cap_pct' => '0', 'password_max_age_days' => '0',
-        'process_profile' => 'two_role', 'wf_required_docs' => 'national_id', 'wf_min_guarantors' => '0', 'wf_collateral' => 'optional', 'wf_allow_exceptions' => '1',
+        'eod_align_branches' => '1', 'process_profile' => 'two_role', 'wf_required_docs' => 'national_id', 'wf_min_guarantors' => '0', 'wf_collateral' => 'optional', 'wf_allow_exceptions' => '1',
         'eod_pre_backup' => 'ask', 'eod_mode' => 'admin', 'temp_password_policy' => 'remind', 'temp_password_grace_days' => '7', 'eod_auto_open_next' => '1',
         'smtp_host' => '', 'smtp_port' => '587', 'smtp_security' => 'tls', 'smtp_user' => '', 'smtp_pass' => '', 'mail_from_email' => '', 'mail_from_name' => '',
         'currency' => 'UGX',
