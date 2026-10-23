@@ -486,3 +486,4 @@ body.bare { background: #eef3f8; }
 .eod-dialog { background: var(--card); border-radius: 14px; padding: 1.4rem 1.6rem; max-width: 460px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.35); } .eod-dialog h2 { margin: 0 0 .6rem; }
 .eod-dialog-actions { display: flex; gap: .6rem; justify-content: flex-end; margin-top: 1rem; }
 .notice.ok { background: rgba(30,142,90,.12); color: #14663f; border: 1px solid #1e8e5a; }
+.eod-all { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }

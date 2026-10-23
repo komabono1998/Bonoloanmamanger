@@ -81,6 +81,11 @@ page_head('End of Day', '', 'One click closes the day: it backs up, closes and l
 if (!Eod::adminMode()) echo '<div class="notice">This institution uses the two-person workflow (finance prepares, a manager approves). The one-step process is switched off in Settings → Cash &amp; End of Day.</div>';
 if (!$branches) echo '<div class="card"><p class="muted">No branches yet.</p></div>';
 
+$readyBranches = [];
+foreach ($branches as $rb => $rn) { $rd = current_bd((int)$rb); if ($rd && !Eod::blockers($rd, (int)$rb)) $readyBranches[] = $rn; }
+if (count($readyBranches) > 1 && can('eod.run') && Eod::adminMode()) {
+    echo '<div class="card eod-all"><div><b>Close the day for every ready branch</b><br><span class="muted">' . e(implode(', ', $readyBranches)) . '</span></div><button type="button" class="btn primary eod-btn" data-eod-all>' . icon('check', 18) . ' Run End of Day for all ' . count($readyBranches) . ' ready branches</button></div>';
+}
 foreach ($branches as $bid => $bn) {
     $bd = current_bd((int)$bid);
     $last = val("SELECT MAX(business_date) FROM business_days WHERE branch_id = ? AND status = 'Closed'", [$bid]);

@@ -26,6 +26,7 @@
     }
     function fail(li, msg) {
       mark(li, 'err', msg); busy = false;
+      if (box._batchCb) { var fcb = box._batchCb; box._batchCb = null; result.hidden = false; result.className = 'eod-result bad'; result.innerHTML = '<b>End of Day FAILED for ' + esc(box.getAttribute('data-branchname')) + '.</b> ' + esc(msg); fcb(false); return; }
       result.hidden = false; result.className = 'eod-result bad';
       result.innerHTML = '<b>End of Day FAILED.</b> ' + esc(msg) + ' <button type="button" class="btn sm" data-eod-retry>Try again from this step</button>';
       result.querySelector('[data-eod-retry]').addEventListener('click', function () { result.hidden = true; busy = true; next(); });
@@ -37,6 +38,7 @@
       result.innerHTML = '<div class="eod-tick">&#10003;</div><div><b>End of Day completed successfully</b><br>' + esc(box.getAttribute('data-branchname')) + ': the business date is closed and locked' +
         (nextDate ? ', and the system date is now <b>' + esc(nextDate) + '</b>' : '') + '.' + (backupOk ? '' : ' <span class="warn">The closing backup failed: take a manual backup now.</span>') +
         '<br><a class="btn sm" href="' + location.pathname + location.search + '">Refresh</a></div>';
+      if (box._batchCb) { var okcb = box._batchCb; box._batchCb = null; (window.__eodMsgs = window.__eodMsgs || []).push(esc(box.getAttribute('data-branchname')) + ' (' + esc(box.getAttribute('data-datelabel')) + ' closed' + (nextDate ? '; system date now ' + esc(nextDate) : '') + ')'); okcb(true); return; }
       try { document.title = '✓ End of Day completed'; } catch (e) {}
       try { sessionStorage.setItem('eodDone', '<b>End of Day completed successfully</b> for ' + esc(box.getAttribute('data-branchname')) + ' (' + esc(box.getAttribute('data-datelabel')) + ' closed and locked)' + (nextDate ? '. The system date is now <b>' + esc(nextDate) + '</b>.' : '.')); } catch (e) {}
       var note = document.createElement('div'); note.className = 'muted'; note.style.marginTop = '.4rem'; note.textContent = 'Updating the system date everywhere…'; result.appendChild(note);
@@ -56,6 +58,7 @@
       }).catch(function () { fail(li, 'The connection was interrupted. Reload the page to see how far End of Day got.'); });
     }
     var modal = document.querySelector('[data-eod-modal]');
+    box._runBatch = function (cb) { box._batchCb = cb; begin(); };
     function begin() { busy = true; ready.hidden = true; run.hidden = false; idx = 0; progress(false); next(); }
     start.addEventListener('click', function () {
       if (busy || start.disabled) return;
@@ -70,4 +73,30 @@
       yes.focus();
     });
   });
+
+  // one button: End of Day for every branch that is ready
+  var all = document.querySelector('[data-eod-all]');
+  if (all) {
+    all.addEventListener('click', function () {
+      var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-eod]')).filter(function (b) { var s = b.querySelector('[data-eod-start]'); return s && !s.disabled && b._runBatch; });
+      if (!boxes.length) return;
+      var modal = document.querySelector('[data-eod-modal]'), yes = modal.querySelector('[data-eod-yes]'), no = modal.querySelector('[data-eod-no]');
+      modal.querySelector('[data-eod-question]').innerHTML = 'Are you ready to run End of Day for <b>' + boxes.length + ' branch' + (boxes.length === 1 ? '' : 'es') + '</b>?<br>' +
+        boxes.map(function (b) { var d = document.createElement('div'); d.textContent = b.getAttribute('data-branchname') + ' - ' + b.getAttribute('data-datelabel'); return d.innerHTML; }).join('<br>');
+      modal.hidden = false;
+      function close() { modal.hidden = true; yes.onclick = null; no.onclick = null; }
+      no.onclick = close;
+      yes.onclick = function () {
+        close(); all.disabled = true; window.__eodMsgs = [];
+        (function step(i) {
+          if (i >= boxes.length) {
+            try { sessionStorage.setItem('eodDone', '<b>End of Day completed successfully</b> for ' + window.__eodMsgs.join('; ') + '.'); } catch (e) {}
+            setTimeout(function () { location.href = location.pathname + location.search; }, 2500); return;
+          }
+          boxes[i]._runBatch(function (ok) { if (ok) step(i + 1); else all.disabled = false; });
+        })(0);
+      };
+      yes.focus();
+    });
+  }
 })();
