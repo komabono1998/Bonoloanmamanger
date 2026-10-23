@@ -72,6 +72,12 @@ final class Eod
     public static function openDay(string $date, bool $allowNonWorking = false, ?int $branch = null): void
     {
         require_perm('eod.manage');
+        self::openDayCore($date, $allowNonWorking, $branch);
+    }
+
+    /** Opens a business day without a permission check (used by the manual action and by the automatic roll-over after End-of-Day). */
+    private static function openDayCore(string $date, bool $allowNonWorking = false, ?int $branch = null): void
+    {
         $branch = $branch ?? branch_id();
         assert_active_branch($branch);
         must(is_date($date), 'Business date is not a valid date.');
@@ -271,7 +277,7 @@ final class Eod
     }
 
     /** Independent review: closes and locks the branch business date, then takes a verified backup. */
-    public static function approve(string $date, string $notes = '', ?int $branch = null): array
+    public static function approve(string $date, string $notes = '', ?int $branch = null, bool $backupFirst = false): array
     {
         require_perm('eod.approve');
         $branch = $branch ?? branch_id();
@@ -288,6 +294,10 @@ final class Eod
         }
         $blockers = self::blockers($date, $branch);
         must(!$blockers, 'EOD cannot be approved while required reconciliations are outstanding.');
+        if ($backupFirst || setting('eod_pre_backup') === 'always') {
+            $pre = Backup::create('Pre-EOD', $date);
+            must($pre['ok'], 'The backup taken before End-of-Day FAILED (' . $pre['message'] . '). The business date was NOT closed. Fix the backup problem and try again.');
+        }
         tx(function () use ($date, $notes, $rec, $branch) {
             update('eod_records', [
                 'status' => 'Closed', 'reviewed_by' => uid(), 'reviewed_at' => now(), 'review_notes' => $notes ?: null,
@@ -299,6 +309,12 @@ final class Eod
         });
         $b = Backup::create('EOD', $date);
         update('eod_records', ['backup_status' => $b['ok'] ? 'Verified' : 'FAILED: ' . $b['message'], 'backup_file' => $b['file'] ?? null], 'id = :id', ['id' => $rec['id']]);
+        // the system date moves on: the next working day opens automatically
+        if (setting('eod_auto_open_next') === '1') {
+            try { self::openDayCore(self::suggestNextDate($branch), false, $branch); }
+            catch (Throwable $e) { error_log('Next business day was not opened automatically: ' . $e->getMessage()); }
+        }
+        $b['next_date'] = current_bd($branch);
         return $b;
     }
 

@@ -7,7 +7,7 @@ if (!$business) {
     page_head('System dashboard', '', 'Technical health and security. The System Administrator has no access to client or financial records by default.');
     $h = System::health();
     echo quick_tiles([['settings', ['tab' => 'business'], 'Institution profile & logo', 'building', 'settings.manage'], ['users', ['a' => 'new'], 'Add a user', 'user-plus', 'user.manage'], ['users', [], 'Users & Staff IDs', 'users', 'user.manage'],
-        ['branches', [], 'Branches', 'building', 'branch.manage'], ['settings', [], 'All settings', 'settings', 'settings.manage|limits.manage'], ['backup', [], 'Backups', 'database', 'backup.manage|backup.request'],
+        ['eodsys', [], 'End of Day', 'calendar', 'backup.manage|system.health'], ['branches', [], 'Branches', 'building', 'branch.manage'], ['settings', [], 'All settings', 'settings', 'settings.manage|limits.manage'], ['backup', [], 'Backups', 'database', 'backup.manage|backup.request'],
         ['security', [], 'Security monitoring', 'lock', 'security.monitor'], ['audit', [], 'Audit trail', 'eye', null]]);
     if (can('settings.manage')) {
         $list = System::setupChecklist(); $done = count(array_filter($list, fn($x) => $x[1]));
@@ -17,6 +17,9 @@ if (!$business) {
             echo '</div></div>';
         }
     }
+    $sd = '';
+    foreach (all_branch_options(false) as $bid => $bn) $sd .= '<span class="chip">' . icon('building', 14) . ' ' . e($bn) . ': <b>' . (current_bd($bid) ? e(fmt_date(current_bd($bid))) : 'no day open') . '</b></span> ';
+    echo '<div class="card"><div class="card-h"><h2>System date</h2><a class="more" href="' . e(url('eodsys')) . '">End of Day & backup ›</a></div><div style="display:flex;gap:.5rem;flex-wrap:wrap">' . $sd . '</div><p class="muted" style="margin:.6rem 0 0">The system date is each branch’s open business date. It moves to the next working day when that branch closes its End-of-Day.</p></div>';
     echo '<div class="kpis">'
         . kpi('Database', $h['db']['ok'] ? 'Online' : 'DOWN', $h['db']['engine'], $h['db']['ok'] ? 'ok' : 'bad')
         . kpi('File storage', $h['storage']['ok'] ? 'Writable' : 'PROBLEM', $h['storage']['driver'], $h['storage']['ok'] ? 'ok' : 'bad')

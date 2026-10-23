@@ -311,7 +311,7 @@ function route_icon(string $key): string
 {
     return ['dashboard' => 'home', 'inbox' => 'inbox', 'compliance' => 'trend', 'search' => 'search', 'clients' => 'users', 'guarantors' => 'user', 'loans' => 'clipboard', 'assessment' => 'search', 'approvals' => 'check',
         'disbursements' => 'dollar', 'securities' => 'shield', 'schedules' => 'calendar', 'payments' => 'card', 'receipts' => 'file', 'portfolio' => 'briefcase', 'arrears' => 'alert', 'till' => 'clock',
-        'cashbook' => 'layers', 'eod' => 'calendar', 'reports' => 'bar', 'importexport' => 'download', 'audit' => 'eye', 'users' => 'users', 'branches' => 'building', 'settings' => 'settings',
+        'cashbook' => 'layers', 'eod' => 'calendar', 'eodsys' => 'calendar', 'reports' => 'bar', 'importexport' => 'download', 'audit' => 'eye', 'users' => 'users', 'branches' => 'building', 'settings' => 'settings',
         'backup' => 'database', 'security' => 'lock', 'system' => 'activity', 'account' => 'user', 'mfa' => 'key'][$key] ?? 'file';
 }
 

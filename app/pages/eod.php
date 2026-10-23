@@ -15,9 +15,10 @@ if ($a === 'submit') post_action(function () use ($bd) {
 });
 if ($a === 'approve') post_action(function () use ($bd) {
     must($bd !== null, 'No business day is open.');
-    $b = Eod::approve($bd, clean(post('notes')));
-    if ($b['ok']) return 'Business date approved and locked. Verified backup created: ' . $b['file'];
-    flash('error', 'The business date is closed, but the backup FAILED: ' . $b['message'] . ' Run a manual backup immediately.');
+    $b = Eod::approve($bd, clean(post('notes')), null, !empty($_POST['backup_first']));
+    $next = !empty($b['next_date']) ? ' The system date is now ' . fmt_date($b['next_date']) . '.' : '';
+    if ($b['ok']) return 'Business date approved and locked. Verified backup created: ' . $b['file'] . '.' . $next;
+    flash('error', 'The business date is closed' . ($next ? ' (the system date is now ' . fmt_date($b['next_date']) . ')' : '') . ', but the backup FAILED: ' . $b['message'] . ' Run a manual backup immediately.');
     return null;
 });
 if ($a === 'return') post_action(function () use ($bd) {
@@ -108,7 +109,9 @@ if (!$bd) {
         if (can('eod.approve')) {
             echo '<div class="grid g2"><div>';
             form_open(url('eod', ['a' => 'approve']), ['attrs' => 'style="grid-template-columns:1fr" data-confirm="Approve and LOCK this business date? Normal posting to it will stop and a backup will be taken."']);
-            field('notes', 'Approval notes', ['type' => 'textarea']); echo '<div class="form-actions">'; submit_btn('Approve & lock business date', 'primary'); echo '</div>'; form_close();
+            field('notes', 'Approval notes', ['type' => 'textarea']);
+            echo '<div class="fld"><label class="chk"><input type="checkbox" name="backup_first" value="1"' . (setting('eod_pre_backup') === 'always' ? ' checked disabled' : ' checked') . '> Take a verified backup <b>before</b> closing</label><small class="muted">' . (setting('eod_pre_backup') === 'always' ? 'Required by policy. ' : '') . 'If the backup fails, the day is not closed. A second backup is taken after closing.</small></div>';
+            echo '<div class="form-actions">'; submit_btn('Approve & lock business date', 'primary'); echo '</div>'; form_close();
             echo '</div><div>';
             form_open(url('eod', ['a' => 'return']), ['attrs' => 'style="grid-template-columns:1fr"']);
             field('notes', 'Return for investigation — what is wrong?', ['type' => 'textarea', 'required' => true]); echo '<div class="form-actions">'; submit_btn('Return for investigation', 'danger'); echo '</div>'; form_close();
