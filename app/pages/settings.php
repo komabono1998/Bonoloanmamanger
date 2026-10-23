@@ -56,7 +56,7 @@ $GROUPS = [
     'eod' => ['Cash & End of Day', 'settings.policy', [
         'working_days' => ['Working days (1=Mon … 7=Sun, comma separated)', 'text', 'Institution default; each branch can override it.'], 'eod_close_time' => ['Normal closing time', 'time', 'Informational. Late items post to the open business date; the date never changes silently.'],
         'require_reconciliation' => ['Every till must be reconciled before EOD', 'checkbox'], 'expense_approval_limit' => ['Routine expense limit (UGX): above this needs approval', 'money'], 'eod_mode' => ['Who runs End of Day', 'select', ['admin' => 'One step: the System Administrator, after a backup (recommended)', 'workflow' => 'Two people: finance prepares, a manager approves']],
-        'eod_pre_backup' => ['Backup BEFORE closing the business date', 'select', ['ask' => 'Offered at approval (ticked by default)', 'always' => 'Always — the day is not closed if the backup fails']], 'eod_auto_open_next' => ['Open the next business day automatically when End-of-Day is closed', 'checkbox', 'The system date then moves to the next working day.'],
+        'eod_pre_backup' => ['Backup BEFORE closing the business date', 'select', ['ask' => 'Offered at approval (ticked by default)', 'always' => 'Always — the day is not closed if the backup fails']],
         'collection_target_monthly' => ['Monthly collection target (UGX, 0 = none)', 'money', 'Shown as a dashed line on the Collections trend chart.'],
         'reopen_authority' => ['Reopening a closed business date is authorized by', 'select', ['branch_manager' => 'Branch Manager', 'coo' => 'COO']],
     ]],

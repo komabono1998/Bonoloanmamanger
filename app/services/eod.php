@@ -146,7 +146,7 @@ final class Eod
                 if ($rec) update('eod_records', ['backup_status' => $b['ok'] ? 'Verified' : 'FAILED: ' . $b['message'], 'backup_file' => $b['file'] ?? null], 'id = :id', ['id' => $rec['id']]);
                 return $b + ['message' => $b['message'] ?? ''];
             case 'next':
-                if (setting('eod_auto_open_next') === '1') {
+                if (setting('eod_auto_open_next') !== '0') {   // the system date always moves on (only the test fixtures switch this off)
                     try { self::openDayCore(self::suggestNextDate($branch), false, $branch); }
                     catch (Throwable $e) { error_log('Next business day was not opened automatically: ' . $e->getMessage()); return ['ok' => true, 'message' => 'The next business day was not opened automatically (' . $e->getMessage() . ') - start it below.']; }
                 }
@@ -424,7 +424,7 @@ final class Eod
         $b = Backup::create('EOD', $date);
         update('eod_records', ['backup_status' => $b['ok'] ? 'Verified' : 'FAILED: ' . $b['message'], 'backup_file' => $b['file'] ?? null], 'id = :id', ['id' => $rec['id']]);
         // the system date moves on: the next working day opens automatically
-        if (setting('eod_auto_open_next') === '1') {
+        if (setting('eod_auto_open_next') !== '0') {
             try { self::openDayCore(self::suggestNextDate($branch), false, $branch); }
             catch (Throwable $e) { error_log('Next business day was not opened automatically: ' . $e->getMessage()); }
         }

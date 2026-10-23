@@ -1,5 +1,9 @@
 /* One-click End of Day: runs each step in turn, shows a progress bar and the outcome of every step. */
 (function () {
+  try {
+    var done = sessionStorage.getItem('eodDone');
+    if (done) { sessionStorage.removeItem('eodDone'); var m = document.querySelector('main') || document.body; var n = document.createElement('div'); n.className = 'notice ok'; n.innerHTML = done; m.insertBefore(n, m.firstChild); }
+  } catch (e) {}
   document.querySelectorAll('[data-eod]').forEach(function (box) {
     var start = box.querySelector('[data-eod-start]');
     if (!start) return;
@@ -34,6 +38,9 @@
         (nextDate ? ', and the system date is now <b>' + esc(nextDate) + '</b>' : '') + '.' + (backupOk ? '' : ' <span class="warn">The closing backup failed: take a manual backup now.</span>') +
         '<br><a class="btn sm" href="' + location.pathname + location.search + '">Refresh</a></div>';
       try { document.title = '✓ End of Day completed'; } catch (e) {}
+      try { sessionStorage.setItem('eodDone', '<b>End of Day completed successfully</b> for ' + esc(box.getAttribute('data-branchname')) + ' (' + esc(box.getAttribute('data-datelabel')) + ' closed and locked)' + (nextDate ? '. The system date is now <b>' + esc(nextDate) + '</b>.' : '.')); } catch (e) {}
+      var note = document.createElement('div'); note.className = 'muted'; note.style.marginTop = '.4rem'; note.textContent = 'Updating the system date everywhere…'; result.appendChild(note);
+      setTimeout(function () { location.href = location.pathname + location.search; }, 3000);
     }
     var nextDate = '';
     function next() {

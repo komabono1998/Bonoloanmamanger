@@ -200,7 +200,8 @@ $allOk = true; $trace = [];
 foreach (['check', 'backup', 'close', 'ledger', 'closing_backup', 'next', 'done'] as $ph) { $r = $eodStep($ph); $trace[] = $ph . ':' . ($r['ok'] ? 'ok' : 'FAIL ' . $r['message']); if (!$r['ok']) $allOk = false; }
 step('run End of Day step by step: backup, close, ledger, closing backup, next day, notice', $allOk, implode(' | ', $trace));
 $admin->get($admin->url('eodsys'));
-step('the day is closed, locked and the system date has moved on', !str_contains($admin->body, 'data-eod-start') || !str_contains($admin->body, 'data-date="' . $em[1] . '"'), info($admin));
+preg_match('~data-eod data-branch="' . $B . '" data-date="([^"]+)"~', $admin->body, $nd);
+step('the system date moved to the next working day straight after End of Day', !empty($nd[1]) && $nd[1] > $em[1], 'before ' . $em[1] . ' after ' . ($nd[1] ?? 'none'));
 $bm->get($bm->url('eod'));
 step('the branch manager sees the new system date and no approval step', $bm->code === 200 && !str_contains($bm->body, 'a=approve'), info($bm));
 $bm->get($bm->url('dashboard'));
