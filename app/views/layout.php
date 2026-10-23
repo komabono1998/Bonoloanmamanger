@@ -12,7 +12,8 @@ if (is_installed() && user()) {
 $pageTitle = ($title ? $title . ' · ' : '') . business_name();
 $curBranch = (is_installed() && user()) ? branch_id() : 0;
 $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
-$locked = is_installed() && user() && !empty(user()['must_change_password']);   // password must be changed before anything else
+$locked = is_installed() && user() && password_change_locked();   // only when the grace period is over, the password expired or the policy is "lock"
+$pwReminder = is_installed() && user() && !empty(user()['must_change_password']) && !$locked && $page !== 'account';
 ?><!doctype html>
 <html lang="en">
 <head>
@@ -115,6 +116,7 @@ $locked = is_installed() && user() && !empty(user()['must_change_password']);   
       </div>
       <?php endif; ?>
       <main class="content">
+        <?php if ($pwReminder): $left = password_grace_days_left(); ?><div class="flash warn pw-remind">Your password was set by an administrator. Please choose your own — <a href="<?= e(url('account')) ?>"><b>change it now</b></a><?= $left > 0 ? ' (' . $left . ' day' . ($left === 1 ? '' : 's') . ' left before the menu locks)' : '' ?>.</div><?php endif; ?>
         <?php foreach ($flashes as [$t, $m]): ?><div class="flash <?= e($t) ?>"><?= e($m) ?></div><?php endforeach; ?>
         <?= $content ?>
       </main>

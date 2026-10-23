@@ -111,7 +111,7 @@ try {
             http_response_code(403); throw new AppError('You do not have permission to perform this action.');
         }
         $pageFile = BASE_PATH . '/app/pages/' . $file . '.php';
-        if (user() && !empty(user()['must_change_password']) && !in_array($page, ['account', 'file'], true)) redirect(url('account'));
+        if (user() && password_change_locked() && !in_array($page, ['account', 'file'], true)) redirect(url('account'));
         if (user() && !empty($_SESSION['mfa_enroll']) && !in_array($page, ['mfa', 'logout'], true)) {
             flash('warn', 'Multi-factor authentication is required for your role. Please set it up to continue.');
             redirect(url('mfa'));

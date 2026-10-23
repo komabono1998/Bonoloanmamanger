@@ -373,3 +373,5 @@ table.matrix thead th { top: 62px; background: var(--th); color: #fff; }
 @media print { .filters2, .applied, .dl { display: none !important; } }
 
 .rep-cats .chip { cursor: pointer; font: inherit; font-size: .86rem; } .rep-cats .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; } .rep-cats .chip.on .count { background: #fff; color: var(--brand); }
+
+.pw-remind { display: flex; align-items: center; gap: .4rem; }

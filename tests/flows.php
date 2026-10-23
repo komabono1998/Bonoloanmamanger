@@ -304,7 +304,9 @@ $admin->submit('a=create', ['full_name' => 'Photo Person', 'username' => 'fphoto
 step('create a profile together with a photo', flashOk($admin, 'User created'), info($admin));
 $ph = new Web($base);
 $ph->login('fphoto' . $sfx, $TEMP);
-step('first sign-in shows the locked state with the change-password box', str_contains($ph->body, 'One step before you start') && str_contains($ph->body, 'nav-link disabled'), info($ph));
+step('first sign-in: every module is active, with a reminder to choose a password', str_contains($ph->body, 'pw-remind') && !str_contains($ph->body, 'nav-link disabled') && str_contains($ph->body, 'Dashboard'), info($ph));
+$ph->get($ph->url('clients'));
+step('the new profile can open Clients straight away', $ph->code === 200 && str_contains($ph->body, 'Clients') && !str_contains($ph->title(), 'My account'), info($ph));
 preg_match('~<img class="pfp"[^>]*src="([^"]+)"~', $ph->body, $pm);
 $img = $pm ? $ph->get(html_entity_decode($pm[1])) : '';
 step('the photo already loads on that first screen', $pm && str_starts_with($img, "\x89PNG"), $pm ? 'not an image (redirected?)' : 'no photo in the page');

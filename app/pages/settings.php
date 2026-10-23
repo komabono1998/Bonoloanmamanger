@@ -62,6 +62,7 @@ $GROUPS = [
     ]],
     'security' => ['Security & recovery', 'settings.manage', [
         'session_timeout_min' => ['Session timeout (minutes of inactivity)', 'number'], 'password_min_length' => ['Minimum password length', 'number'], 'password_max_age_days' => ['Passwords expire after (days, 0 = never)', 'number'],
+        'temp_password_policy' => ['Temporary passwords (set by an administrator)', 'select', ['remind' => 'Everything works; remind the person to choose their own (recommended)', 'lock' => 'Lock the menu until they choose their own password']], 'temp_password_grace_days' => ['Days a temporary password may be used before the menu locks', 'number'],
         'mfa_required_roles' => ['Roles that must use multi-factor authentication', 'roles', 'System Administrator is always included.'],
         'backup_dir' => ['Backup folder', 'text', 'Relative to the app folder, or an absolute path on a separate volume. (BACKUP_DIR in the environment overrides this.)'],
         'backup_auto_hours' => ['Automatic backup if the last one is older than (hours, 0 = off)', 'number'], 'backup_keep' => ['Backups to keep', 'number'],

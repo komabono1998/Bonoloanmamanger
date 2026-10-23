@@ -274,3 +274,27 @@ function make_number(string $prefixKey, string $seqName, bool $yearly, int $pad 
     $n = next_seq($yearly ? "$seqName-$year" : $seqName);
     return setting($prefixKey) . '-' . ($yearly ? "$year-" : '') . str_pad((string)$n, $pad, '0', STR_PAD_LEFT);
 }
+
+/**
+ * Must the signed-in user change their password before anything else? An administrator-set (temporary) password only
+ * triggers a reminder banner while the grace period lasts, so every module keeps working; an expired password, the "lock"
+ * policy or an exhausted grace period lock the menu until the password is changed.
+ */
+function password_change_locked(): bool
+{
+    $u = user();
+    if (!$u || empty($u['must_change_password'])) return false;
+    $max = setting_int('password_max_age_days');
+    $changed = $u['password_changed_at'] ? strtotime($u['password_changed_at']) : 0;
+    if ($max > 0 && $changed && $changed < time() - $max * 86400) return true;       // expired
+    if (setting('temp_password_policy') === 'lock') return true;
+    return !$changed || $changed < time() - max(0, setting_int('temp_password_grace_days')) * 86400;
+}
+
+/** Whole days left before a temporary password locks the account (0 when none). */
+function password_grace_days_left(): int
+{
+    $u = user();
+    if (!$u || empty($u['must_change_password']) || empty($u['password_changed_at'])) return 0;
+    return max(0, (int)ceil((strtotime($u['password_changed_at']) + max(0, setting_int('temp_password_grace_days')) * 86400 - time()) / 86400));
+}

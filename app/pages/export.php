@@ -19,6 +19,7 @@ if ($kind === 'report') {
     audit('Data exported', 'Export', 'export', 'report:' . $key, null, $run['shown'] . ' rows (' . $fmt . ')');
     while (ob_get_level() > 0) ob_end_clean();
     $file = $key . '_' . ($p['from'] === $p['to'] ? $p['from'] : $p['from'] . '_to_' . $p['to']) . '_' . date('His');
+    header('X-Content-Type-Options: nosniff');
     switch ($fmt) {
         case 'pdf': header('Content-Type: application/pdf'); header('Content-Disposition: attachment; filename="' . $file . '.pdf"'); echo ReportRun::pdf($def, $run, $lines); break;
         case 'xlsx': header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); header('Content-Disposition: attachment; filename="' . $file . '.xlsx"'); echo ReportRun::xlsx($def, $run, $lines); break;
@@ -26,7 +27,6 @@ if ($kind === 'report') {
         case 'json': header('Content-Type: application/json; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.json"'); echo ReportRun::json($def, $p, $run, $lines); break;
         default: header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.csv"'); echo ReportRun::csv($def, $run, $lines);
     }
-    header('X-Content-Type-Options: nosniff');
     exit;
 } elseif ($kind === 'audit') {
     require_perm('audit.all'); require_perm('report.export');

@@ -19,7 +19,7 @@ post_action(function () {
 $u = row('SELECT * FROM users WHERE id = ?', [uid()]);
 page_head('My account & security');
 ?>
-<?php if (!empty($u['must_change_password'])): ?><div class="notice"><b>One step before you start:</b> your password was set by an administrator (or has expired). Choose your own new password in the box on the right — the menu unlocks as soon as you save it.</div><?php endif; ?>
+<?php if (!empty($u['must_change_password']) && !password_change_locked()): ?><div class="notice info"><b>Please choose your own password.</b> It was set by an administrator. Everything keeps working meanwhile, but the menu will lock after the grace period (<?= (int)password_grace_days_left() ?> day(s) left).</div><?php elseif (!empty($u['must_change_password'])): ?><div class="notice"><b>One step before you start:</b> your password was set by an administrator (or has expired). Choose your own new password in the box on the right — the menu unlocks as soon as you save it.</div><?php endif; ?>
 <div class="grid g2">
   <div class="card">
     <h2>Profile</h2>
