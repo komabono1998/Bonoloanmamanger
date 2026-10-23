@@ -11,6 +11,7 @@ final class Backup
     {
         $d = env('BACKUP_DIR') ?: setting('backup_dir') ?: 'storage/backups';
         $abs = preg_match('~^([A-Za-z]:[\\\\/]|/)~', $d) ? $d : BASE_PATH . '/' . $d;
+        $abs .= tenant_dir_suffix();
         if (!is_dir($abs)) @mkdir($abs, 0775, true);
         return rtrim(str_replace('\\', '/', $abs), '/');
     }
@@ -83,7 +84,7 @@ final class Backup
         try {
             if (file_exists($file)) unlink($file);
             if (db_is_pg()) {
-                $args = array_merge(self::pgConn(), ['-Fc', '--no-owner', '-f', $file, (string)env('DB_NAME', 'bono')]);
+                $args = array_merge(self::pgConn(), ['-Fc', '--no-owner', '-f', $file, db_name()]);
                 if (env('DB_SCHEMA')) { $args[] = '-n'; $args[] = (string)env('DB_SCHEMA'); }
                 [$code, $out] = self::pgRun('pg_dump', $args);
                 if ($code !== 0) throw new RuntimeException($out);
@@ -202,7 +203,7 @@ final class Backup
         $safetyFile = self::dir() . '/' . $safety['file'];
         if (db_is_pg()) {
             db_close();
-            $args = array_merge(self::pgConn(), ['--clean', '--if-exists', '--no-owner', '--single-transaction', '-d', (string)env('DB_NAME', 'bono'), $file]);
+            $args = array_merge(self::pgConn(), ['--clean', '--if-exists', '--no-owner', '--single-transaction', '-d', db_name(), $file]);
             [$code, $out] = self::pgRun('pg_restore', $args);
             must($code === 0, 'The restore failed and the database was left unchanged: ' . substr($out, 0, 300));
             db_close();

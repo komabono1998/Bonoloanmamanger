@@ -44,10 +44,12 @@ if (is_post()) {
   <?php else: ?>
     <p class="muted" style="text-align:center">Sign in with your username, email or Staff ID</p>
     <?php form_open(null) ?>
-      <?php field('username', 'Username, email or Staff ID', ['required' => true, 'attrs' => 'autofocus autocomplete="username"']); ?>
+      <?php if (Tenancy::all() || tenant()): ?><?php field('org', 'Organisation code', ['value' => tenant_slug() ?: (string)get('org'), 'help' => 'Leave blank for ' . ($GLOBALS['__tenant'] ? 'the main organisation' : business_name()) . '.', 'attrs' => 'autocapitalize="none" spellcheck="false" autocomplete="organization"']); ?><?php endif; ?>
+      <?php field('username', 'Username, email or Staff ID', ['required' => true, 'attrs' => 'autocomplete="username"']); ?>
       <?php field('password', 'Password', ['type' => 'password', 'required' => true, 'attrs' => 'autocomplete="current-password"']); ?>
       <div class="form-actions"><?php submit_btn('Sign in', 'primary') ?></div>
     <?php form_close() ?>
     <p style="text-align:center;margin:.8rem 0 0"><a href="<?= e(url('forgot')) ?>">Forgot your password?</a></p>
+    <?php if (Tenancy::enabled()): ?><div class="org-cta"><span>New here?</span><a class="btn" href="<?= e(url('register')) ?>"><?= icon('building', 16) ?> Set up a new organisation</a></div><?php endif; ?>
   <?php endif; ?>
 </div>

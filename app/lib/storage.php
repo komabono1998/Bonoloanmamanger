@@ -14,7 +14,7 @@ final class Storage
 
     public static function localRoot(): string
     {
-        $p = env('STORAGE_PATH') ?: BASE_PATH . '/storage/uploads';
+        $p = (env('STORAGE_PATH') ?: BASE_PATH . '/storage/uploads') . tenant_dir_suffix();
         if (!is_dir($p)) @mkdir($p, 0775, true);
         return rtrim(str_replace('\\', '/', $p), '/');
     }

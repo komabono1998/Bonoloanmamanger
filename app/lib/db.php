@@ -17,16 +17,32 @@ function db_driver(): string
 
 function db_is_pg(): bool { return db_driver() === 'pgsql'; }
 
-function db_path(): string
+function primary_db_path(): string
 {
     if (defined('DB_FILE')) return DB_FILE;
     return env('SQLITE_PATH') ?: BASE_PATH . '/storage/db/bono.sqlite';
 }
 
+function db_path(): string
+{
+    $t = $GLOBALS['__tenant'] ?? null;
+    if ($t && !db_is_pg()) return dirname(primary_db_path()) . '/' . $t['db_name'];
+    return primary_db_path();
+}
+
+/** PostgreSQL database name of the current organisation. */
+function db_name(): string
+{
+    $t = $GLOBALS['__tenant'] ?? null;
+    return $t && db_is_pg() ? $t['db_name'] : (string)env('DB_NAME', 'bono');
+}
+
 function &db_holder(): ?PDO
 {
-    static $pdo = null;
-    return $pdo;
+    static $h = [];
+    $k = $GLOBALS['__tenant']['slug'] ?? '';   // one connection per organisation
+    if (!array_key_exists($k, $h)) $h[$k] = null;
+    return $h[$k];
 }
 
 function db(): PDO
@@ -34,7 +50,7 @@ function db(): PDO
     $pdo = &db_holder();
     if ($pdo !== null) return $pdo;
     if (db_is_pg()) {
-        $dsn = 'pgsql:host=' . env('DB_HOST', 'localhost') . ';port=' . env('DB_PORT', '5432') . ';dbname=' . env('DB_NAME', 'bono')
+        $dsn = 'pgsql:host=' . env('DB_HOST', 'localhost') . ';port=' . env('DB_PORT', '5432') . ';dbname=' . db_name()
             . ';sslmode=' . env('DB_SSLMODE', is_production() ? 'require' : 'prefer') . ';application_name=bono-loan-manager';
         $pdo = new PDO($dsn, (string)env('DB_USER', 'postgres'), (string)env('DB_PASSWORD', ''), [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_STRINGIFY_FETCHES => false,

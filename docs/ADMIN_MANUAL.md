@@ -80,3 +80,11 @@ Build / deploy the new version; the first request applies new migrations once. C
 | Cannot approve above a limit | by design — it routes to the COO (My Approvals) |
 | Backup shows failed | `pg_dump` installed? free space? (*System health → recent errors*) |
 | `/health` = degraded | last verified backup is older than twice the backup interval |
+
+## 2c. Organisations (separate workspaces)
+
+The sign-in page has **Set up a new organisation**. Each organisation gets its own private database, branches, users, settings, files and backups, so no organisation can see another's data. Staff sign in with their **organisation code** (leave it blank for the first/main organisation); the code is remembered in the browser. A signed-in session only works in the organisation it was created in.
+
+* SQLite: each organisation is a file in `storage/db/tenants/`. PostgreSQL: each organisation is a database named `bono_t_<code>` (the database user needs `CREATEDB`).
+* Self-registration is **on locally and off in production** unless `SELF_REGISTRATION=1`. It is limited to 3 new organisations per IP address per hour; the code cannot be a reserved word.
+* Files and backups are stored per organisation (`.../t_<code>/`). Run backups from each organisation's own Backup page.

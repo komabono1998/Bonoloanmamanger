@@ -79,7 +79,7 @@ try {
         migrate();                         // applies any new migration files on upgrade
         load_session_user();
         if (!user()) {
-            if (in_array($page, ['reset', 'forgot'], true)) { $layout = 'bare'; }
+            if (in_array($page, ['reset', 'forgot', 'register'], true)) { $layout = 'bare'; }
             else {
                 if ($page !== 'login') $_SESSION['after_login'] = $_SERVER['REQUEST_URI'] ?? '';
                 $page = 'login';
@@ -89,7 +89,7 @@ try {
             logout();
             flash('ok', 'You have been signed out.');
             redirect(url('login'));
-        } elseif (in_array($page, ['login', 'setup', 'reset', 'forgot'], true)) {
+        } elseif (in_array($page, ['login', 'setup', 'reset', 'forgot', 'register'], true)) {
             redirect(url('dashboard'));
         } elseif ($page === 'switch_branch') {
             post_action(function () {
@@ -101,7 +101,7 @@ try {
         }
     }
 
-    if (!in_array($page, ['login', 'setup', 'reset', 'forgot'], true)) {
+    if (!in_array($page, ['login', 'setup', 'reset', 'forgot', 'register'], true)) {
         if (!isset($ROUTES[$page])) { http_response_code(404); throw new AppError('That page does not exist.'); }
         [$file, $perm] = $ROUTES[$page];
         if ($perm && !can_any($perm)) { http_response_code(403); throw new AppError('You do not have permission to perform this action.'); }

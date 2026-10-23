@@ -621,7 +621,7 @@ throws(fn() => Loans::saveApplication(['client_id' => $cid, 'amount_requested' =
 q('DELETE FROM user_permissions WHERE user_id = ?', [$U['lo']]);
 // deactivation: access is denied immediately
 q("UPDATE users SET status = 'inactive' WHERE id = ?", [$U['lo']]);
-$_SESSION['uid'] = $U['lo']; $_SESSION['last_activity'] = time(); load_session_user();
+$_SESSION['uid'] = $U['lo']; $_SESSION['tenant'] = tenant_slug(); $_SESSION['last_activity'] = time(); load_session_user();
 ok(user() === null, 'a deactivated account loses its active session immediately');
 q("UPDATE users SET status = 'active' WHERE id = ?", [$U['lo']]);
 // portfolio scope (configurable): without portfolio.all only own clients and assigned loans are reachable
@@ -668,12 +668,53 @@ as_('lo');
 ok(!isset(Dashboard::summary(null)['coll_today']), 'a Loan Officer is not given collection totals');
 $h = $render('dashboard', []);
 ok(str_contains($h, 'Data as of') && str_contains($h, 'Collections today') === false, 'dashboard states when the data was read');
+section('Organisations: separate workspaces per organisation');
+as_('admin');
+$primaryUsers = (int)val('SELECT COUNT(*) FROM users'); $primaryClients = (int)val('SELECT COUNT(*) FROM clients');
+ok(Tenancy::enabled(), 'self-registration is on outside production');
+eq(Tenancy::slugFromName('Acme Finance Ltd.'), 'acme-finance-ltd', 'organisation code is derived from the name');
+$slug = Tenancy::create('Acme Finance', 'acme-finance', 'Ann Admin', 'annadmin', 'ann@acme.test', 'Strong-pass-123', 'Acme HQ', 'AHQ');
+eq($slug, 'acme-finance', 'a new organisation workspace is created');
+$GLOBALS['__tenantDbs'][] = Tenancy::find('acme-finance')['db_name'];
+eq((int)val('SELECT COUNT(*) FROM users'), $primaryUsers, 'the primary organisation gained no users');
+tenant_use(Tenancy::find('acme-finance'));
+ok(is_installed() && business_name() === 'Acme Finance', 'the new organisation is installed with its own name');
+eq((int)val('SELECT COUNT(*) FROM users'), 1, 'its database holds only its own administrator');
+eq(val('SELECT role FROM users WHERE username = ?', ['annadmin']), 'System Administrator', 'the founder is its System Administrator');
+ok(preg_match('/^AF-S-0001$/', (string)val('SELECT staff_no FROM users WHERE username = ?', ['annadmin'])) === 1, 'staff IDs use the organisation\'s own code');
+eq((int)val('SELECT COUNT(*) FROM clients'), 0, 'none of the primary organisation\'s clients are visible');
+eq(val('SELECT COUNT(*) FROM branches'), 1, 'it starts with its own single branch');
+ok(str_contains(Storage::localRoot(), '/t_acme-finance') && str_contains(Backup::dir(), '/t_acme-finance'), 'files and backups are kept in the organisation\'s own folders');
+q("INSERT INTO clients(branch_id, client_no, full_name, nin, phone, registered_by, registered_at) VALUES (?, 'ACM-0001', 'Acme Only Client', 'NINACME0001A', '0700000001', 1, ?)", [(int)val('SELECT id FROM branches LIMIT 1'), now()]);
+$tenantUserId = (int)val("SELECT id FROM users WHERE username = 'annadmin'");
+tenant_use(null);
+eq((int)val('SELECT COUNT(*) FROM clients'), $primaryClients, 'a client created in one organisation never appears in another');
+ok(!val("SELECT COUNT(*) FROM users WHERE username = 'annadmin'"), 'the new administrator does not exist in the primary organisation');
+// sessions are bound to the organisation they were created in
+$_SESSION = ['uid' => $tenantUserId, 'tenant' => 'acme-finance', 'last_activity' => time()];
+load_session_user();
+ok(user() === null, 'a session from another organisation is rejected (same numeric user id, different organisation)');
+tenant_use(Tenancy::find('acme-finance'));
+$_SESSION = ['uid' => $tenantUserId, 'tenant' => 'acme-finance', 'last_activity' => time()];
+load_session_user();
+ok(user() !== null && user()['username'] === 'annadmin', 'the same session is accepted inside its own organisation');
+tenant_use(null); $_SESSION = [];
+throws(fn() => Tenancy::create('Other', 'acme-finance', 'X Y', 'xy', '', 'Strong-pass-123'), 'already taken', 'an organisation code cannot be reused');
+throws(fn() => Tenancy::create('Other', 'admin', 'X Y', 'xy', '', 'Strong-pass-123'), 'reserved', 'reserved codes are refused');
+throws(fn() => Tenancy::create('Other', 'Bad Code!', 'X Y', 'xy', '', 'Strong-pass-123'), 'organisation code must be', 'invalid codes are refused');
+throws(fn() => Tenancy::create('Other', 'other-org', 'X Y', 'xy', '', 'weak'), 'at least', 'the administrator password policy applies');
+foreach (['acme-two', 'acme-three'] as $s2) { Tenancy::create($s2, $s2, 'A B', 'abc', '', 'Strong-pass-123'); $GLOBALS['__tenantDbs'][] = Tenancy::find($s2)['db_name']; }
+throws(fn() => Tenancy::create('Fourth', 'acme-four', 'A B', 'abc', '', 'Strong-pass-123'), 'Too many', 'registrations are throttled per address');
+eq(count(Tenancy::all()), 3, 'the registry lists the created organisations');
+eq(Tenancy::find('nope-nope'), null, 'unknown organisation codes resolve to nothing');
 echo "\n----------------------------------------\n";
 echo "Passed: $pass   Failed: $fail   (" . db_driver() . ")\n";
 db_close();
 if ($driver === 'pgsql') {
+    foreach ($GLOBALS['__tenantDbs'] ?? [] as $tdb) { try { $admin->exec("DROP DATABASE IF EXISTS \"$tdb\" WITH (FORCE)"); } catch (Throwable $e) {} }
     try { $admin->exec("DROP DATABASE IF EXISTS $pgDb WITH (FORCE)"); } catch (Throwable $e) { echo "cleanup: " . $e->getMessage() . "\n"; }
 }
+foreach (glob($tmp . '/tenants/*') ?: [] as $tf) @unlink($tf); @rmdir($tmp . '/tenants');
 foreach (array_merge(glob($tmp . '/backups/*') ?: [], glob($tmp . '/uploads/*') ?: [], glob($tmp . '/*') ?: []) as $f) @is_file($f) && @unlink($f);
 @rmdir($tmp . '/backups'); @rmdir($tmp . '/uploads'); @rmdir($tmp);
 exit($fail ? 1 : 0);

@@ -16,6 +16,7 @@ function app_url(string $page, array $params = []): string
 {
     $root = rtrim((string)env('APP_URL', ''), '/');
     if ($root === '') $root = (request_is_https() ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    if (tenant()) $params['org'] = tenant_slug();
     return $root . parse_url(url($page, $params), PHP_URL_PATH) . '?' . http_build_query(['p' => $page] + $params);
 }
 

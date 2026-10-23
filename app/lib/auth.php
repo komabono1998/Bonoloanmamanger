@@ -11,24 +11,24 @@ final class DbSessionHandler implements SessionHandlerInterface
     public function close(): bool { return true; }
     public function read(string $id): string|false
     {
-        try { return (string)(val('SELECT data FROM app_sessions WHERE id = ?', [$id]) ?? ''); } catch (Throwable $e) { return ''; }
+        try { return (string)(in_primary(fn() => val('SELECT data FROM app_sessions WHERE id = ?', [$id])) ?? ''); } catch (Throwable $e) { return ''; }
     }
     public function write(string $id, string $data): bool
     {
         try {
-            q('INSERT INTO app_sessions(id, data, updated_at) VALUES (?,?,?) ON CONFLICT (id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at', [$id, $data, time()]);
+            in_primary(fn() => q('INSERT INTO app_sessions(id, data, updated_at) VALUES (?,?,?) ON CONFLICT (id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at', [$id, $data, time()]));
             return true;
         } catch (Throwable $e) { return false; }
     }
-    public function destroy(string $id): bool { try { q('DELETE FROM app_sessions WHERE id = ?', [$id]); } catch (Throwable $e) {} return true; }
-    public function gc(int $max): int|false { try { return q('DELETE FROM app_sessions WHERE updated_at < ?', [time() - $max])->rowCount(); } catch (Throwable $e) { return 0; } }
+    public function destroy(string $id): bool { try { in_primary(fn() => q('DELETE FROM app_sessions WHERE id = ?', [$id])); } catch (Throwable $e) {} return true; }
+    public function gc(int $max): int|false { try { return in_primary(fn() => q('DELETE FROM app_sessions WHERE updated_at < ?', [time() - $max])->rowCount()); } catch (Throwable $e) { return 0; } }
 }
 
 function start_session(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE || PHP_SAPI === 'cli') return;
     if (strtolower((string)env('SESSION_DRIVER', 'files')) === 'db') {
-        try { val('SELECT 1 FROM app_sessions LIMIT 1'); session_set_save_handler(new DbSessionHandler(), true); }
+        try { in_primary(fn() => val('SELECT 1 FROM app_sessions LIMIT 1')); session_set_save_handler(new DbSessionHandler(), true); }
         catch (Throwable $e) { /* not installed yet: the first (setup) requests use file sessions */ }
     }
     session_name(is_production() ? '__Host-BONOSESS' : 'BONOSESS');
@@ -75,6 +75,7 @@ function load_session_user(): void
         flash('warn', 'You were signed out after a period of inactivity. Please sign in again.');
         return;
     }
+    if (($_SESSION['tenant'] ?? '') !== tenant_slug()) { $_SESSION = []; return; }   // a session is only valid in the organisation it was created in
     $_SESSION['last_activity'] = time();
     $u = row("SELECT * FROM users WHERE id = ? AND status = 'active'", [$_SESSION['uid']]);
     if ($u) $GLOBALS['__user'] = $u;
@@ -170,6 +171,7 @@ function complete_login(array $u): void
     if (PHP_SAPI !== 'cli') {
         session_regenerate_id(true);
         $_SESSION['uid'] = (int)$u['id'];
+        $_SESSION['tenant'] = tenant_slug();
         $_SESSION['uname'] = $u['username'];
         $_SESSION['last_activity'] = time();
         $_SESSION['csrf'] = bin2hex(random_bytes(24));

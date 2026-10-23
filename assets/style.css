@@ -273,3 +273,7 @@ body.bare { background: linear-gradient(160deg, var(--side), var(--brand)); }
 .activity .as { display: flex; flex-direction: column; align-items: flex-end; gap: .15rem; flex: none; }
 .focus .kpis { margin-bottom: .6rem; } .focus { margin-bottom: 1rem; }
 .legend small { font-size: .78rem; }
+
+.org-cta { display: flex; align-items: center; justify-content: space-between; gap: .8rem; border-top: 1px solid var(--line); margin-top: 1rem; padding-top: 1rem; color: var(--muted); } .org-cta .btn svg { vertical-align: -3px; }
+.bare .card.wide { max-width: 860px; margin: 0 auto; } .bare-main:has(.card.wide) { max-width: 880px; } .bare .card.wide .form { grid-template-columns: repeat(4, 1fr); } .bare .card.wide .form .fld.span2 { grid-column: span 2; } .bare .card.wide .form .fld.span4 { grid-column: 1 / -1; }
+@media (max-width: 700px) { .bare .card.wide .form { grid-template-columns: 1fr; } }

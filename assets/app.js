@@ -132,6 +132,14 @@
     });
   }
 
+  // ---- organisation code follows the organisation name while typing (until edited by hand)
+  var slugSrc = document.querySelector('[data-slug-source]'), slugDst = document.querySelector('[data-slug-target]');
+  if (slugSrc && slugDst) {
+    var touched = false;
+    slugDst.addEventListener('input', function () { touched = true; });
+    slugSrc.addEventListener('input', function () { if (!touched) slugDst.value = slugSrc.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24); });
+  }
+
   // ---- photograph capture: choose a file or use the device camera
   document.querySelectorAll('[data-photo]').forEach(function (box) {
     var input = box.querySelector('[data-photo-file]'), prev = box.querySelector('.photo-prev'), cam = box.querySelector('.cam'),
