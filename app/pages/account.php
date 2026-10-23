@@ -1,5 +1,10 @@
 <?php
 $title = 'My account';
+if (get('a') === 'photo') post_action(function () {
+    $att = save_upload('photo', 'user', uid(), 'photo');
+    must((bool)$att, 'Choose or capture a photo first.');
+    return 'Profile photo updated.';
+});
 post_action(function () {
     $u = row('SELECT * FROM users WHERE id = ?', [uid()]);
     must(password_verify($_POST['current'] ?? '', $u['password_hash']), 'Your current password is incorrect.');
@@ -18,6 +23,10 @@ page_head('My account & security');
 <div class="grid g2">
   <div class="card">
     <h2>Profile</h2>
+    <?php form_open(url('account', ['a' => 'photo']), ['upload' => true, 'attrs' => 'style="grid-template-columns:1fr"']) ?>
+      <?php photo_field('photo', 'My photo', ['span' => 1, 'current' => user_photo_map()[uid()] ?? null]); ?>
+      <div class="form-actions"><?php submit_btn('Save photo', 'default') ?></div>
+    <?php form_close() ?>
     <?php desc_list(['Name' => e($u['full_name']), 'Staff ID' => '<b>' . e($u['staff_no']) . '</b>', 'Username' => e($u['username']), 'Role' => e($u['role']), 'Phone' => e($u['phone']), 'Branches' => e(implode(', ', branch_options()) ?: '—'),
         'Last login' => e(fmt_dt($u['last_login'])), 'Password changed' => e(fmt_dt($u['password_changed_at'])),
         'Multi-factor' => $u['mfa_enabled'] ? badge('Active') : (mfa_required_for($u) ? badge('Pending') . ' required for your role' : badge('Archived') . ' off')], 2); ?>

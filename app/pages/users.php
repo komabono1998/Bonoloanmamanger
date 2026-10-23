@@ -36,6 +36,7 @@ if ($a === 'create') post_action(function () use ($roles) {
             'email' => clean(post('email')) ?: null, 'status' => 'active', 'created_at' => now(), 'created_by' => uid(), 'password_changed_at' => now(), 'must_change_password' => ($invite || post('must_change')) ? 1 : 0]);
         save_user_branches($nid, $branches, (int)post('primary_branch'));
         $staffNo = assign_staff_no($nid);
+        save_upload('photo', 'user', $nid, 'photo');
         audit('User created', 'Users', 'user', $nid, null, $staffNo . ' ' . $un . ' (' . post('role') . ')');
         return $nid;
     });
@@ -68,6 +69,7 @@ if ($a === 'update') post_action(function () use ($id, $roles) {
     assert_permission_boundaries($role, array_keys($eff));
     $branches = (array)($_POST['branches'] ?? []);
     tx(function () use ($id, $u, $role, $status, $branches, $un, $sn, $em) {
+        save_upload('photo', 'user', $id, 'photo');
         update('users', ['full_name' => clean(post('full_name')), 'username' => $un, 'staff_no' => $sn, 'phone' => clean(post('phone')) ?: null, 'email' => $em ?: null, 'role' => $role, 'status' => $status], 'id = :id', ['id' => $id]);
         $before = array_column(rows('SELECT branch_id FROM user_branches WHERE user_id = ? ORDER BY branch_id', [$id]), 'branch_id');
         save_user_branches($id, $branches, (int)post('primary_branch'));
@@ -171,7 +173,8 @@ function perm_grid(array $checked, array $roleDefault = [], bool $disabled = fal
 
 if ($tab === 'users' && $a === 'new') {
     echo '<div class="card"><h2>New user</h2>';
-    form_open(url('users', ['a' => 'create']));
+    form_open(url('users', ['a' => 'create']), ['upload' => true]);
+    photo_field('photo', 'Profile photo');
     field('full_name', 'Full name', ['required' => true, 'span' => 2]); field('username', 'Username (lowercase)', ['required' => true]); field('phone', 'Phone', ['type' => 'tel']);
     field('email', 'Email', ['type' => 'email', 'span' => 2]);
     field('role', 'Role', ['type' => 'select', 'options' => array_combine($roles, $roles)]);
@@ -188,7 +191,8 @@ if ($tab === 'users' && $a === 'new') {
     $mine = array_map('intval', array_column(rows('SELECT branch_id FROM user_branches WHERE user_id = ?', [$id]), 'branch_id'));
     $prim = (int)val('SELECT branch_id FROM user_branches WHERE user_id = ? AND is_primary = 1', [$id]);
     echo '<div class="grid g2"><div class="card"><h2>' . e($u['full_name']) . ' <span class="muted">@' . e($u['username']) . '</span></h2>';
-    form_open(url('users', ['a' => 'update', 'id' => $id]), ['attrs' => 'style="grid-template-columns:1fr 1fr"']);
+    form_open(url('users', ['a' => 'update', 'id' => $id]), ['upload' => true, 'attrs' => 'style="grid-template-columns:1fr 1fr"']);
+    photo_field('photo', 'Profile photo', ['current' => user_photo_map()[$id] ?? null]);
     field('full_name', 'Full name', ['value' => $u['full_name'], 'required' => true]); field('phone', 'Phone', ['value' => $u['phone']]);
     field('username', 'Username', ['value' => $u['username'], 'required' => true]); field('staff_no', 'Staff ID', ['value' => $u['staff_no'], 'required' => true, 'help' => 'Unique. Can be used to sign in.']);
     field('email', 'Email (used for password reset)', ['value' => $u['email'], 'span' => 2]);
@@ -242,7 +246,7 @@ if ($tab === 'users' && $a === 'new') {
     foreach (rows('SELECT ub.user_id, b.name FROM user_branches ub JOIN branches b ON b.id = ub.branch_id ORDER BY b.name') as $r) $ub[$r['user_id']][] = $r['name'];
     foreach ($us as &$r) $r['branches'] = $r['role'] === 'COO' ? 'All (COO)' : implode(', ', $ub[$r['id']] ?? []);
     unset($r);
-    data_table(['staff_no' => 'Staff ID', 'full_name' => 'Name', 'username' => 'Username', 'role' => 'Role', 'branches' => 'Branches', 'phone' => 'Phone', 'mfa_enabled' => ['MFA', fn($r) => $r['mfa_enabled'] ? badge('Active') : (mfa_required_for($r) ? badge('Pending') : '<span class="muted">off</span>')],
+    data_table(['photo' => ['', fn($r) => pfp(user_photo_map()[(int)$r['id']] ?? null, $r['full_name'], 34)], 'staff_no' => 'Staff ID', 'full_name' => 'Name', 'username' => 'Username', 'role' => 'Role', 'branches' => 'Branches', 'phone' => 'Phone', 'mfa_enabled' => ['MFA', fn($r) => $r['mfa_enabled'] ? badge('Active') : (mfa_required_for($r) ? badge('Pending') : '<span class="muted">off</span>')],
         'status' => ['Status', 'badge'], 'last_login' => ['Last login', 'dt'],
         'x' => ['Actions', function ($r) {
             $o = '<div class="row-actions"><a class="btn sm" href="' . e(url('users', ['a' => 'edit', 'id' => $r['id']])) . '">' . icon('settings', 13) . ' Edit</a>';

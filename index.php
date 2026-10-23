@@ -14,7 +14,7 @@ header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-" 
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('Referrer-Policy: same-origin');
-header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+header('Permissions-Policy: camera=(self), microphone=(), geolocation=()');
 if (request_is_https()) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 
 // page => [file, permission ('a|b' = any of; null = any signed-in user), menu group, menu label]

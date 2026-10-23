@@ -132,6 +132,35 @@
     });
   }
 
+  // ---- photograph capture: choose a file or use the device camera
+  document.querySelectorAll('[data-photo]').forEach(function (box) {
+    var input = box.querySelector('[data-photo-file]'), prev = box.querySelector('.photo-prev'), cam = box.querySelector('.cam'),
+        video = box.querySelector('video'), msg = box.querySelector('.photo-msg'), stream = null;
+    function show(file) {
+      var url = URL.createObjectURL(file);
+      if (prev.tagName === 'IMG') prev.src = url;
+      else { var img = document.createElement('img'); img.className = 'photo-prev'; img.src = url; img.alt = ''; prev.replaceWith(img); prev = img; }
+    }
+    function stop() { if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; } cam.hidden = true; }
+    input.addEventListener('change', function () { if (input.files[0]) show(input.files[0]); });
+    box.querySelector('[data-photo-cam]').addEventListener('click', function () {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = 'The camera needs HTTPS (or localhost) and a supported browser. Use Choose file instead.'; return; }
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 960 } }, audio: false }).then(function (s) {
+        stream = s; video.srcObject = s; video.play(); cam.hidden = false;
+      }).catch(function () { msg.textContent = 'Camera access was blocked or no camera was found. Use Choose file instead.'; });
+    });
+    box.querySelector('[data-photo-cancel]').addEventListener('click', stop);
+    box.querySelector('[data-photo-snap]').addEventListener('click', function () {
+      var w = video.videoWidth || 640, h = video.videoHeight || 480, k = Math.min(1, 800 / Math.max(w, h)), c = document.createElement('canvas');
+      c.width = Math.round(w * k); c.height = Math.round(h * k); c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+      c.toBlob(function (b) {
+        if (!b) return;
+        var f = new File([b], 'camera-' + Date.now() + '.jpg', { type: 'image/jpeg' }), dt = new DataTransfer();
+        dt.items.add(f); input.files = dt.files; show(f); msg.textContent = 'Photo captured — it is saved when you submit the form.'; stop();
+      }, 'image/jpeg', 0.86);
+    });
+  });
+
   // ---- CSP-safe behaviours driven by data attributes
   document.addEventListener('click', function (e) {
     if (e.target.closest('[data-nav-toggle]')) { var sd = document.getElementById('side'); if (sd) sd.classList.toggle('open'); }

@@ -5,7 +5,7 @@ if (!$att) { http_response_code(404); throw new AppError('File not found.'); }
 $need = match ($att['entity_type']) {
     'client', 'guarantor' => 'client.view',
     'loan', 'security' => 'loan.view',
-    'business' => 'dashboard.view',
+    'business', 'user' => 'dashboard.view',
     default => 'loan.view',
 };
 if ($att['branch_id'] && !in_array((int)$att['branch_id'], accessible_branch_ids(), true)) { http_response_code(403); throw new AppError('You do not have access to records of that branch.'); }

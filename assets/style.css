@@ -250,3 +250,16 @@ body.bare { background: linear-gradient(160deg, var(--side), var(--brand)); }
 .topbar .logo.sys-mark { background: transparent; object-fit: contain; }
 .foot { display: flex; align-items: center; gap: .5rem; } .foot-mark { height: 18px; width: 18px; }
 .bare-foot { text-align: center; color: rgba(255,255,255,.7); font-size: .8rem; margin-top: 1rem; }
+
+/* photograph capture + profile pictures */
+.pfp { border-radius: 50%; object-fit: cover; flex: none; display: inline-grid; place-items: center; vertical-align: middle; border: 1px solid var(--line); }
+.pfp.ph { background: var(--brand); color: #fff; font-weight: 600; border-color: transparent; }
+.photo-row { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.photo-prev { width: 96px; height: 96px; border-radius: 14px; object-fit: cover; border: 1px solid var(--line); background: var(--bg); flex: none; }
+.photo-prev.ph { display: grid; place-items: center; color: var(--muted); }
+.photo-ctl { flex: 1; min-width: 200px; display: grid; gap: .5rem; }
+.photo-btns { display: flex; gap: .5rem; flex-wrap: wrap; }
+.photo-btns .btn svg { vertical-align: -2px; }
+.cam video { width: 100%; max-width: 320px; border-radius: 12px; background: #000; display: block; margin-bottom: .5rem; transform: scaleX(-1); }
+.cam[hidden] { display: none; }
+

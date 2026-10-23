@@ -60,7 +60,7 @@ if ($a === 'new' || $a === 'edit') {
     field('dob', 'Date of birth', ['type' => 'date', 'value' => $v('dob')]);
     field('phone', 'Phone number', ['type' => 'tel', 'value' => $v('phone'), 'required' => true]);
     field('nin', 'NIN', ['value' => $v('nin')]);
-    field('photo', 'Photograph', ['type' => 'file', 'accept' => 'accept="image/*"', 'span' => 2]);
+    photo_field('photo', 'Photograph');
     echo '<h3 class="full">Residence</h3>';
     field('address', 'Residential address', ['value' => $v('address'), 'span' => 2]);
     field('village', 'Village', ['value' => $v('village')]);

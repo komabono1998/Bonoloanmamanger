@@ -59,7 +59,7 @@ $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
     <?php if ($inboxN || can_any('loan.approve|payment.reverse|expense.approve|till.reconcile|eod.approve|backup.authorize')): ?>
       <a class="bell" href="<?= e(url('inbox')) ?>" title="My approvals"><?= icon('bell', 20) ?><?php if ($inboxN): ?><span class="bell-n"><?= (int)$inboxN ?></span><?php endif; ?></a>
     <?php endif; ?>
-    <details class="me"><summary><span class="avatar"><?= e(strtoupper(substr(user()['full_name'], 0, 1))) ?></span><span class="me-t"><b><?= e(user()['full_name']) ?></b><small><?= e(user()['role']) ?><?= !empty(user()['staff_no']) ? ' · ' . e(user()['staff_no']) : '' ?></small></span><?= icon('down', 16) ?></summary>
+    <details class="me"><summary><?= pfp(user_photo_map()[(int)uid()] ?? null, user()['full_name'], 38) ?><span class="me-t"><b><?= e(user()['full_name']) ?></b><small><?= e(user()['role']) ?><?= !empty(user()['staff_no']) ? ' · ' . e(user()['staff_no']) : '' ?></small></span><?= icon('down', 16) ?></summary>
       <div class="quick-menu"><a href="<?= e(url('account')) ?>"><?= icon('user', 16) ?> My account &amp; security</a><a href="<?= e(url('logout')) ?>"><?= icon('logout', 16) ?> Sign out</a></div>
     </details>
   </header>

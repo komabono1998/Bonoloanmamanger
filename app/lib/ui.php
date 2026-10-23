@@ -229,7 +229,7 @@ function save_upload(string $field, string $entityType, int $entityId, string $k
     must($mime === $types[$ext] || ($ext === 'jpg' && $mime === 'image/jpeg'), 'The file content does not match its extension.');
     $stored = bin2hex(random_bytes(16)) . '.' . $ext;
     Storage::put($stored, $f['tmp_name'], $types[$ext]);
-    $id = insert('attachments', ['branch_id' => branch_id() ?: null, 'entity_type' => $entityType, 'entity_id' => $entityId, 'kind' => $kind, 'original_name' => basename($f['name']),
+    $id = insert('attachments', ['branch_id' => $entityType === 'user' ? null : (branch_id() ?: null), 'entity_type' => $entityType, 'entity_id' => $entityId, 'kind' => $kind, 'original_name' => basename($f['name']),
         'stored_name' => $stored, 'mime' => $types[$ext], 'size' => $f['size'], 'uploaded_by' => uid(), 'uploaded_at' => now(), 'note' => $note ?: null]);
     audit('File uploaded', 'Documents', $entityType, $entityId, null, $f['name']);
     return $id;
@@ -335,4 +335,39 @@ function quick_actions(array $items): string
         $o .= '<a href="' . e(url($pg, $pa)) . '">' . icon($ic, 28) . '<span>' . e($label) . '</span></a>';
     }
     return $o . '</div>';
+}
+
+/** Latest profile photo attachment per staff user: [user_id => attachment_id]. */
+function user_photo_map(): array
+{
+    static $m = null;
+    if ($m === null) {
+        $m = [];
+        foreach (rows("SELECT entity_id, MAX(id) AS id FROM attachments WHERE entity_type = 'user' AND kind = 'photo' GROUP BY entity_id") as $r) $m[(int)$r['entity_id']] = (int)$r['id'];
+    }
+    return $m;
+}
+
+/** Round profile picture, or the person's initial when there is no photo. */
+function pfp(?int $attId, string $name, int $size = 36): string
+{
+    $st = 'width:' . $size . 'px;height:' . $size . 'px;font-size:' . round($size * .42) . 'px';
+    if ($attId) return '<img class="pfp" style="' . $st . '" src="' . e(attachment_url($attId)) . '" alt="">';
+    return '<span class="pfp ph" style="' . $st . '">' . e(strtoupper(mb_substr(trim($name), 0, 1)) ?: '?') . '</span>';
+}
+
+/**
+ * Photograph input with "Choose file" and "Take photo" (device camera). The browser script (app.js) fills the file input with the
+ * captured picture, so the server only ever handles an ordinary upload named $name.
+ */
+function photo_field(string $name = 'photo', string $label = 'Photograph', array $o = []): void
+{
+    $span = (int)($o['span'] ?? 2);
+    echo '<div class="fld span' . $span . ' photo-field" data-photo><label>' . e($label) . '</label><div class="photo-row">';
+    echo !empty($o['current']) ? '<img class="photo-prev" src="' . e(attachment_url((int)$o['current'])) . '" alt="">' : '<div class="photo-prev ph">' . icon('user', 34) . '</div>';
+    echo '<div class="photo-ctl"><div class="photo-btns"><label class="btn sm">' . icon('image', 14) . ' Choose file<input type="file" name="' . e($name) . '" accept="image/*" hidden data-photo-file></label>'
+        . '<button type="button" class="btn sm" data-photo-cam>' . icon('eye', 14) . ' Take photo</button></div>'
+        . '<small class="muted photo-msg">JPG, PNG or WEBP, up to 5 MB. Use <b>Take photo</b> to capture with the camera.</small>'
+        . '<div class="cam" hidden><video playsinline muted></video><div class="photo-btns"><button type="button" class="btn primary sm" data-photo-snap>Capture</button><button type="button" class="btn sm" data-photo-cancel>Cancel</button></div></div>'
+        . '</div></div></div>';
 }

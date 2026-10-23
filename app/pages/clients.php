@@ -111,7 +111,7 @@ if ($a === 'new' || $a === 'edit') {
     field('gender', 'Gender', ['type' => 'select', 'options' => ['Female' => 'Female', 'Male' => 'Male'], 'blank' => true, 'value' => $v('gender')]);
     field('dob', 'Date of birth', ['type' => 'date', 'value' => $v('dob')]);
     field('nin', 'NIN (National ID)', ['value' => $v('nin'), 'span' => 2, 'help' => 'Duplicate NINs are blocked.']);
-    field('photo', 'Photograph', ['type' => 'file', 'accept' => 'accept="image/*"', 'span' => 2]);
+    photo_field('photo', 'Photograph', ['current' => $a === 'edit' ? (int)val("SELECT id FROM attachments WHERE entity_type = 'client' AND entity_id = ? AND kind = 'photo' ORDER BY id DESC LIMIT 1", [$id]) : null]);
     echo '<h3 class="full">Contact</h3>';
     field('phone', 'Primary phone', ['type' => 'tel', 'value' => $v('phone'), 'required' => true]);
     field('phone2', 'Alternative phone', ['type' => 'tel', 'value' => $v('phone2')]);
@@ -209,7 +209,7 @@ if ($a === 'view') {
     if ($tab === 'admin' && can('client.manage')) {
         echo '<div class="grid g2"><div class="card"><h2>Photograph</h2>';
         form_open(url('clients', ['a' => 'photo', 'id' => $id]), ['upload' => true, 'attrs' => 'style="grid-template-columns:1fr"']);
-        field('photo', 'Upload photograph', ['type' => 'file', 'accept' => 'accept="image/*"']);
+        photo_field('photo', 'Photograph', ['span' => 1, 'current' => $photo ? (int)$photo : null]);
         echo '<div class="form-actions">'; submit_btn('Upload'); echo '</div>'; form_close();
         echo '</div><div class="card"><h2>Client status</h2><p class="muted">Clients are never deleted. Archive inactive clients; blacklist to block new loans.</p>';
         form_open(url('clients', ['a' => 'status', 'id' => $id]), ['attrs' => 'style="grid-template-columns:1fr" data-confirm="Change this client\'s status?"']);
