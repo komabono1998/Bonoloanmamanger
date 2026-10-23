@@ -60,7 +60,7 @@ final class Approvals
 
     public static function setLimit(string $category, int $branch, ?int $max): void
     {
-        must(can('limits.manage') || (can('settings.manage') && !(int)val("SELECT COUNT(*) FROM users WHERE role = 'COO' AND status = 'active'")), 'You do not have permission to perform this action.');
+        must(can('limits.manage') || policy_bootstrap_open(), 'You do not have permission to perform this action.');
         must(isset(self::CATEGORIES[$category]), 'Unknown approval category.');
         must($max === null || $max >= 0, 'A limit cannot be negative.');
         if ($branch) assert_branch($branch);

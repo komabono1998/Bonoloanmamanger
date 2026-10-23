@@ -21,6 +21,7 @@ function setting_defaults(): array
         'brand_color' => '#0b5c4d',
         'staff_prefix' => 'S',
         'setup_lending_confirmed' => '0',
+        'admin_manages_policy' => '1',
         'currency' => 'UGX',
         // numbering
         'loan_prefix' => 'BLM',
@@ -125,3 +126,9 @@ function set_setting(string $key, string $value, ?int $userId = null, bool $log 
 }
 
 function business_name(): string { return setting('business_name'); }
+
+/** May the System Administrator configure lending policy and approval limits? (Institution choice; always true until a COO exists.) */
+function policy_bootstrap_open(): bool
+{
+    return can('settings.manage') && (setting('admin_manages_policy') === '1' || !(int)val("SELECT COUNT(*) FROM users WHERE role = 'COO' AND status = 'active'"));
+}

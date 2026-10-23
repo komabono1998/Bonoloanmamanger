@@ -273,7 +273,9 @@ eq(val('SELECT status FROM approval_requests WHERE id = ?', [$rq2]), 'Rejected',
 
 section('Approval limits and escalation');
 as_('admin');
-throws(fn() => Approvals::setLimit('loan', 0, 2000000), 'permission', 'administrator cannot set approval limits');
+set_setting('admin_manages_policy', '0', uid()); $GLOBALS['__settings_dirty'] = true;
+throws(fn() => Approvals::setLimit('loan', 0, 2000000), 'permission', 'with strict separation on, the administrator cannot set approval limits');
+set_setting('admin_manages_policy', '1', uid()); $GLOBALS['__settings_dirty'] = true;
 as_('coo');
 eq(count(Approvals::unconfigured()), count(Approvals::CATEGORIES), 'no approval limit is invented: all categories start unconfigured');
 Approvals::setLimit('loan', 0, 2000000);
@@ -513,7 +515,11 @@ as_('admin');
 Approvals::setLimit('loan', 0, 5000000);
 eq((int)val("SELECT max_amount FROM approval_limits WHERE category = 'loan' AND branch_id = 0"), 5000000, 'administrator can configure initial limits while no COO exists');
 q("UPDATE users SET status = 'active' WHERE role = 'COO'");
-if ((int)val("SELECT COUNT(*) FROM users WHERE role = 'COO' AND status = 'active'")) throws(fn() => Approvals::setLimit('loan', 0, 1), 'permission', 'once a COO exists, the administrator can no longer change limits');
+Approvals::setLimit('loan', 0, 6000000);
+eq((int)val("SELECT max_amount FROM approval_limits WHERE category = 'loan' AND branch_id = 0"), 6000000, 'by default the administrator keeps full configuration rights even with a COO');
+set_setting('admin_manages_policy', '0', uid()); $GLOBALS['__settings_dirty'] = true;
+if ((int)val("SELECT COUNT(*) FROM users WHERE role = 'COO' AND status = 'active'")) throws(fn() => Approvals::setLimit('loan', 0, 1), 'permission', 'with strict separation switched on, the administrator cannot change limits once a COO exists');
+set_setting('admin_manages_policy', '1', uid()); $GLOBALS['__settings_dirty'] = true;
 
 echo "\n----------------------------------------\n";
 echo "Passed: $pass   Failed: $fail   (" . db_driver() . ")\n";

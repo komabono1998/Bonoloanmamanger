@@ -3,7 +3,6 @@ $title = 'Settings & limits';
 $a = get('a');
 
 /** Lending / penalty / payment / EOD policy belongs to the COO. Until a COO exists the System Administrator may do the initial configuration. */
-function policy_bootstrap_open(): bool { return can('settings.manage') && !(int)val("SELECT COUNT(*) FROM users WHERE role = 'COO' AND status = 'active'"); }
 function group_allowed(string $perm): bool
 {
     if (str_contains($perm, 'settings.policy') && policy_bootstrap_open()) return true;
@@ -59,6 +58,7 @@ $GROUPS = [
         'backup_dir' => ['Backup folder', 'text', 'Relative to the app folder, or an absolute path on a separate volume. (BACKUP_DIR in the environment overrides this.)'],
         'backup_auto_hours' => ['Automatic backup if the last one is older than (hours, 0 = off)', 'number'], 'backup_keep' => ['Backups to keep', 'number'],
         'restore_requires_authorization' => ['A restore needs COO authorization first', 'checkbox', 'Recommended ON (controlled recovery).'],
+        'admin_manages_policy' => ['Administrator may also configure interest rates, fees, penalties and approval limits', 'checkbox', 'ON: the administrator configures everything here. OFF: once a COO exists, only the COO can change financial policy (strict separation of duties).'],
         'rto_hours' => ['Recovery time objective (hours) — set by the institution', 'number'], 'rpo_hours' => ['Recovery point objective (hours of acceptable data loss)', 'number'],
         'report_default_days' => ['Default report period (days)', 'number'],
     ]],
@@ -195,7 +195,7 @@ if ($tab === 'hub') {
         }
         echo '</div></div>';
     }
-    if (policy_bootstrap_open() && !can('settings.policy')) echo '<div class="notice info">No COO exists yet, so you may do the <b>initial</b> interest, fee, penalty and limit configuration. Once a COO is appointed, only the COO can change financial policy.</div>';
+    if (policy_bootstrap_open() && !can('settings.policy')) echo '<div class="notice info">As administrator you can configure interest rates, fees, penalties and approval limits. Every change is recorded in the audit trail. You can restrict this to the COO under Security &amp; recovery.</div>';
     echo '<div class="hub">';
     foreach ($HUB as $k => [$ic, $name, $desc]) {
         if (!isset($tabs[$k])) continue;
