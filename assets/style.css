@@ -435,3 +435,20 @@ body.bare { background: #eef3f8; }
 .qf-scopes { margin-top: .6rem; max-width: 340px; } .qf-scope[hidden] { display: none; }
 .qf-actions { display: flex; gap: .5rem; }
 @media (max-width: 700px) { .qf-row { grid-template-columns: 1fr; gap: .3rem; } }
+
+/* loan application workflow tracker */
+.wf { list-style: none; display: flex; gap: 0; margin: .4rem 0 .8rem; padding: 0; overflow-x: auto; counter-reset: none; }
+.wf-s { flex: 1 0 86px; display: flex; flex-direction: column; align-items: center; gap: .3rem; text-align: center; position: relative; font-size: .72rem; color: var(--muted); padding: 0 .15rem; }
+.wf-s::before { content: ""; position: absolute; top: 15px; left: -50%; width: 100%; height: 3px; background: var(--line); z-index: 0; }
+.wf-s:first-child::before { display: none; }
+.wf-n { position: relative; z-index: 1; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--card); border: 2px solid var(--line); font-weight: 700; font-size: .78rem; }
+.wf-s.done .wf-n { background: #1e8e5a; border-color: #1e8e5a; color: #fff; } .wf-s.done::before { background: #1e8e5a; } .wf-s.done { color: var(--ink); }
+.wf-s.na .wf-n { background: var(--card); border-style: dashed; color: var(--muted); font-size: .62rem; } .wf-s.na::before { background: #1e8e5a; opacity: .5; }
+.wf-s.current .wf-n { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: 0 0 0 4px var(--brand-soft); } .wf-s.current { color: var(--ink); font-weight: 600; }
+.wf-s.blocked .wf-n, .wf-s.stopped .wf-n { background: #d64545; border-color: #d64545; color: #fff; } .wf-s.blocked { color: #b53030; }
+.wf-s.returned .wf-n { background: #e0a100; border-color: #e0a100; color: #fff; }
+.wf-issues { border-left: 4px solid var(--line); background: var(--card); border-radius: 6px; padding: .55rem .8rem; margin: .45rem 0; font-size: .86rem; }
+.wf-issues.bad { border-color: #d64545; background: rgba(214,69,69,.07); } .wf-issues.warn { border-color: #e0a100; background: rgba(224,161,0,.08); } .wf-issues.info { border-color: var(--brand); }
+.wf-issues ul { margin: .25rem 0 .1rem 1.1rem; padding: 0; }
+.inline-decision { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; margin-top: .35rem; } .inline-decision input[type=text] { min-width: 180px; flex: 1; }
+.wf-log { margin-top: .5rem; } .wf-log summary { cursor: pointer; color: var(--muted); font-size: .85rem; }

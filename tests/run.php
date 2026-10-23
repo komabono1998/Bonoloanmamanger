@@ -56,10 +56,17 @@ function as_(string $name, ?int $branch = null): void
     login_as($U[$name]);
     if ($branch) set_branch_context($branch);
 }
+function give_kyc(int $clientId): void
+{
+    q("UPDATE clients SET kyc_status = 'Verified', kyc_verified_at = ?, kyc_note = 'Test fixture' WHERE id = ?", [now(), $clientId]);
+    insert('attachments', ['entity_type' => 'client', 'entity_id' => $clientId, 'kind' => 'national_id', 'original_name' => 'national_id.png', 'stored_name' => 'fixture_' . $clientId . '.png', 'mime' => 'image/png', 'uploaded_by' => 1, 'uploaded_at' => now(), 'verify_status' => 'Verified', 'verified_by' => 2, 'verified_at' => now()]);
+}
 function mkclient(string $name, string $nin, string $phone, int $branch): int
 {
-    return insert('clients', ['branch_id' => $branch, 'client_no' => make_number('client_prefix', 'client', false), 'full_name' => $name, 'nin' => $nin, 'phone' => $phone,
+    $cid = insert('clients', ['branch_id' => $branch, 'client_no' => make_number('client_prefix', 'client', false), 'full_name' => $name, 'nin' => $nin, 'phone' => $phone,
         'monthly_income' => 2000000, 'monthly_expenses' => 800000, 'registered_by' => 1, 'registered_at' => now()]);
+    give_kyc($cid);
+    return $cid;
 }
 function safe(int $branch): int { return (int)val("SELECT id FROM cash_accounts WHERE branch_id = ? AND name = 'Main Safe'", [$branch]); }
 
@@ -116,6 +123,8 @@ mkuser('lo', 'Loan Officer', [$A]);
 mkuser('lob', 'Loan Officer', [$B]);
 mkuser('cash', 'Cashier', [$A]);
 mkuser('cashb', 'Cashier', [$B]);
+// the loan process now runs between the Loan Officer and the Branch Manager; the tests still need a till user who can release cash, as an administrator may grant
+q("INSERT INTO user_permissions(user_id, permission, granted) VALUES (?, 'loan.disburse', 1)", [$U['cash']]);
 mkuser('bm2', 'Branch Manager', [$A]);
 ok(is_installed(), 'system reports installed');
 eq((int)val('SELECT COUNT(*) FROM roles WHERE is_principal = 1'), 5, 'five principal roles');
@@ -688,6 +697,7 @@ eq((int)val('SELECT COUNT(*) FROM clients'), 0, 'none of the primary organisatio
 eq(val('SELECT COUNT(*) FROM branches'), 1, 'it starts with its own single branch');
 ok(str_contains(Storage::localRoot(), '/t_acme-finance') && str_contains(Backup::dir(), '/t_acme-finance'), 'files and backups are kept in the organisation\'s own folders');
 q("INSERT INTO clients(branch_id, client_no, full_name, nin, phone, registered_by, registered_at) VALUES (?, 'ACM-0001', 'Acme Only Client', 'NINACME0001A', '0700000001', 1, ?)", [(int)val('SELECT id FROM branches LIMIT 1'), now()]);
+give_kyc((int)val("SELECT id FROM clients WHERE client_no = 'ACM-0001'"));
 $tenantUserId = (int)val("SELECT id FROM users WHERE username = 'annadmin'");
 tenant_use(null);
 eq((int)val('SELECT COUNT(*) FROM clients'), $primaryClients, 'a client created in one organisation never appears in another');
@@ -995,6 +1005,106 @@ ok(str_contains($h, 'By loan type') && str_contains($h, 'By loan officer') && st
 $h = $render('reports', []);
 ok(str_contains($h, 'rep-rail') && str_contains($h, 'Report categories') && str_contains($h, 'data-cat-filter'), 'the Report Centre lists its categories in a side rail');
 set_setting('business_logo', '', null, false); $GLOBALS['__settings_dirty'] = true; @unlink($tmpLogo);
+section('Harmonised loan application workflow: gated stages, verification and exceptions');
+// a brand-new client has no verified KYC
+$newC = insert('clients', ['branch_id' => $A, 'client_no' => make_number('client_prefix', 'client', false), 'full_name' => 'Workflow Client', 'nin' => 'CMWF000000AA', 'phone' => '0772999111', 'registered_by' => $U['lo'], 'registered_at' => now()]);
+as_('lo');
+$wl = Loans::saveApplication(['client_id' => $newC, 'amount_requested' => '600000', 'purpose' => 'Working capital', 'period_months' => 1, 'frequency' => 'monthly', 'application_date' => $d1, 'monthly_income' => '1500000', 'monthly_expenses' => '600000']);
+$wloan = Loans::get($wl);
+$stg = Workflow::stages($wloan);
+eq(count($stg), 11, 'the workflow has eleven stages');
+eq($stg[2]['state'], 'blocked', 'KYC is blocked until documents and profile are verified');
+eq($stg[5]['state'], 'blocked', 'the application stage waits for stages 1 to 4');
+throws(fn() => Loans::submit($wl), 'National ID', 'an application cannot be submitted while required KYC documents are missing');
+// document upload and verification with separation of duties
+$docId = insert('attachments', ['entity_type' => 'client', 'entity_id' => $newC, 'kind' => 'national_id', 'original_name' => 'id.png', 'stored_name' => 'wf1.png', 'mime' => 'image/png', 'uploaded_by' => $U['fo'], 'uploaded_at' => now(), 'branch_id' => $A]);
+ok(!can('kyc.verify'), 'a Loan Officer cannot verify KYC');
+q("INSERT INTO user_permissions(user_id, permission, granted) VALUES (?, 'kyc.verify', 1)", [$U['fo']]);
+as_('fo');
+throws(fn() => Workflow::verifyDocument($docId, true, ''), 'Separation of duties', 'a verifier cannot verify a document they uploaded themselves');
+as_('bm');
+throws(fn() => Workflow::verifyClient($newC, true, ''), 'Verify these required documents first', 'the KYC profile cannot be verified before the required documents');
+throws(fn() => Workflow::verifyDocument($docId, false, ''), 'why', 'a rejection needs a reason');
+Workflow::verifyDocument($docId, true, '');
+Workflow::verifyClient($newC, true, 'Checked against the original');
+as_('lo');
+eq(Workflow::stages(Loans::get($wl))[2]['state'], 'done', 'KYC stage completes once the documents and profile are verified');
+// guarantors required by the product
+set_setting('wf_min_guarantors', '1', null, false); $GLOBALS['__settings_dirty'] = true;
+eq(Workflow::stages(Loans::get($wl))[3]['state'], 'blocked', 'a required guarantor blocks the guarantor stage');
+throws(fn() => Loans::submit($wl), 'guarantor', 'submission is refused without the required guarantor');
+$gid = insert('guarantors', ['branch_id' => $A, 'guarantor_no' => 'GR-WF-1', 'surname' => 'Okot', 'first_name' => 'Peter', 'phone' => '0772555666', 'nin' => 'CMGUARWF0001', 'created_by' => $U['lo'], 'created_at' => now()]);
+$lg = insert('loan_guarantors', ['loan_id' => $wl, 'guarantor_id' => $gid, 'client_id' => $newC, 'declaration_accepted' => 0, 'created_by' => $U['lo'], 'created_at' => now()]);
+as_('bm');
+throws(fn() => Workflow::verifyGuarantor($lg, true, ''), 'consent', 'a guarantor cannot be verified without recorded consent');
+q('UPDATE loan_guarantors SET declaration_accepted = 1 WHERE id = ?', [$lg]);
+Workflow::verifyGuarantor($lg, true, '');
+as_('lo');
+eq(Workflow::stages(Loans::get($wl))[3]['state'], 'done', 'a verified guarantor with consent completes stage 3');
+// collateral required, with an authorised exception
+set_setting('wf_collateral', 'required', null, false); $GLOBALS['__settings_dirty'] = true;
+eq(Workflow::stages(Loans::get($wl))[4]['state'], 'blocked', 'required security blocks the collateral stage');
+throws(fn() => Workflow::markNotApplicable($wl, 'collateral', 'x'), 'permission', 'the loan officer cannot authorise an exception');
+as_('bm');
+throws(fn() => Workflow::markNotApplicable($wl, 'collateral', ''), 'reason', 'an exception needs a documented reason');
+set_setting('wf_allow_exceptions', '0', null, false); $GLOBALS['__settings_dirty'] = true;
+throws(fn() => Workflow::markNotApplicable($wl, 'collateral', 'Client has no assets'), 'does not allow exceptions', 'exceptions can be switched off for the product');
+set_setting('wf_allow_exceptions', '1', null, false); $GLOBALS['__settings_dirty'] = true;
+Workflow::markNotApplicable($wl, 'collateral', 'Client has no assets; group-guaranteed');
+eq(Workflow::stages(Loans::get($wl))[4]['state'], 'na', 'an authorised exception marks the collateral stage not applicable');
+ok((int)val('SELECT COUNT(*) FROM loan_workflow_log WHERE loan_id = ?', [$wl]) >= 3, 'verifications and exceptions are written to the workflow log');
+as_('lo');
+Loans::submit($wl);
+eq(Loans::get($wl)['status'], 'Submitted', 'with every requirement met the application is submitted');
+eq(Workflow::stages(Loans::get($wl))[5]['state'], 'done', 'stage 5 shows as complete after submission');
+// approval re-checks the earlier stages
+q("UPDATE clients SET kyc_status = 'Rejected' WHERE id = ?", [$newC]);
+Loans::recordAssessment($wl, ['recommendation' => 'Approve', 'recommended_amount' => '600000', 'income' => '1500000', 'expenses' => '600000', 'existing_obligations' => '0']);
+as_('bm');
+$wTerms = ['approved_principal' => '600000', 'rate_pct' => '20', 'processing_pct' => '3', 'application_fee' => '10000', 'inspection_fee' => '10000', 'other_fees' => '0', 'fees_deducted' => '1', 'months' => 1];
+throws(fn() => Loans::approve($wl, $wTerms), 'rejected', 'approval is blocked when the client KYC is no longer verified');
+// returning an application to KYC reopens that stage
+Loans::returnForCorrection($wl, 'ID photo is unreadable', 'kyc');
+$ret = Loans::get($wl);
+eq([$ret['status'], $ret['return_stage']], ['Returned for Correction', '2'], 'the application is returned to the KYC stage');
+eq(val('SELECT kyc_status FROM clients WHERE id = ?', [$newC]), 'Pending', 'the client KYC must be verified again after a correction');
+ok(Workflow::stages($ret)[7]['state'] === 'returned', 'the tracker shows the return');
+// re-verify and resubmit, then approve; the approval records the version and what it relied on
+q("UPDATE clients SET kyc_status = 'Verified' WHERE id = ?", [$newC]);
+as_('lo');
+Loans::submit($wl);
+as_('bm');
+Loans::approve($wl, $wTerms);
+$ap = Loans::get($wl);
+eq((int)$ap['approved_version'], (int)$ap['app_version'], 'the approval is tied to the application version');
+$rel = json_decode($ap['relied_on'], true);
+ok($rel && $rel['documents'] && $rel['guarantors'], 'the approval keeps the verified documents and guarantors it relied on');
+// disbursement is blocked by the pre-disbursement checks
+q('UPDATE loans SET app_version = app_version + 1 WHERE id = ?', [$wl]);
+ok(in_array(true, array_map(fn($m) => str_contains($m, 're-approved'), Workflow::preDisbursement(Loans::get($wl))), true), 'a change after approval is flagged for re-approval before disbursement');
+ok(Workflow::preDisbursement(Loans::get($wl)) !== [], 'pre-disbursement checks fail while the offer is not accepted and the version differs');
+q('UPDATE loans SET app_version = approved_version WHERE id = ?', [$wl]);
+set_setting('wf_min_guarantors', '0', null, false); set_setting('wf_collateral', 'optional', null, false); $GLOBALS['__settings_dirty'] = true;
+$h = $render('loan', ['id' => $wl]);
+ok(str_contains($h, 'Application workflow') && str_contains($h, 'KYC &amp; documents') && str_contains($h, 'wf-s'), 'the loan page shows the stage tracker');
+section('Loan process roles: the process runs between the Loan Officer and the Branch Manager');
+$pm = Process::matrix();
+ok($pm['Loan Officer']['application'] && $pm['Loan Officer']['assessment'] && !$pm['Loan Officer']['approve'] && !$pm['Loan Officer']['verify'], 'the Loan Officer prepares: clients, guarantors, collateral, application, assessment');
+ok($pm['Branch Manager']['verify'] && $pm['Branch Manager']['approve'] && $pm['Branch Manager']['authorise'] && $pm['Branch Manager']['disburse'], 'the Branch Manager verifies, approves, authorises and releases the funds');
+ok(!$pm['Finance Officer']['verify'] && !$pm['Cashier']['disburse'] && !$pm['Finance Manager']['verify'], 'finance and cashier roles are outside the loan process');
+eq(Process::uncovered(), [], 'every step of the process has a responsible role');
+as_('admin');
+Process::applyPreset('separate', false);
+$pm = Process::matrix();
+ok($pm['Cashier']['disburse'] && $pm['Finance Officer']['verify'], 'the administrator can switch to separated duties at any time');
+Process::apply(['Loan Officer' => ['clients', 'application'], 'Branch Manager' => ['verify', 'approve']], false);
+ok(Process::uncovered() !== [] && in_array('Release the funds (disburse)', Process::uncovered(), true), 'steps nobody holds are reported');
+as_('bm'); ok(!can('loan.disburse') && can('loan.approve'), 'permissions follow the matrix immediately');
+Process::applyPreset('two_role', false);
+as_('bm'); ok(can('loan.disburse') && can('till.use') && can('loan.disburse.authorize'), 'restoring the two-role profile gives the Branch Manager the release steps again');
+as_('lo'); ok(!can('settings.manage'), 'a Loan Officer cannot change the process roles');
+as_('admin'); $h = $render('process', []);
+ok(str_contains($h, 'Who does what') && str_contains($h, 'Two roles: Loan Officer + Branch Manager'), 'the Loan Process Roles page shows the matrix and the ready-made profiles');
 echo "\n----------------------------------------\n";
 echo "Passed: $pass   Failed: $fail   (" . db_driver() . ")\n";
 db_close();

@@ -86,6 +86,24 @@ if ($a === 'status') {
         return 'Client status updated to ' . $st . '.';
     });
 }
+if ($a === 'kyc_upload') post_action(function () use ($id) {
+    require_perm('client.manage');
+    must(in_array((int)val('SELECT branch_id FROM clients WHERE id = ?', [$id]), accessible_branch_ids(), true), 'You do not have access to records of that branch.');
+    must(isset(Workflow::KYC_KINDS[post('kind')]), 'Choose the kind of document.');
+    $att = save_upload('doc', 'client', $id, post('kind'), clean(post('note')));
+    must((bool)$att, 'Choose a file to upload.');
+    if (in_array(post('kind'), Workflow::requiredDocs(), true)) q("UPDATE clients SET kyc_status = 'Pending' WHERE id = ? AND kyc_status = 'Rejected'", [$id]);
+    audit('KYC document uploaded', 'Workflow', 'client', $id, null, post('kind'));
+    return ['Document uploaded. It now awaits verification.', url('clients', ['a' => 'view', 'id' => $id, 'tab' => 'kyc'])];
+});
+if ($a === 'kyc_doc') post_action(function () use ($id) {
+    Workflow::verifyDocument((int)post('att'), post('decision') === 'verify', clean(post('note')));
+    return [post('decision') === 'verify' ? 'Document verified.' : 'Document rejected.', url('clients', ['a' => 'view', 'id' => $id, 'tab' => 'kyc'])];
+});
+if ($a === 'kyc_verify') post_action(function () use ($id) {
+    Workflow::verifyClient($id, post('decision') === 'verify', clean(post('note')));
+    return [post('decision') === 'verify' ? 'Client KYC profile verified.' : 'Client KYC profile rejected.', url('clients', ['a' => 'view', 'id' => $id, 'tab' => 'kyc'])];
+});
 if ($a === 'photo') {
     post_action(function () use ($id) {
         require_perm('client.manage');
@@ -154,13 +172,13 @@ if ($a === 'view') {
     page_head($c['full_name'], $act, $c['client_no'] . ' · registered ' . fmt_date($c['registered_at']));
     $sens = can('client.sensitive');
     echo '<div class="card"><div class="profile">' . photo_img($photo ? (int)$photo : null) . '<div style="flex:1">';
-    desc_list(['Client ID' => e($c['client_no']), 'Status' => badge($c['status']), 'Phone' => e($c['phone'] . ($c['phone2'] ? ' / ' . $c['phone2'] : '')),
+    desc_list(['Client ID' => e($c['client_no']), 'Status' => badge($c['status']), 'KYC' => badge($c['kyc_status']), 'Phone' => e($c['phone'] . ($c['phone2'] ? ' / ' . $c['phone2'] : '')),
         'NIN' => $sens ? e($c['nin']) : '<span class="muted">restricted</span>', 'Gender' => e($c['gender']), 'Date of birth' => e(fmt_date($c['dob'])),
         'Address' => e(implode(', ', array_filter([$c['address'], $c['village'], $c['parish'], $c['subcounty'], $c['county'], $c['district']]))),
         'Occupation' => e(trim(($c['occupation'] ?? '') . ($c['employer'] ? ' · ' . $c['employer'] : ''))),
         'Business' => e(trim(($c['business_name'] ?? '') . ($c['business_location'] ? ' · ' . $c['business_location'] : '')))], 3);
     echo '</div></div></div>';
-    tabs(['overview' => 'Overview', 'loans' => 'Loans', 'payments' => 'Payments & receipts', 'guarantors' => 'Guarantors', 'securities' => 'Securities', 'credits' => 'Credits & statements', 'admin' => 'Status & photo'], $tab);
+    tabs(['overview' => 'Overview', 'kyc' => 'KYC & documents', 'loans' => 'Loans', 'payments' => 'Payments & receipts', 'guarantors' => 'Guarantors', 'securities' => 'Securities', 'credits' => 'Credits & statements', 'admin' => 'Status & photo'], $tab);
 
     if ($tab === 'overview') {
         $ex = Loans::clientExposure($id);
@@ -175,6 +193,33 @@ if ($a === 'view') {
         }
         $prev = rows("SELECT loan_no, status, closed_date, overdue_since FROM loans WHERE client_id = ? AND (overdue_since IS NOT NULL OR collection_status = 'Referred for Review')", [$id]);
         if ($prev) echo '<div class="notice bad">Previous or current arrears recorded on: ' . e(implode(', ', array_column($prev, 'loan_no'))) . '</div>';
+    }
+    if ($tab === 'kyc') {
+        $sel = "SELECT a.*, u.full_name AS up_by, v.full_name AS ver_by FROM attachments a LEFT JOIN users u ON u.id = a.uploaded_by LEFT JOIN users v ON v.id = a.verified_by WHERE a.entity_type = 'client' AND a.entity_id = ?";
+        $docs = array_merge(rows($sel . " AND a.kind = 'photo' ORDER BY a.id DESC LIMIT 1", [$id]), rows($sel . " AND a.kind <> 'photo' ORDER BY a.id DESC", [$id]));
+        $check = [];
+        foreach (Workflow::requiredDocs() as $k) {
+            $st = array_column(array_filter($docs, fn($d) => $d['kind'] === $k), 'verify_status');
+            $check[] = ['doc' => Workflow::KYC_KINDS[$k], 'state' => in_array('Verified', $st, true) ? 'Verified' : (in_array('Pending', $st, true) ? 'Pending' : ($st ? 'Rejected' : 'Missing'))];
+        }
+        echo '<div class="card"><div class="card-h"><h2>Client KYC profile</h2>' . badge($c['kyc_status']) . '</div>';
+        echo '<p class="muted">Every loan application for this client relies on this profile. Required documents (set by the loan product): ' . ($check ? e(implode(', ', array_column($check, 'doc'))) : 'none') . '.'
+            . ($c['kyc_verified_at'] ? ' Last decision ' . e(fmt_dt($c['kyc_verified_at'])) . ($c['kyc_note'] ? ' · ' . e($c['kyc_note']) : '') : '') . '</p>';
+        if ($check) data_table(['doc' => 'Required document', 'state' => ['Status', 'badge']], $check, ['class' => 'nofilter']);
+        if (can('kyc.verify')) echo '<h3>Decision on the KYC profile</h3>' . decision_form(url('clients', ['a' => 'kyc_verify', 'id' => $id]), [], 'Verify KYC profile');
+        echo '</div><div class="card"><h2>Documents</h2>';
+        data_table(['original_name' => ['File', fn($r) => '<a target="_blank" href="' . e(attachment_url((int)$r['id'])) . '">' . e($r['original_name']) . '</a>'], 'kind' => ['Kind', fn($r) => e(Workflow::KYC_KINDS[$r['kind']] ?? $r['kind'])],
+            'uploaded_at' => ['Uploaded', 'dt'], 'up_by' => 'By', 'verify_status' => ['Status', 'badge'], 'ver_by' => 'Verified by',
+            'act' => ['', fn($r) => can('kyc.verify') && $r['verify_status'] === 'Pending' ? decision_form(url('clients', ['a' => 'kyc_doc', 'id' => $id]), ['att' => $r['id']]) : e((string)($r['verify_note'] ?? ''))]], $docs, ['empty' => 'No documents uploaded yet.', 'class' => 'nofilter']);
+        echo '</div>';
+        if (can('client.manage')) {
+            echo '<div class="card"><h2>Upload a KYC document</h2>';
+            form_open(url('clients', ['a' => 'kyc_upload', 'id' => $id]), ['upload' => true]);
+            field('kind', 'Kind', ['type' => 'select', 'options' => array_diff_key(Workflow::KYC_KINDS, ['photo' => 1]), 'required' => true]);
+            field('doc', 'File (PDF or image, max 5 MB)', ['type' => 'file', 'span' => 2]);
+            field('note', 'Note');
+            echo '<div class="form-actions">'; submit_btn('Upload'); echo '</div>'; form_close(); echo '</div>';
+        }
     }
     if ($tab === 'loans') {
         $ls = rows("SELECT l.*, b.total_out FROM loans l JOIN v_loan_balances b ON b.loan_id = l.id WHERE l.client_id = ? ORDER BY l.id DESC", [$id]);

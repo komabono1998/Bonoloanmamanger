@@ -66,7 +66,8 @@ foreach ([['Akello Grace', 'Female', '1988-03-12', 'CF88012345AKGR', '0772100001
           ['Ssemakula Brian', 'Male', '1995-05-02', 'CM95022211SSBR', '0772100006', 'Mukono', 'Mukono', 'Shop keeper', 'Brian General Store', 1700000, 750000]] as $i => $c) {
     $branch = $i === 4 ? $B : $A;
     $clients[$i] = insert('clients', ['branch_id' => $branch, 'client_no' => make_number('client_prefix', 'client', false), 'full_name' => $c[0], 'gender' => $c[1], 'dob' => $c[2], 'nin' => $c[3], 'phone' => $c[4], 'village' => $c[5], 'district' => $c[6],
-        'occupation' => $c[7], 'business_name' => $c[8] ?: null, 'monthly_income' => $c[9], 'monthly_expenses' => $c[10], 'status' => 'Active', 'registered_by' => nu($i === 4 ? 'log' : 'lo'), 'registered_at' => now()]);
+        'occupation' => $c[7], 'business_name' => $c[8] ?: null, 'monthly_income' => $c[9], 'monthly_expenses' => $c[10], 'status' => 'Active', 'registered_by' => nu($i === 4 ? 'log' : 'lo'), 'registered_at' => now(), 'kyc_status' => 'Verified', 'kyc_verified_at' => now(), 'kyc_note' => 'Demo data']);
+    insert('attachments', ['entity_type' => 'client', 'entity_id' => $clients[$i], 'kind' => 'national_id', 'original_name' => 'national_id.png', 'stored_name' => 'demo_' . $clients[$i] . '.png', 'mime' => 'image/png', 'uploaded_at' => now(), 'verify_status' => 'Verified', 'verified_at' => now()]);
 }
 $g1 = insert('guarantors', ['branch_id' => $A, 'guarantor_no' => make_number('guarantor_prefix', 'guarantor', false), 'surname' => 'Nabirye', 'first_name' => 'Joyce', 'gender' => 'Female', 'phone' => '0701555001', 'nin' => 'CF75011111NAJO', 'district' => 'Kampala',
     'housing_status' => 'Owner', 'marital_status' => 'Married', 'spouse_name' => 'Nabirye Sam', 'spouse_phone' => '0701555002', 'nok_name' => 'Nabirye Sam', 'nok_phone' => '0701555002', 'created_by' => nu('lo'), 'created_at' => now()]);
@@ -117,7 +118,7 @@ foreach ([[$loanA, 'Land title', 'Plot 12 Kisenyi, title deed', 4500000], [$loan
         'status' => 'Pledged', 'date_pledged' => $D0, 'storage_location' => 'Office safe', 'created_by' => nu('lo'), 'created_at' => now()]);
     insert('security_history', ['security_id' => $sid, 'old_status' => null, 'new_status' => 'Pledged', 'changed_by' => nu('lo'), 'changed_at' => now(), 'note' => 'Registered']);
 }
-as_('cashier', $A);
+as_('bm', $A);
 $sid0 = Cash::openSession(0, true);
 Cash::transfer('from_account', 4000000, safe($A), null, 'Cash for disbursements');
 foreach ([$loanA, $loanB, $loanC] as $lid) Loans::disburse($lid, ['method' => 'Cash', 'doc_verified' => 1, 'client_ack' => 1, 'authorized_by' => nu('bm')]);

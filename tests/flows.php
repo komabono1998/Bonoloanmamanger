@@ -84,6 +84,28 @@ $forms = array_map(fn($f) => $f['action'], $lo->forms());
 echo '       loan page forms: ' . implode(' | ', $forms) . "\n";
 
 $lo->submit('a=submit');
+step('the submission is refused until the client KYC is verified', str_contains($lo->flashText(), 'cannot be submitted yet') && str_contains($lo->flashText(), 'National ID'), info($lo));
+$lo->get($lo->url('loan', ['id' => $loanId]));
+step('the loan page shows the stage tracker with the blocking reason', str_contains($lo->body, 'Application workflow') && str_contains($lo->body, 'wf-issues'), info($lo));
+$kycPng = sys_get_temp_dir() . '/flow_kyc_' . getmypid() . '.png'; file_put_contents($kycPng, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+$lo->get($lo->url('clients', ['a' => 'view', 'id' => $clientId, 'tab' => 'kyc']));
+step('the client KYC tab lists the required document', str_contains($lo->body, 'National ID') && str_contains($lo->body, 'Client KYC profile'), info($lo));
+$lo->submit('a=kyc_upload', ['kind' => 'national_id', 'doc' => new CURLFile($kycPng, 'image/png', 'national_id.png')]);
+step('the loan officer uploads the national ID', flashOk($lo, 'awaits verification'), info($lo));
+$lo->get($lo->url('clients', ['a' => 'view', 'id' => $clientId, 'tab' => 'kyc']));
+step('the loan officer cannot verify documents', !str_contains($lo->body, 'a=kyc_doc'), info($lo));
+$bmk = $W['fbm' . $sfx];
+$fo->get($fo->url('clients', ['a' => 'view', 'id' => $clientId, 'tab' => 'kyc']));
+step('in the two-role process the Finance Officer does not verify KYC', !str_contains($fo->body, 'a=kyc_doc') && !str_contains($fo->body, 'a=kyc_verify'), info($fo));
+$bmk->get($bmk->url('clients', ['a' => 'view', 'id' => $clientId, 'tab' => 'kyc']));
+$bmk->submitWhere('a=kyc_doc', [], ['decision' => 'verify']);
+step('the Branch Manager verifies the document', flashOk($bmk, 'verified'), info($bmk));
+$bmk->submit('a=kyc_verify', ['decision' => 'verify', 'note' => 'ID checked']);
+step('the Branch Manager verifies the client KYC profile', flashOk($bmk, 'verified'), info($bmk));
+@unlink($kycPng);
+$lo->get($lo->url('loan', ['id' => $loanId]));
+step('the tracker now shows the KYC stage complete', str_contains($lo->body, 'wf-s done'), info($lo));
+$lo->submit('a=submit');
 step('submit the application for review', flashOk($lo), info($lo));
 $lo->get($lo->url('assessment', ['id' => $loanId]));
 step('the credit assessment page opens', $lo->code === 200 && !str_contains($lo->body, 'Something went wrong'), info($lo));
@@ -111,6 +133,12 @@ echo '       till forms: ' . implode(' | ', array_map(fn($f) => $f['action'] . '
 $bm->get($bm->url('loan', ['id' => $loanId]));
 $bm->submit('a=accept', ['decision' => 'accept', 'note' => 'accepted in branch']);
 step('record the client\'s acceptance of the offer', flashOk($bm, 'acceptance'), info($bm));
+$cash->get($cash->url('disbursements', ['id' => $loanId]));
+step('in the two-role process the Cashier cannot release loans', $cash->code === 403 || !str_contains($cash->body, 'authorized_by'), info($cash));
+$admin->get($admin->url('process'));
+step('the administrator opens Loan Process Roles', $admin->code === 200 && str_contains($admin->body, 'Who does what') && str_contains($admin->body, 'Two roles: Loan Officer + Branch Manager'), info($admin));
+$admin->submitWhere('a=preset', ['preset' => 'separate']);
+step('the administrator switches to separated duties (cashier releases funds)', flashOk($admin, 'Profile applied'), info($admin));
 $cash->get($cash->url('till'));
 $cash->submit('a=open', ['opening_float' => '5,000,000', 'confirmed' => '1']);
 step('the cashier opens a till with an opening float', flashOk($cash), info($cash));
@@ -120,6 +148,9 @@ $cash->submitByField('authorized_by', ['authorized_by' => (string)$cash->optionV
 step('the cashier releases the approved loan (voucher issued)', str_contains($cash->lastUrl, 'doc=voucher') || flashOk($cash, 'disbursed'), info($cash));
 $bm->get($bm->url('loan', ['id' => $loanId]));
 step('the loan is now Active with a repayment schedule', str_contains($bm->body, 'Active') && str_contains($bm->body, 'Repayment schedule'), info($bm));
+$admin->get($admin->url('process'));
+$admin->submitWhere('a=preset', ['preset' => 'two_role']);
+step('the administrator returns to the two-role process', flashOk($admin, 'Profile applied'), info($admin));
 
 // ================================================================= D. collections
 echo "\n== Cashier: receive a repayment\n";
@@ -202,6 +233,8 @@ step('global search finds the new client', str_contains($lo->body, 'Flow Client'
 $lo->get($lo->url('reports'));
 step('the Report Centre lists reports for the new Loan Officer', str_contains($lo->body, 'LP-02') && !str_contains($lo->body, 'FN-01'), info($lo));
 foreach (['LP-02', 'CL-01', 'LA-01', 'AR-02', 'GC-02'] as $rid) { $lo->get($lo->url('reports', ['r' => $rid])); step("report $rid opens", $lo->code === 200 && str_contains($lo->body, 'Generated by'), info($lo)); }
+$admin->get($admin->url('settings', ['tab' => 'workflow']));
+step('the loan workflow rules are configurable in Settings', $admin->code === 200 && str_contains($admin->body, 'Documents required before an application can be submitted') && str_contains($admin->body, 'wf_min_guarantors'), info($admin));
 foreach (['pdf', 'xlsx', 'csv'] as $dlf) {
     $ch = curl_init($lo->url('export', ['kind' => 'report', 'format' => $dlf, 'r' => 'LP-02']));
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_COOKIEFILE => $lo->jar, CURLOPT_FOLLOWLOCATION => true]);

@@ -40,6 +40,7 @@ $ROUTES = [
     'eod'           => ['eod', 'eod.view', 'Cash', 'End of Day'],
     'ledger'        => ['ledger', 'gl.view', 'Cash', 'General Ledger'],
     'reports'       => ['reports', 'report.view', 'Reports', 'Report Centre'],
+    'process'       => ['process', 'settings.manage', 'Administration', 'Loan Process Roles'],
     'reportaccess'  => ['reportaccess', 'user.manage', 'Administration', 'Report Access'],
     'importexport'  => ['importexport', 'import.run|export.run', 'Reports', 'Import / Export'],
     'audit'         => ['audit', 'audit.own|audit.financial|audit.branch|audit.all|audit.technical', 'Administration', 'Audit Trail'],

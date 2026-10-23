@@ -31,6 +31,7 @@ function permission_catalogue(): array
             'eod.view' => 'View End-of-Day', 'eod.manage' => 'Open day / prepare and submit EOD', 'eod.approve' => 'Approve & lock the business day',
             'eod.run' => 'Run End of Day (one step, after a backup)', 'eod.reopen' => 'Request / authorize reopening',
         ],
+        'Verification' => ['kyc.verify' => 'Verify client KYC, documents and guarantors'],
         'General ledger' => ['gl.view' => 'View chart of accounts, journals, trial balance and statements', 'gl.post' => 'Post / reverse manual journals and run ledger posting', 'gl.manage' => 'Maintain the chart of accounts'],
         'Reports & data' => ['report.view' => 'View reports', 'report.export' => 'Export reports (CSV / Excel)', 'import.run' => 'Import data', 'export.run' => 'Export sensitive records'],
         'Oversight' => [
@@ -97,16 +98,16 @@ function default_role_permissions(): array
             'security.manage', 'report.view', 'report.export'],
         'Finance Officer' => ['gl.view', 'dashboard.view', 'client.view', 'loan.view', 'payment.view', 'payment.reverse.request', 'receipt.reprint', 'portfolio.view', 'expense.view', 'expense.create',
             'till.reconcile', 'eod.view', 'eod.manage', 'eod.reopen', 'report.view', 'report.export', 'audit.financial'],
-        'Branch Manager' => ['dashboard.view', 'client.view', 'client.manage', 'client.sensitive', 'guarantor.manage', 'loan.view', 'loan.approve', 'loan.disburse.authorize', 'loan.close', 'payment.view',
+        'Branch Manager' => ['kyc.verify', 'loan.disburse', 'till.use', 'dashboard.view', 'client.view', 'client.manage', 'client.sensitive', 'guarantor.manage', 'loan.view', 'loan.approve', 'loan.disburse.authorize', 'loan.close', 'payment.view',
             'payment.reverse', 'receipt.reprint', 'credit.manage', 'portfolio.view', 'arrears.manage', 'penalty.adjust', 'security.manage', 'security.release', 'expense.view', 'expense.approve',
             'till.reconcile', 'eod.view', 'eod.approve', 'eod.reopen', 'report.view', 'report.export', 'authority.branch', 'branch.settings', 'backup.request', 'audit.branch', 'import.run', 'export.run'],
-        'COO' => ['gl.view', 'dashboard.view', 'client.view', 'client.sensitive', 'loan.view', 'loan.approve', 'loan.disburse.authorize', 'loan.close', 'loan.adjust', 'payment.view', 'payment.reverse',
+        'COO' => ['kyc.verify', 'gl.view', 'dashboard.view', 'client.view', 'client.sensitive', 'loan.view', 'loan.approve', 'loan.disburse.authorize', 'loan.close', 'loan.adjust', 'payment.view', 'payment.reverse',
             'portfolio.view', 'arrears.manage', 'penalty.adjust', 'expense.view', 'expense.approve', 'till.reconcile', 'eod.view', 'eod.approve', 'eod.reopen', 'report.view', 'report.export',
             'export.run', 'authority.institution', 'branch.all', 'compliance.view', 'limits.manage', 'settings.policy', 'backup.authorize', 'audit.all'],
         'System Administrator' => ['dashboard.view', 'report.view', 'eod.run', 'user.manage', 'settings.manage', 'branch.manage', 'backup.manage', 'system.health', 'security.monitor', 'audit.technical'],
         'Finance Manager' => ['gl.view', 'gl.post', 'gl.manage', 'dashboard.view', 'client.view', 'loan.view', 'payment.view', 'payment.reverse.request', 'receipt.reprint', 'portfolio.view', 'expense.view', 'expense.approve', 'till.reconcile', 'eod.view', 'eod.manage', 'eod.reopen', 'report.view', 'report.export', 'audit.financial'],
         'Auditor' => ['gl.view', 'dashboard.view', 'client.view', 'loan.view', 'payment.view', 'portfolio.view', 'expense.view', 'eod.view', 'report.view', 'report.export', 'audit.all', 'branch.all', 'compliance.view'],
-        'Cashier' => ['dashboard.view', 'report.view', 'report.export', 'client.view', 'loan.view', 'loan.disburse', 'payment.view', 'payment.record', 'receipt.reprint', 'portfolio.view', 'till.use', 'expense.view', 'expense.create', 'eod.view'],
+        'Cashier' => ['dashboard.view', 'report.view', 'report.export', 'client.view', 'loan.view', 'payment.view', 'payment.record', 'receipt.reprint', 'portfolio.view', 'till.use', 'expense.view', 'expense.create', 'eod.view'],
     ];
     $d['System Administrator'] = all_permissions();   // the administrator holds every right
     return $d;

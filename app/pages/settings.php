@@ -35,6 +35,12 @@ $GROUPS = [
         'maturity_holiday_roll' => ['Roll maturity forward to next working day', 'checkbox'], 'offer_validity_days' => ['Offer validity (working days)', 'number'],
         'assessment_required' => ['Credit assessment required before approval', 'checkbox'], 'requested_max_loan' => ['Maximum loan amount (UGX, 0 = none)', 'money'],
     ]],
+    'workflow' => ['Loan workflow', 'settings.policy', [
+        'wf_required_docs' => ['Documents required before an application can be submitted', 'dockinds', 'Each must be uploaded for the client and verified by an authorised user.'],
+        'wf_min_guarantors' => ['Verified guarantors required (0 = guarantors not required by the product)', 'number'],
+        'wf_collateral' => ['Collateral / security', 'select', ['none' => 'Not taken by this product', 'optional' => 'Optional (unsecured lending allowed)', 'required' => 'Required: accepted security or an authorised exception']],
+        'wf_allow_exceptions' => ['Allow an authorised exception to mandatory guarantor / collateral requirements', 'checkbox', 'The exception needs a documented reason and an approver who did not originate the application. If OFF, the requirements cannot be bypassed.'],
+    ]],
     'penalty' => ['Penalties', 'settings.policy', [
         'penalty_enabled' => ['Penalties ACTIVE for newly approved loans', 'checkbox', 'Leave OFF until management confirms the rule.'], 'penalty_rate_pct' => ['Penalty rate (% per day)', 'text', 'Initial documented value: 3.5% per day — to be confirmed.'],
         'penalty_basis' => ['Rate applies to', 'select', ['outstanding_principal' => 'Outstanding principal', 'original_principal' => 'Original approved principal', 'total_outstanding' => 'Principal + interest + fees outstanding']],
@@ -94,6 +100,7 @@ if ($a === 'save') post_action(function () use ($GROUPS, $tab) {
                 continue;
             }
             if ($type === 'checkbox') $v = !empty($_POST[$key]) ? '1' : '0';
+            elseif ($type === 'dockinds') $v = implode(',', array_values(array_intersect((array)($_POST[$key] ?? []), array_keys(Workflow::KYC_KINDS))));
             elseif ($type === 'roles') {
                 $sel = array_values(array_intersect((array)($_POST[$key] ?? []), array_column(rows('SELECT role FROM roles'), 'role')));
                 if (!in_array('System Administrator', $sel, true)) $sel[] = 'System Administrator';
@@ -286,6 +293,13 @@ form_open(url('settings', ['a' => 'save', 'tab' => $tab]));
 foreach ($g[2] as $key => $def) {
     [$label, $type] = $def;
     $help = is_string($def[2] ?? null) ? $def[2] : '';
+    if ($type === 'dockinds') {
+        $cur = array_map('trim', explode(',', setting($key)));
+        echo '<div class="fld span4"><label>' . e($label) . '</label><div class="perm-grid">';
+        foreach (Workflow::KYC_KINDS as $k => $n) echo '<label><input type="checkbox" name="' . e($key) . '[]" value="' . e($k) . '"' . (in_array($k, $cur, true) ? ' checked' : '') . '> ' . e($n) . '</label>';
+        echo '</div><small>' . e($help) . '</small></div>';
+        continue;
+    }
     if ($type === 'roles') {
         $cur = array_map('trim', explode(',', setting($key)));
         echo '<div class="fld span4"><label>' . e($label) . '</label><div class="perm-grid">';

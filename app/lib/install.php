@@ -98,9 +98,14 @@ function ensure_default_roles(): void
         q('INSERT INTO roles(role, description, sort_order, is_principal) VALUES (?,?,?,?) ON CONFLICT (role) DO NOTHING', [$role, $desc, ++$i, in_array($role, principal_roles(), true) ? 1 : 0]);
         foreach (default_role_permissions()[$role] ?? [] as $p) q('INSERT INTO role_permissions(role, permission) VALUES (?,?) ON CONFLICT (role, permission) DO NOTHING', [$role, $p]);
     }
+    // the loan process runs between the Loan Officer and the Branch Manager (the administrator can change this on the Loan Process Roles page)
+    if (!val("SELECT COUNT(*) FROM schema_migrations WHERE name = 'process_two_role_v1'")) {
+        try { Process::applyPreset('two_role', false); } catch (Throwable $e) { error_log($e); }
+        q("INSERT INTO schema_migrations(name, applied_at) VALUES ('process_two_role_v1', ?) ON CONFLICT (name) DO NOTHING", [date('Y-m-d H:i:s')]);
+    }
     // role templates that gained access to the Report Centre (applied once to existing systems)
     foreach ([['Cashier', 'report.view'], ['System Administrator', 'report.view'], ['System Administrator', 'eod.run'],
-        ['Loan Officer', 'report.export'], ['Cashier', 'report.export'], ['Finance Manager', 'gl.view'], ['Finance Manager', 'gl.post'], ['Finance Manager', 'gl.manage'], ['Finance Officer', 'gl.view'], ['COO', 'gl.view'], ['Auditor', 'gl.view']] as [$r, $perm]) {
+        ['Loan Officer', 'report.export'], ['Finance Officer', 'kyc.verify'], ['Branch Manager', 'kyc.verify'], ['COO', 'kyc.verify'], ['Finance Manager', 'kyc.verify'], ['Cashier', 'report.export'], ['Finance Manager', 'gl.view'], ['Finance Manager', 'gl.post'], ['Finance Manager', 'gl.manage'], ['Finance Officer', 'gl.view'], ['COO', 'gl.view'], ['Auditor', 'gl.view']] as [$r, $perm]) {
         $mk = str_replace('.', '_', $perm) . '_' . strtolower(str_replace(' ', '_', $r));
         if (in_array($r, $have, true) && !val('SELECT COUNT(*) FROM schema_migrations WHERE name = ?', [$mk])) {
             q('INSERT INTO role_permissions(role, permission) VALUES (?, ?) ON CONFLICT (role, permission) DO NOTHING', [$r, $perm]);

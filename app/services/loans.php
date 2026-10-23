@@ -85,6 +85,9 @@ final class Loans
                     [$data['client_id'], $data['amount_requested'], $data['application_date'], $id]);
                 must(!$dup, 'A matching application for this client, amount and date already exists.');
                 $data['updated_at'] = now();
+                foreach (['client_id', 'amount_requested', 'period_months', 'frequency', 'purpose', 'monthly_income', 'monthly_expenses', 'existing_debt'] as $mk) {
+                    if ((string)$l[$mk] !== (string)$data[$mk]) { $data['app_version'] = (int)$l['app_version'] + 1; break; }
+                }
                 update('loans', $data, 'id = :id', ['id' => $id]);
                 audit('Loan application updated', 'Loans', 'loan', $id, $l['amount_requested'], $data['amount_requested']);
                 return $id;
@@ -106,6 +109,7 @@ final class Loans
         $l = self::get($id);
         must(in_array($l['status'], ['Draft', 'Returned for Correction'], true), 'Only draft or returned applications can be submitted.');
         must($l['officer_id'] == uid() || can('loan.approve'), 'You can only submit your own applications.');
+        Workflow::gate($l, 4, 'be submitted');
         tx(function () use ($id, $l) {
             self::setStatus($id, 'Submitted', 'Submitted for review');
             audit('Loan application submitted', 'Loans', 'loan', $id, $l['status'], 'Submitted');
@@ -200,6 +204,7 @@ final class Loans
             $isAdjust ? 'You do not have permission to adjust approved terms.' : 'This loan is not awaiting approval.');
         must($l['status'] !== 'Disbursed', 'This loan has already been disbursed.');
         must((int)$l['officer_id'] !== (int)uid(), 'You cannot approve a loan application that you originated.');
+        Workflow::gate($l, 4, $isAdjust ? 'have its terms adjusted' : 'be approved');
         $assess = self::latestAssessment($id);
         if (!$assess && setting('assessment_required') === '1') {
             must(!empty($in['exception']) && trim($in['exception_reason'] ?? '') !== '', 'A credit assessment is required before approval (or record an authorized exception reason).');
@@ -233,6 +238,7 @@ final class Loans
         tx(function () use ($id, $l, $t, $bd, $penalty, $in, $comments, $reason, $assess, $isAdjust, $months, $deducted, $procBp) {
             $expiry = Calc::addWorkingDays($bd, setting_int('offer_validity_days'), fn($d) => is_working_day($d, (int)$l['branch_id']));
             update('loans', [
+                'approved_version' => (int)$l['app_version'], 'relied_on' => Workflow::reliedOn($l), 'return_stage' => null,
                 'approved_principal' => $t['principal'], 'rate_bp' => $t['rate_bp'], 'interest_method' => setting('interest_method'),
                 'interest_amount' => $t['interest'], 'processing_fee_bp' => $procBp, 'processing_fee' => $t['processing_fee'],
                 'application_fee' => $t['application_fee'], 'inspection_fee' => $t['inspection_fee'], 'other_fees' => $t['other_fees'],
@@ -269,13 +275,18 @@ final class Loans
         });
     }
 
-    public static function returnForCorrection(int $id, string $comments): void
+    public static function returnForCorrection(int $id, string $comments, string $stage = ''): void
     {
         require_perm('loan.approve');
         $l = self::get($id);
         must(in_array($l['status'], ['Submitted', 'Under Review'], true), 'This loan is not awaiting approval.');
         must($comments !== '', 'Please state what must be corrected.');
-        tx(function () use ($id, $l, $comments) {
+        must($stage === '' || isset(['kyc' => 1, 'guarantors' => 1, 'collateral' => 1, 'application' => 1, 'assessment' => 1][$stage]), 'Choose the stage to return the application to.');
+        tx(function () use ($id, $l, $comments, $stage) {
+            $stageNo = ['kyc' => 2, 'guarantors' => 3, 'collateral' => 4, 'application' => 5, 'assessment' => 6][$stage] ?? null;
+            if ($stageNo) update('loans', ['return_stage' => (string)$stageNo], 'id = :id', ['id' => $id]);
+            if ($stage) Workflow::reopenStage($id, $stage);
+            Workflow::log($id, $stageNo ? Workflow::STAGES[$stageNo] : 'Review & approval', 'returned for correction', $comments);
             self::setStatus($id, 'Returned for Correction', $comments);
             insert('loan_approvals', ['loan_id' => $id, 'decision' => 'Returned', 'requested_amount' => $l['amount_requested'], 'comments' => $comments,
                 'approver_id' => uid(), 'approver_role' => Approvals::authority(), 'decided_at' => now(), 'business_date' => reporting_date((int)$l['branch_id'])]);
@@ -348,6 +359,8 @@ final class Loans
         must($l['status'] === 'Approved', 'This loan has not been approved.');
         must($l['acceptance_status'] === 'Accepted', 'Loan offer acceptance is required before disbursement.');
         must(!self::offerExpired($l), 'The loan offer has expired and must be reviewed by a manager before disbursement.');
+        $blockers = Workflow::preDisbursement($l);
+        must(!$blockers, 'Pre-disbursement checks failed: ' . implode(' ', $blockers));
         must(!empty($in['doc_verified']), 'Please confirm that the required documentation has been verified.');
         must(!empty($in['client_ack']), 'Client acknowledgment of receipt is required.');
         $method = $in['method'] ?? 'Cash';
@@ -397,7 +410,8 @@ final class Loans
                 insert('repayment_schedules', ['loan_id' => $id, 'version' => 1, 'installment_no' => $s['no'], 'due_date' => $s['due_date'],
                     'principal_due' => $s['principal'], 'interest_due' => $s['interest'], 'total_due' => $s['total'], 'status' => 'Current', 'created_at' => now()]);
             }
-            update('loans', ['disbursement_date' => $bd, 'due_date' => $due, 'disbursed_at' => now(), 'updated_at' => now()], 'id = :id', ['id' => $id]);
+            update('loans', ['disbursement_date' => $bd, 'due_date' => $due, 'disbursed_at' => now(), 'predisb_at' => now(), 'predisb_by' => uid(), 'updated_at' => now()], 'id = :id', ['id' => $id]);
+            Workflow::log($id, 'Pre-disbursement checks', 'all checks passed', 'Disbursement ' . $did);
             self::setStatus($id, 'Active', 'Loan disbursed');
             audit('Loan disbursed', 'Disbursements', 'loan', $id, null, ['net' => $net, 'principal' => $l['approved_principal'], 'method' => $method, 'disbursement' => $did]);
             return $did;

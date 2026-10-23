@@ -114,3 +114,21 @@ Every report page has a filter panel: **period presets** (today, yesterday, this
 * **Basis:** interest, fees and penalties are income when received (cash basis); amounts still owed are shown as receivables against "unearned" liability accounts. Loan receivable accounts always equal the loan sub-ledger; the clearing accounts (1900, 1950, 1960) should be nil.
 * **Manual journals:** for capital, opening balances and bank charges. They must balance, cannot be dated in the future, can never be edited or deleted, and are corrected by a reversing journal.
 * **Reports:** Report FN-12 offers the Trial Balance, Income Statement, Balance Sheet, General Ledger and Journal Register, with period, branch and download options like any other report.
+
+## Loan application workflow (11 linked stages)
+
+The loan application (Application ID = loan number) is the central record. Its stage tracker on the loan page is worked out from the records themselves, and the server refuses a step whose requirements are not met:
+
+1. Client registration, 2. KYC & documents, 3. Guarantors, 4. Collateral / security, 5. Loan application, 6. Credit assessment, 7. Review & approval, 8. Offer & acceptance, 9. Pre-disbursement checks, 10. Disbursement, 11. Account activation.
+
+* **Configure (Settings > Loan workflow):** required KYC documents, number of verified guarantors (0 = not required), collateral policy (none / optional / required) and whether an authorised exception is allowed.
+* **Verification:** users with *Verify client KYC, documents and guarantors* (Finance Officer, Branch Manager, COO, Finance Manager) verify or reject documents, the client KYC profile and guarantors. You cannot verify a record you captured yourself unless you hold branch or institution authority.
+* **Not applicable:** a guarantor or collateral requirement can only be set aside by an approver who did not originate the application, with a documented reason, and only when the product allows exceptions. Not applicable is never offered for KYC.
+* **Returns:** an approver returns an application to a chosen stage; the records of that stage must be verified again.
+* **Approval** is tied to the application version and keeps the list of verified documents, guarantors and security relied on. A material change after approval requires re-approval before disbursement.
+* **Pre-disbursement checks** (approved, offer accepted and valid, version unchanged, stages 1-4 still satisfied, amounts reconcile, no earlier disbursement) must all pass. Every decision is recorded in the workflow history and the audit trail.
+* Records that existed before the workflow was introduced are treated as already verified.
+
+## Loan Process Roles (who does what)
+
+Administration > Loan Process Roles shows every step of the loan process against the roles that can carry it. The default is two roles: the **Loan Officer** registers clients, captures guarantors and collateral, prepares the application and the credit assessment; the **Branch Manager** verifies KYC, documents and guarantors, approves or returns the application, authorises disbursement and releases the funds (with the till). The System Administrator can change the matrix at any time or switch to the "separated duties" profile (finance officer verifies, cashier releases funds); menus and permissions follow immediately. A warning appears if a step has no responsible role. Whoever holds a step, nobody can approve, authorise or verify their own work.

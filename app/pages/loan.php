@@ -37,6 +37,20 @@ if ($a === 'link_guarantor') post_action(function () use ($id, $back) {
     });
     return ['Guarantor linked.', $back('guarantors')];
 });
+if ($a === 'wf_guarantor') post_action(function () use ($id, $back) {
+    $lg = (int)post('lg_id');
+    must((bool)val('SELECT COUNT(*) FROM loan_guarantors WHERE id = ? AND loan_id = ?', [$lg, $id]), 'Guarantor link not found.');
+    Workflow::verifyGuarantor($lg, post('decision') === 'verify', clean(post('note')));
+    return [post('decision') === 'verify' ? 'Guarantor verified.' : 'Guarantor rejected.', $back('guarantors')];
+});
+if ($a === 'wf_na') post_action(function () use ($id, $back) {
+    Workflow::markNotApplicable($id, post('stage'), clean(post('reason')));
+    return ['Exception recorded with its reason.', $back('overview')];
+});
+if ($a === 'wf_clear') post_action(function () use ($id, $back) {
+    Workflow::clearException($id, post('stage'));
+    return ['Exception withdrawn.', $back('overview')];
+});
 if ($a === 'release_guarantor') post_action(function () use ($id, $back) {
     require_perm('guarantor.manage');
     $lg = (int)post('lg_id');
@@ -97,6 +111,37 @@ echo '<div class="kpis">'
     . ($loan['disbursed_at'] ? kpi('Total outstanding', ugx($bal['total']), 'P ' . num($bal['principal']) . ' · I ' . num($bal['interest']) . ' · Pen ' . num($bal['penalty']), $bal['total'] > 0 ? ($st === 'Overdue' ? 'bad' : 'warn') : '')
         . kpi('Due date', e(fmt_date($loan['due_date'])), $st === 'Overdue' ? Loans::overdueInfo($loan)['days'] . ' days overdue' : '', $st === 'Overdue' ? 'bad' : '') : '')
     . '</div>';
+$stages = Workflow::stages($loan);
+echo '<div class="card wf-card"><div class="card-h"><h2>Application workflow</h2><span class="muted">Application ID ' . e($loan['loan_no']) . ' · version ' . (int)$loan['app_version'] . '</span></div><ol class="wf">';
+foreach ($stages as $s) {
+    $mark = ['done' => '&#10003;', 'na' => 'N/A', 'stopped' => '&#10005;', 'returned' => '&#8630;'][$s['state']] ?? $s['no'];
+    echo '<li class="wf-s ' . e($s['state']) . '" title="' . e(trim($s['name'] . ($s['note'] ? ' - ' . $s['note'] : ''))) . '"><span class="wf-n">' . $mark . '</span><span class="wf-t">' . e($s['name']) . '</span></li>';
+}
+echo '</ol>';
+$open = in_array($st, ['Draft', 'Submitted', 'Under Review', 'Returned for Correction'], true);
+foreach ($stages as $s) {
+    if (!in_array($s['state'], ['current', 'blocked', 'returned'], true) || !$s['issues']) continue;
+    echo '<div class="wf-issues ' . ($s['state'] === 'blocked' ? 'bad' : 'warn') . '"><b>Stage ' . (int)$s['no'] . ' &middot; ' . e($s['name']) . '</b><ul>';
+    foreach ($s['issues'] as $m) echo '<li>' . e($m) . '</li>';
+    echo '</ul>';
+    $key = [3 => 'guarantors', 4 => 'collateral'][$s['no']] ?? null;
+    if ($key && $open && $s['state'] === 'blocked' && can('loan.approve') && Workflow::exceptionsAllowed() && (int)$loan['officer_id'] !== (int)uid()) {
+        echo '<form method="post" action="' . e(url('loan', ['id' => $id, 'a' => 'wf_na'])) . '" class="inline-decision">' . csrf_field() . '<input type="hidden" name="stage" value="' . $key . '"><input type="text" name="reason" required placeholder="Documented reason for the exception"> <button class="btn sm">Authorise exception (mark not applicable)</button></form>';
+    }
+    echo '</div>';
+}
+foreach ([3 => ['guarantors', 'guarantor_na_reason'], 4 => ['collateral', 'collateral_na_reason']] as $n => [$key, $col]) {
+    if ($stages[$n]['state'] === 'na' && !empty($loan[$col]) && $open && can('loan.approve')) {
+        echo '<div class="wf-issues info"><b>Stage ' . $n . ' exception:</b> ' . e($loan[$col]) . ' <form method="post" style="display:inline" action="' . e(url('loan', ['id' => $id, 'a' => 'wf_clear'])) . '">' . csrf_field() . '<input type="hidden" name="stage" value="' . $key . '"><button class="btn sm">Withdraw</button></form></div>';
+    }
+}
+$wfh = Workflow::history($id);
+if ($wfh) {
+    echo '<details class="wf-log"><summary>Workflow history (' . count($wfh) . ')</summary>';
+    data_table(['at' => ['When', 'dt'], 'stage' => 'Stage', 'event' => 'Event', 'reason' => 'Reason', 'full_name' => 'By'], $wfh, ['class' => 'nofilter']);
+    echo '</details>';
+}
+echo '</div>';
 $tabs = ['overview' => 'Overview', 'schedule' => 'Repayment schedule', 'statement' => 'Statement', 'payments' => 'Payments', 'guarantors' => 'Guarantors', 'securities' => 'Securities', 'documents' => 'Documents', 'history' => 'History'];
 tabs($tabs, $tab);
 
@@ -243,7 +288,7 @@ if ($tab === 'guarantors') {
     $gs = rows("SELECT lg.*, g.guarantor_no, g.surname || ' ' || g.first_name AS name, g.phone FROM loan_guarantors lg JOIN guarantors g ON g.id = lg.guarantor_id WHERE lg.loan_id = ? ORDER BY lg.id", [$id]);
     echo '<div class="card"><div class="card-h"><h2>Guarantors on this loan</h2>' . (count($gs) ? btn('Print guarantor form', url('print', ['doc' => 'guarantor', 'id' => $id]), 'sm') : '') . '</div>';
     data_table(['guarantor_no' => 'ID', 'name' => 'Name', 'phone' => 'Phone', 'guarantee_amount' => ['Guarantee limit', 'money'], 'guarantee_date' => ['Date', 'date'],
-        'declaration_accepted' => ['Declaration', fn($r) => $r['declaration_accepted'] ? badge('Accepted') : badge('Pending')], 'pledge_status' => 'Pledge', 'status' => ['Status', 'badge'],
+        'declaration_accepted' => ['Declaration', fn($r) => $r['declaration_accepted'] ? badge('Accepted') : badge('Pending')], 'verify_status' => ['Verification', fn($r) => badge($r['verify_status']) . (can('kyc.verify') && $r['status'] === 'Active' && $r['verify_status'] !== 'Verified' ? decision_form(url('loan', ['id' => $id, 'a' => 'wf_guarantor']), ['lg_id' => $r['id']]) : '')], 'pledge_status' => 'Pledge', 'status' => ['Status', 'badge'],
         'act' => ['', fn($r) => $r['status'] === 'Active' && can('guarantor.manage') ? '<form method="post" action="' . e(url('loan', ['id' => $id, 'a' => 'release_guarantor'])) . '" data-confirm="Release this guarantor from the loan?" style="display:flex;gap:.3rem">' . csrf_field() . '<input type="hidden" name="lg_id" value="' . (int)$r['id'] . '"><input type="text" name="reason" placeholder="reason" required style="width:120px"><button class="btn sm">Release</button></form>' : '']],
         $gs, ['link' => fn($r) => url('guarantors', ['a' => 'view', 'id' => $r['guarantor_id']]), 'empty' => 'No guarantors linked yet.', 'class' => 'nofilter']);
     echo '<p class="muted" style="margin-top:.6rem">A guarantor\'s liability follows the signed agreement and applicable law; record the guarantee limit and terms below.</p></div>';

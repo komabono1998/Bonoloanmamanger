@@ -9,7 +9,7 @@ if ($id) {
         if ($dec === 'approve') { Loans::approve($id, $_POST); return ['Loan approved. Offer terms are now locked.', url('loan', ['id' => $id])]; }
         if ($dec === 'reject') { Loans::reject($id, clean(post('reason'))); return ['Application rejected.', url('approvals')]; }
         if ($dec === 'escalate') { Loans::escalate($id, clean(post('reason'))); return ['Escalated to the COO.', url('approvals')]; }
-        if ($dec === 'return') { Loans::returnForCorrection($id, clean(post('reason'))); return ['Returned to the loan officer for correction.', url('approvals')]; }
+        if ($dec === 'return') { Loans::returnForCorrection($id, clean(post('reason')), post('stage')); return ['Returned to the loan officer for correction.', url('approvals')]; }
         throw new AppError('Choose an action.');
     });
     page_head('Loan approval — ' . $l['loan_no'], btn('Loan file', url('loan', ['id' => $id])), $l['client_name'] . ' · requested ' . ugx($l['amount_requested']));
@@ -70,6 +70,7 @@ if ($id) {
             echo '<div class="grid g2"><div class="card"><h2>Return for correction</h2>';
             form_open(url('approvals', ['id' => $id]), ['attrs' => 'style="grid-template-columns:1fr"']);
             field('decision', '', ['type' => 'hidden', 'value' => 'return']);
+            field('stage', 'Return to stage (its records must then be verified again)', ['type' => 'select', 'options' => ['kyc' => '2 · KYC & documents', 'guarantors' => '3 · Guarantors', 'collateral' => '4 · Collateral / security', 'application' => '5 · Loan application', 'assessment' => '6 · Credit assessment'], 'value' => 'application']);
             field('reason', 'What must the officer correct?', ['type' => 'textarea', 'required' => true]);
             echo '<div class="form-actions">'; submit_btn('Return to officer', 'default'); echo '</div>'; form_close();
             echo '</div><div class="card"><h2>Reject</h2>';

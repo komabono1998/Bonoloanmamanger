@@ -106,6 +106,14 @@ function field(string $name, string $label, array $o = []): void
     echo '</div>';
 }
 
+/** Inline verify / reject form for the workflow (a note is required to reject). */
+function decision_form(string $action, array $hidden = [], string $verify = 'Verify'): string
+{
+    $h = '<form method="post" action="' . e($action) . '" class="inline-decision">' . csrf_field();
+    foreach ($hidden as $k => $v) $h .= '<input type="hidden" name="' . e($k) . '" value="' . e((string)$v) . '">';
+    return $h . '<input type="text" name="note" placeholder="Note (needed to reject)" aria-label="Note"> <button class="btn sm primary" name="decision" value="verify" type="submit">' . e($verify) . '</button> <button class="btn sm danger" name="decision" value="reject" type="submit">Reject</button></form>';
+}
+
 function submit_btn(string $label = 'Save', string $cls = 'primary', string $attrs = ''): void
 {
     echo '<button type="submit" class="btn ' . $cls . '" ' . $attrs . '>' . e($label) . '</button>';
@@ -313,7 +321,7 @@ function route_icon(string $key): string
 {
     return ['dashboard' => 'home', 'inbox' => 'inbox', 'compliance' => 'trend', 'search' => 'search', 'clients' => 'users', 'guarantors' => 'user', 'loans' => 'clipboard', 'assessment' => 'search', 'approvals' => 'check',
         'disbursements' => 'dollar', 'securities' => 'shield', 'schedules' => 'calendar', 'payments' => 'card', 'receipts' => 'file', 'portfolio' => 'briefcase', 'arrears' => 'alert', 'till' => 'clock',
-        'cashbook' => 'layers', 'ledger' => 'clipboard', 'eod' => 'calendar', 'eodsys' => 'calendar', 'reports' => 'bar', 'reportaccess' => 'key', 'importexport' => 'download', 'audit' => 'eye', 'users' => 'users', 'branches' => 'building', 'settings' => 'settings',
+        'cashbook' => 'layers', 'ledger' => 'clipboard', 'eod' => 'calendar', 'eodsys' => 'calendar', 'reports' => 'bar', 'reportaccess' => 'key', 'process' => 'users', 'importexport' => 'download', 'audit' => 'eye', 'users' => 'users', 'branches' => 'building', 'settings' => 'settings',
         'backup' => 'database', 'security' => 'lock', 'system' => 'activity', 'account' => 'user', 'mfa' => 'key'][$key] ?? 'file';
 }
 

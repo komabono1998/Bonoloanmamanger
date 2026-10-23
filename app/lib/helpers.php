@@ -202,7 +202,7 @@ function amount_in_words(int $n): string
 function badge(string $status): string
 {
     $map = [
-        'Active' => 'ok', 'Approved' => 'ok', 'Accepted' => 'ok', 'Closed' => 'muted', 'Reconciled' => 'ok', 'Paid' => 'ok',
+        'Verified' => 'ok', 'Missing' => 'bad', 'Active' => 'ok', 'Approved' => 'ok', 'Accepted' => 'ok', 'Closed' => 'muted', 'Reconciled' => 'ok', 'Paid' => 'ok',
         'Valid' => 'ok', 'Posted' => 'ok', 'Pledged' => 'ok', 'Held' => 'ok', 'Settled' => 'ok', 'Completed' => 'ok',
         'Overdue' => 'bad', 'Rejected' => 'bad', 'Declined' => 'bad', 'Void' => 'bad', 'Reversed' => 'bad', 'Cancelled' => 'muted',
         'Disputed' => 'bad', 'Investigation' => 'bad', 'Variance Investigation' => 'bad', 'Blacklisted' => 'bad', 'Failed' => 'bad',
