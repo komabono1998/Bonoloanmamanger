@@ -94,7 +94,7 @@ function default_role_permissions(): array
 {
     $d = [
         'Loan Officer' => ['dashboard.view', 'client.view', 'client.manage', 'client.sensitive', 'guarantor.manage', 'loan.view', 'loan.create', 'loan.assess', 'portfolio.view', 'portfolio.all', 'arrears.manage',
-            'security.manage', 'report.view'],
+            'security.manage', 'report.view', 'report.export'],
         'Finance Officer' => ['gl.view', 'dashboard.view', 'client.view', 'loan.view', 'payment.view', 'payment.reverse.request', 'receipt.reprint', 'portfolio.view', 'expense.view', 'expense.create',
             'till.reconcile', 'eod.view', 'eod.manage', 'eod.reopen', 'report.view', 'report.export', 'audit.financial'],
         'Branch Manager' => ['dashboard.view', 'client.view', 'client.manage', 'client.sensitive', 'guarantor.manage', 'loan.view', 'loan.approve', 'loan.disburse.authorize', 'loan.close', 'payment.view',
@@ -106,7 +106,7 @@ function default_role_permissions(): array
         'System Administrator' => ['dashboard.view', 'report.view', 'eod.run', 'user.manage', 'settings.manage', 'branch.manage', 'backup.manage', 'system.health', 'security.monitor', 'audit.technical'],
         'Finance Manager' => ['gl.view', 'gl.post', 'gl.manage', 'dashboard.view', 'client.view', 'loan.view', 'payment.view', 'payment.reverse.request', 'receipt.reprint', 'portfolio.view', 'expense.view', 'expense.approve', 'till.reconcile', 'eod.view', 'eod.manage', 'eod.reopen', 'report.view', 'report.export', 'audit.financial'],
         'Auditor' => ['gl.view', 'dashboard.view', 'client.view', 'loan.view', 'payment.view', 'portfolio.view', 'expense.view', 'eod.view', 'report.view', 'report.export', 'audit.all', 'branch.all', 'compliance.view'],
-        'Cashier' => ['dashboard.view', 'report.view', 'client.view', 'loan.view', 'loan.disburse', 'payment.view', 'payment.record', 'receipt.reprint', 'portfolio.view', 'till.use', 'expense.view', 'expense.create', 'eod.view'],
+        'Cashier' => ['dashboard.view', 'report.view', 'report.export', 'client.view', 'loan.view', 'loan.disburse', 'payment.view', 'payment.record', 'receipt.reprint', 'portfolio.view', 'till.use', 'expense.view', 'expense.create', 'eod.view'],
     ];
     $d['System Administrator'] = all_permissions();   // the administrator holds every right
     return $d;

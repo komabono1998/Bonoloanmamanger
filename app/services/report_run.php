@@ -8,7 +8,7 @@ final class ReportRun
 {
     public const PRESETS = ['today' => 'Today', 'yesterday' => 'Yesterday', 'week' => 'This week', 'last7' => 'Last 7 days', 'month' => 'This month', 'lastmonth' => 'Last month',
         'last30' => 'Last 30 days', 'quarter' => 'This quarter', 'last90' => 'Last 90 days', 'year' => 'This year'];
-    public const FORMATS = ['pdf' => ['PDF', 'file'], 'xlsx' => ['Excel (.xlsx)', 'bar'], 'csv' => ['CSV', 'layers'], 'doc' => ['Word', 'clipboard'], 'json' => ['JSON (data)', 'hash']];
+    public const FORMATS = ['pdf' => ['PDF', 'file'], 'xlsx' => ['Excel (.xlsx)', 'bar'], 'xls' => ['Excel 97-2003 (.xls)', 'bar'], 'csv' => ['CSV', 'layers'], 'doc' => ['Word', 'clipboard'], 'json' => ['JSON (data)', 'hash']];
     private const AMOUNT_COLS = ['total_out', 'amount', 'approved_principal', 'principal_out', 'total', 'net_amount', 'amount_requested', 'principal', 'balance'];
 
     public static function presetRange(string $p, string $asOf): ?array
@@ -264,6 +264,22 @@ final class ReportRun
         $t = self::table($run['rep']);
         $numeric = []; foreach ($t['fmt'] as $i => $f) $numeric[$i] = in_array($f, ['money', 'num'], true);
         return Xlsx::build($def['id'], $lines, $t['head'], $t['rows'], $numeric, $t['totals'], brand()['color'], brand_logo_file());
+    }
+
+    /** Classic .xls: an Excel-readable table with the letterhead and theme colour (opens in every Excel version and LibreOffice). */
+    public static function xls(array $def, array $run, array $lines): string
+    {
+        $t = self::table($run['rep']); $b = brand(); $c = e($b['color']);
+        $h = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>td,th{font-family:Calibri,Arial;font-size:10pt}th{background:' . $c . ';color:#fff;text-align:left}.n{mso-number-format:"#\,##0"}</style></head><body><table>'
+            . '<tr><td colspan="' . max(1, count($t['head'])) . '" style="font-size:16pt;font-weight:bold;color:' . $c . '">' . e($b['name']) . '</td></tr>'
+            . '<tr><td colspan="' . max(1, count($t['head'])) . '" style="font-size:13pt;font-weight:bold">' . e($lines[1] ?? '') . '</td></tr>';
+        foreach (array_merge(org_lines(), array_slice($lines, 2)) as $l) $h .= '<tr><td colspan="' . max(1, count($t['head'])) . '" style="color:#555">' . e($l) . '</td></tr>';
+        $h .= '<tr><td></td></tr><tr>';
+        foreach ($t['head'] as $c2) $h .= '<th>' . e($c2) . '</th>';
+        $h .= '</tr>';
+        foreach ($t['rows'] as $r) { $h .= '<tr>'; foreach ($r as $i => $v) { $num = in_array($t['fmt'][$i], ['money', 'num'], true) && is_numeric($v); $h .= '<td' . ($num ? ' class="n" x:num="' . e((string)$v) . '"' : '') . '>' . e($num ? (string)$v : self::display($v, $t['fmt'][$i])) . '</td>'; } $h .= '</tr>'; }
+        if ($t['totals']) { $h .= '<tr>'; foreach ($t['totals'] as $v) $h .= '<td style="font-weight:bold">' . e($v === null ? '' : (string)$v) . '</td>'; $h .= '</tr>'; }
+        return $h . '</table></body></html>';
     }
 
     public static function csv(array $def, array $run, array $lines): string

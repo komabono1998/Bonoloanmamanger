@@ -591,7 +591,7 @@ ok(count(array_diff($expected, $menu)) === 0, 'every authorized module is availa
 foreach (['payments', 'receipts', 'till', 'cashbook', 'eod', 'users', 'settings', 'backup', 'audit', 'branches', 'importexport', 'disbursements', 'approvals', 'inbox'] as $k) {
     ok(!can_any((string)$routePerm($k)), "unauthorized URL p=$k is refused for the Loan Officer");
 }
-foreach (['loan.approve', 'loan.disburse', 'loan.disburse.authorize', 'loan.adjust', 'loan.close', 'payment.reverse', 'payment.reverse.request', 'penalty.adjust', 'security.release', 'eod.approve', 'eod.reopen', 'user.manage', 'settings.manage', 'settings.policy', 'report.export', 'authority.branch'] as $p) {
+foreach (['loan.approve', 'loan.disburse', 'loan.disburse.authorize', 'loan.adjust', 'loan.close', 'payment.reverse', 'payment.reverse.request', 'penalty.adjust', 'security.release', 'eod.approve', 'eod.reopen', 'user.manage', 'settings.manage', 'settings.policy', 'authority.branch'] as $p) {
     ok(!can($p), "Loan Officer does not hold $p");
 }
 $h = $render('loan', ['id' => $lid]);
@@ -872,6 +872,8 @@ ok(str_contains($csv, 'Loan') && str_contains($csv, $ln), 'the CSV holds the hea
 $js = json_decode(ReportRun::json($defX, $p2, $all, $lines), true);
 ok($js && $js['report']['id'] === 'LP-02' && count($js['rows']) === $all['total'], 'the JSON export is valid and complete');
 ok(str_contains(ReportRun::doc($defX, $all, $lines), '<table>'), 'the Word export holds the table');
+ok(str_contains(ReportRun::xls($defX, $all, $lines), '<th') && isset(ReportRun::FORMATS['xls']), 'the classic Excel (.xls) download holds the table');
+as_('lo'); ok(can('report.export'), 'a Loan Officer can download the reports they may open'); as_('cash'); ok(can('report.export'), 'a Cashier can download their reports'); as_('coo');
 $h = $render('reports', ['r' => 'CR-01']);
 $miss = array_filter(['Run report', 'Download', 'This month', 'Excel (.xlsx)', 'Date range'], fn($x) => !str_contains($h, $x));
 ok(!$miss, 'the report page offers period presets, filters and every download format' . ($miss ? ' (missing: ' . implode(', ', $miss) . '; page ' . strlen($h) . ' bytes: ' . substr(strip_tags($h), 0, 160) . ')' : ''));

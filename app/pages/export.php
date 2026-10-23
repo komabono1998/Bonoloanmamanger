@@ -13,8 +13,8 @@ if ($kind === 'report') {
     $p = ReportRun::params($_GET);
     $run = ReportRun::execute($def, $p);
     $lines = ReportRun::headerLines($def, $p, $run);
-    $fmt = (string)get('format', 'csv'); if ($fmt === 'xls') $fmt = 'xlsx';
-    must(in_array($fmt, ['pdf', 'xlsx', 'csv', 'doc', 'json'], true), 'Unknown download format.');
+    $fmt = (string)get('format', 'csv');
+    must(in_array($fmt, ['pdf', 'xlsx', 'xls', 'csv', 'doc', 'json'], true), 'Unknown download format.');
     insert('export_history', ['at' => now(), 'user_id' => uid(), 'kind' => 'report:' . $key, 'format' => $fmt, 'rows_total' => $run['shown']]);
     audit('Data exported', 'Export', 'export', 'report:' . $key, null, $run['shown'] . ' rows (' . $fmt . ')');
     while (ob_get_level() > 0) ob_end_clean();
@@ -23,6 +23,7 @@ if ($kind === 'report') {
     switch ($fmt) {
         case 'pdf': header('Content-Type: application/pdf'); header('Content-Disposition: attachment; filename="' . $file . '.pdf"'); echo ReportRun::pdf($def, $run, $lines); break;
         case 'xlsx': header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); header('Content-Disposition: attachment; filename="' . $file . '.xlsx"'); echo ReportRun::xlsx($def, $run, $lines); break;
+        case 'xls': header('Content-Type: application/vnd.ms-excel; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.xls"'); echo ReportRun::xls($def, $run, $lines); break;
         case 'doc': header('Content-Type: application/msword; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.doc"'); echo ReportRun::doc($def, $run, $lines); break;
         case 'json': header('Content-Type: application/json; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.json"'); echo ReportRun::json($def, $p, $run, $lines); break;
         default: header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.csv"'); echo ReportRun::csv($def, $run, $lines);

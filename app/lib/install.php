@@ -100,7 +100,7 @@ function ensure_default_roles(): void
     }
     // role templates that gained access to the Report Centre (applied once to existing systems)
     foreach ([['Cashier', 'report.view'], ['System Administrator', 'report.view'], ['System Administrator', 'eod.run'],
-        ['Finance Manager', 'gl.view'], ['Finance Manager', 'gl.post'], ['Finance Manager', 'gl.manage'], ['Finance Officer', 'gl.view'], ['COO', 'gl.view'], ['Auditor', 'gl.view']] as [$r, $perm]) {
+        ['Loan Officer', 'report.export'], ['Cashier', 'report.export'], ['Finance Manager', 'gl.view'], ['Finance Manager', 'gl.post'], ['Finance Manager', 'gl.manage'], ['Finance Officer', 'gl.view'], ['COO', 'gl.view'], ['Auditor', 'gl.view']] as [$r, $perm]) {
         $mk = str_replace('.', '_', $perm) . '_' . strtolower(str_replace(' ', '_', $r));
         if (in_array($r, $have, true) && !val('SELECT COUNT(*) FROM schema_migrations WHERE name = ?', [$mk])) {
             q('INSERT INTO role_permissions(role, permission) VALUES (?, ?) ON CONFLICT (role, permission) DO NOTHING', [$r, $perm]);
