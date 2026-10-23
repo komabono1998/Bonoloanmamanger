@@ -1,0 +1,719 @@
+-- Bono Loan Manager - initial schema (SQLite)
+-- Money is stored as integer UGX. Dates are ISO text (YYYY-MM-DD), timestamps 'YYYY-MM-DD HH:MM:SS'.
+
+CREATE TABLE settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT,
+  updated_by INTEGER
+);
+
+CREATE TABLE sequences (
+  name TEXT PRIMARY KEY,
+  last INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE roles (
+  role TEXT PRIMARY KEY,
+  description TEXT
+);
+
+CREATE TABLE role_permissions (
+  role TEXT NOT NULL REFERENCES roles(role),
+  permission TEXT NOT NULL,
+  PRIMARY KEY (role, permission)
+);
+
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  full_name TEXT NOT NULL,
+  username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL REFERENCES roles(role),
+  phone TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+  created_at TEXT NOT NULL,
+  created_by INTEGER,
+  last_login TEXT,
+  password_changed_at TEXT,
+  failed_attempts INTEGER NOT NULL DEFAULT 0,
+  locked_until TEXT,
+  must_change_password INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE user_permissions (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  permission TEXT NOT NULL,
+  granted INTEGER NOT NULL,
+  PRIMARY KEY (user_id, permission)
+);
+
+CREATE TABLE business_calendar (
+  date TEXT PRIMARY KEY,
+  is_working INTEGER NOT NULL DEFAULT 0,
+  note TEXT
+);
+
+-- ---------------------------------------------------------------- clients
+CREATE TABLE clients (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_no TEXT NOT NULL UNIQUE,
+  full_name TEXT NOT NULL,
+  gender TEXT,
+  dob TEXT,
+  nin TEXT,
+  phone TEXT NOT NULL,
+  phone2 TEXT,
+  address TEXT,
+  village TEXT,
+  parish TEXT,
+  subcounty TEXT,
+  county TEXT,
+  district TEXT,
+  occupation TEXT,
+  employer TEXT,
+  business_name TEXT,
+  business_location TEXT,
+  monthly_income INTEGER NOT NULL DEFAULT 0,
+  monthly_expenses INTEGER NOT NULL DEFAULT 0,
+  other_debt INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active','Archived','Blacklisted')),
+  notes TEXT,
+  registered_by INTEGER REFERENCES users(id),
+  registered_at TEXT NOT NULL,
+  updated_at TEXT,
+  updated_by INTEGER
+);
+CREATE UNIQUE INDEX ux_clients_nin ON clients(nin) WHERE nin IS NOT NULL AND nin <> '';
+CREATE INDEX ix_clients_phone ON clients(phone);
+CREATE INDEX ix_clients_name ON clients(full_name);
+
+CREATE TABLE guarantors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  guarantor_no TEXT NOT NULL UNIQUE,
+  surname TEXT NOT NULL,
+  first_name TEXT NOT NULL,
+  gender TEXT,
+  dob TEXT,
+  phone TEXT NOT NULL,
+  nin TEXT,
+  address TEXT,
+  village TEXT,
+  parish TEXT,
+  subcounty TEXT,
+  district TEXT,
+  housing_status TEXT,
+  landlord_contact TEXT,
+  marital_status TEXT,
+  spouse_name TEXT,
+  spouse_phone TEXT,
+  nok_name TEXT,
+  nok_phone TEXT,
+  notes TEXT,
+  created_by INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT
+);
+CREATE UNIQUE INDEX ux_guarantors_nin ON guarantors(nin) WHERE nin IS NOT NULL AND nin <> '';
+
+-- ---------------------------------------------------------------- loans
+CREATE TABLE loans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_no TEXT NOT NULL UNIQUE,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  officer_id INTEGER NOT NULL REFERENCES users(id),
+  application_date TEXT NOT NULL,
+  purpose TEXT,
+  amount_requested INTEGER NOT NULL CHECK (amount_requested > 0),
+  period_months INTEGER NOT NULL DEFAULT 1 CHECK (period_months > 0),
+  frequency TEXT NOT NULL DEFAULT 'monthly' CHECK (frequency IN ('daily','weekly','monthly')),
+  requested_disb_date TEXT,
+  existing_loans_info TEXT,
+  existing_debt INTEGER NOT NULL DEFAULT 0,
+  monthly_income INTEGER NOT NULL DEFAULT 0,
+  monthly_expenses INTEGER NOT NULL DEFAULT 0,
+  security_offered TEXT,
+  officer_comments TEXT,
+  status TEXT NOT NULL DEFAULT 'Draft' CHECK (status IN
+    ('Draft','Submitted','Under Review','Returned for Correction','Approved','Rejected','Cancelled','Disbursed','Active','Overdue','Closed')),
+  source TEXT NOT NULL DEFAULT 'system',
+  -- approved terms snapshot (never changed by later settings changes)
+  approved_principal INTEGER,
+  rate_bp INTEGER,
+  interest_method TEXT,
+  interest_amount INTEGER,
+  processing_fee_bp INTEGER,
+  processing_fee INTEGER,
+  application_fee INTEGER,
+  inspection_fee INTEGER,
+  other_fees INTEGER,
+  other_fees_note TEXT,
+  fees_deducted INTEGER,
+  total_fees INTEGER,
+  net_disbursement INTEGER,
+  total_contractual INTEGER,
+  penalty_terms TEXT,
+  approved_by INTEGER REFERENCES users(id),
+  approved_at TEXT,
+  approval_date TEXT,
+  offer_expiry TEXT,
+  acceptance_status TEXT NOT NULL DEFAULT 'Pending' CHECK (acceptance_status IN ('Pending','Accepted','Declined')),
+  acceptance_date TEXT,
+  acceptance_note TEXT,
+  rejection_reason TEXT,
+  disbursement_date TEXT,
+  due_date TEXT,
+  disbursed_at TEXT,
+  overdue_since TEXT,
+  collection_status TEXT NOT NULL DEFAULT 'Not Due',
+  closed_date TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT
+);
+CREATE INDEX ix_loans_client ON loans(client_id);
+CREATE INDEX ix_loans_status ON loans(status);
+CREATE INDEX ix_loans_due ON loans(due_date);
+
+CREATE TABLE loan_status_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  from_status TEXT,
+  to_status TEXT NOT NULL,
+  user_id INTEGER,
+  at TEXT NOT NULL,
+  note TEXT
+);
+
+CREATE TABLE loan_guarantors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  guarantor_id INTEGER NOT NULL REFERENCES guarantors(id),
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  guarantee_date TEXT,
+  guarantee_amount INTEGER,
+  liability_terms TEXT,
+  declaration_accepted INTEGER NOT NULL DEFAULT 0,
+  pledge_status TEXT,
+  witness_name TEXT,
+  witness_phone TEXT,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active','Released')),
+  created_by INTEGER,
+  created_at TEXT NOT NULL,
+  UNIQUE (loan_id, guarantor_id)
+);
+
+CREATE TABLE securities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  security_no TEXT NOT NULL UNIQUE,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  guarantor_id INTEGER REFERENCES guarantors(id),
+  owner_type TEXT NOT NULL DEFAULT 'Borrower' CHECK (owner_type IN ('Borrower','Guarantor')),
+  type TEXT NOT NULL,
+  description TEXT NOT NULL,
+  serial_no TEXT,
+  ownership_details TEXT,
+  est_value INTEGER NOT NULL DEFAULT 0,
+  valuation_date TEXT,
+  storage_location TEXT,
+  date_pledged TEXT,
+  status TEXT NOT NULL DEFAULT 'Proposed' CHECK (status IN
+    ('Proposed','Under Verification','Accepted','Pledged','Held','Released','Under Recovery','Recovered','Sold','Disputed')),
+  date_released TEXT,
+  released_by INTEGER,
+  release_authorization TEXT,
+  created_by INTEGER,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE security_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  security_id INTEGER NOT NULL REFERENCES securities(id),
+  old_status TEXT,
+  new_status TEXT NOT NULL,
+  changed_by INTEGER,
+  changed_at TEXT NOT NULL,
+  note TEXT
+);
+
+CREATE TABLE credit_assessments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  assessed_by INTEGER NOT NULL REFERENCES users(id),
+  assessed_at TEXT NOT NULL,
+  repayment_history TEXT,
+  existing_obligations INTEGER NOT NULL DEFAULT 0,
+  income INTEGER NOT NULL DEFAULT 0,
+  expenses INTEGER NOT NULL DEFAULT 0,
+  disposable_income INTEGER NOT NULL DEFAULT 0,
+  business_details TEXT,
+  guarantor_summary TEXT,
+  security_value INTEGER NOT NULL DEFAULT 0,
+  previous_defaults TEXT,
+  recommendation TEXT NOT NULL CHECK (recommendation IN ('Approve','Approve with changes','Reject')),
+  recommended_amount INTEGER NOT NULL DEFAULT 0,
+  notes TEXT
+);
+
+CREATE TABLE loan_approvals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  decision TEXT NOT NULL CHECK (decision IN ('Approved','Rejected','Returned')),
+  requested_amount INTEGER,
+  recommended_amount INTEGER,
+  approved_amount INTEGER,
+  snapshot_json TEXT,
+  comments TEXT,
+  reason TEXT,
+  approver_id INTEGER NOT NULL REFERENCES users(id),
+  decided_at TEXT NOT NULL,
+  business_date TEXT
+);
+
+CREATE TABLE disbursements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  disb_no TEXT NOT NULL UNIQUE,
+  loan_id INTEGER NOT NULL UNIQUE REFERENCES loans(id),
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  approved_principal INTEGER NOT NULL,
+  processing_fee INTEGER NOT NULL,
+  application_fee INTEGER NOT NULL,
+  inspection_fee INTEGER NOT NULL,
+  other_deductions INTEGER NOT NULL DEFAULT 0,
+  net_amount INTEGER NOT NULL,
+  disbursement_date TEXT NOT NULL,
+  business_date TEXT NOT NULL,
+  method TEXT NOT NULL,
+  reference TEXT,
+  session_id INTEGER,
+  disbursed_by INTEGER NOT NULL REFERENCES users(id),
+  authorized_by INTEGER REFERENCES users(id),
+  client_ack INTEGER NOT NULL DEFAULT 0,
+  doc_verified INTEGER NOT NULL DEFAULT 0,
+  notes TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE repayment_schedules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  version INTEGER NOT NULL DEFAULT 1,
+  installment_no INTEGER NOT NULL,
+  due_date TEXT NOT NULL,
+  principal_due INTEGER NOT NULL,
+  interest_due INTEGER NOT NULL,
+  total_due INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Current' CHECK (status IN ('Current','Superseded')),
+  created_at TEXT NOT NULL,
+  UNIQUE (loan_id, version, installment_no)
+);
+
+-- ---------------------------------------------------------------- payments
+CREATE TABLE payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  payment_date TEXT NOT NULL,
+  business_date TEXT NOT NULL,
+  amount INTEGER NOT NULL CHECK (amount > 0),
+  method TEXT NOT NULL,
+  reference TEXT,
+  cashier_id INTEGER NOT NULL REFERENCES users(id),
+  session_id INTEGER,
+  remarks TEXT,
+  status TEXT NOT NULL DEFAULT 'Posted' CHECK (status IN ('Posted','Reversed')),
+  txn_token TEXT UNIQUE,
+  prev_balance INTEGER,
+  is_opening INTEGER NOT NULL DEFAULT 0,
+  reversed_by INTEGER,
+  reversed_at TEXT,
+  reversal_reason TEXT,
+  reversal_business_date TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX ix_payments_loan ON payments(loan_id);
+CREATE INDEX ix_payments_bd ON payments(business_date);
+CREATE UNIQUE INDEX ux_payments_ref ON payments(method, reference)
+  WHERE reference IS NOT NULL AND reference <> '' AND method <> 'Cash';
+
+CREATE TABLE payment_allocations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  payment_id INTEGER NOT NULL REFERENCES payments(id),
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  component TEXT NOT NULL CHECK (component IN ('principal','interest','penalty','fee','credit')),
+  amount INTEGER NOT NULL CHECK (amount > 0)
+);
+CREATE INDEX ix_alloc_payment ON payment_allocations(payment_id);
+
+CREATE TABLE receipts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  receipt_no TEXT NOT NULL UNIQUE,
+  payment_id INTEGER NOT NULL UNIQUE REFERENCES payments(id),
+  issued_at TEXT NOT NULL,
+  issued_by INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Valid' CHECK (status IN ('Valid','Void')),
+  print_count INTEGER NOT NULL DEFAULT 0,
+  void_reason TEXT
+);
+
+CREATE TABLE customer_credits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL REFERENCES clients(id),
+  loan_id INTEGER REFERENCES loans(id),
+  payment_id INTEGER REFERENCES payments(id),
+  amount INTEGER NOT NULL,
+  remaining INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open','Applied','Refunded','Void')),
+  created_at TEXT NOT NULL
+);
+CREATE TABLE credit_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  credit_id INTEGER NOT NULL REFERENCES customer_credits(id),
+  type TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  ref TEXT,
+  business_date TEXT,
+  user_id INTEGER,
+  at TEXT NOT NULL
+);
+
+-- Single source of truth for what the borrower owes. Positive = increases owed, negative = reduces owed.
+CREATE TABLE loan_ledger (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  business_date TEXT NOT NULL,
+  entry_date TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN
+    ('disbursement','interest','fee','penalty','payment','payment_reversal','waiver','adjustment')),
+  component TEXT NOT NULL CHECK (component IN ('principal','interest','penalty','fee')),
+  amount INTEGER NOT NULL,
+  ref_type TEXT,
+  ref_id INTEGER,
+  description TEXT,
+  user_id INTEGER,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX ix_ledger_loan ON loan_ledger(loan_id, entry_date);
+
+CREATE TABLE penalties (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  business_date TEXT NOT NULL,
+  accrual_start TEXT NOT NULL,
+  days_overdue INTEGER NOT NULL,
+  rate_bp INTEGER NOT NULL,
+  basis TEXT NOT NULL,
+  applicable_balance INTEGER NOT NULL,
+  amount INTEGER NOT NULL,
+  method TEXT NOT NULL,
+  posted_by INTEGER,
+  created_at TEXT NOT NULL,
+  UNIQUE (loan_id, business_date)
+);
+
+CREATE TABLE loan_adjustments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  type TEXT NOT NULL,
+  component TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  approved_by INTEGER,
+  created_by INTEGER NOT NULL,
+  business_date TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE collection_actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  action_date TEXT NOT NULL,
+  type TEXT NOT NULL,
+  promise_date TEXT,
+  promise_amount INTEGER,
+  notes TEXT,
+  user_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE loan_closures (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loan_id INTEGER NOT NULL REFERENCES loans(id),
+  client_id INTEGER NOT NULL,
+  closure_date TEXT NOT NULL,
+  final_payment_ref TEXT,
+  final_principal INTEGER NOT NULL DEFAULT 0,
+  final_interest INTEGER NOT NULL DEFAULT 0,
+  final_penalty INTEGER NOT NULL DEFAULT 0,
+  waivers INTEGER NOT NULL DEFAULT 0,
+  closed_by INTEGER NOT NULL,
+  approved_by INTEGER,
+  statement TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- ---------------------------------------------------------------- cash management
+CREATE TABLE cash_accounts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  type TEXT NOT NULL CHECK (type IN ('safe','bank','mobile')),
+  active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE cashier_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_no TEXT NOT NULL UNIQUE,
+  cashier_id INTEGER NOT NULL REFERENCES users(id),
+  business_date TEXT NOT NULL,
+  opened_at TEXT NOT NULL,
+  opening_float INTEGER NOT NULL DEFAULT 0,
+  opening_confirmed INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open','Submitted','Investigation','Reconciled')),
+  closed_at TEXT,
+  closed_by INTEGER,
+  expected_cash INTEGER,
+  counted_cash INTEGER,
+  variance INTEGER,
+  variance_reason TEXT,
+  reconciled_by INTEGER,
+  reconciled_at TEXT,
+  reconcile_notes TEXT
+);
+CREATE INDEX ix_sessions_bd ON cashier_sessions(business_date);
+
+CREATE TABLE cash_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER REFERENCES cashier_sessions(id),
+  account_id INTEGER REFERENCES cash_accounts(id),
+  business_date TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  direction INTEGER NOT NULL CHECK (direction IN (1,-1)),
+  amount INTEGER NOT NULL CHECK (amount > 0),
+  category TEXT NOT NULL CHECK (category IN
+    ('float','collection','disbursement','expense','transfer','reversal','adjustment')),
+  method TEXT NOT NULL,
+  is_cash INTEGER NOT NULL DEFAULT 1,
+  ref_type TEXT,
+  ref_id INTEGER,
+  reference TEXT,
+  description TEXT,
+  user_id INTEGER
+);
+CREATE INDEX ix_cm_session ON cash_movements(session_id);
+CREATE INDEX ix_cm_bd ON cash_movements(business_date);
+
+CREATE TABLE cash_counts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL REFERENCES cashier_sessions(id),
+  counted_by INTEGER NOT NULL,
+  counted_at TEXT NOT NULL,
+  denominations TEXT,
+  expected INTEGER NOT NULL,
+  counted INTEGER NOT NULL,
+  variance INTEGER NOT NULL,
+  reason TEXT
+);
+
+CREATE TABLE cash_transfers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_date TEXT NOT NULL,
+  from_session_id INTEGER REFERENCES cashier_sessions(id),
+  to_session_id INTEGER REFERENCES cashier_sessions(id),
+  from_account_id INTEGER REFERENCES cash_accounts(id),
+  to_account_id INTEGER REFERENCES cash_accounts(id),
+  amount INTEGER NOT NULL CHECK (amount > 0),
+  reason TEXT,
+  created_by INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE expense_categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  expense_no TEXT NOT NULL UNIQUE,
+  business_date TEXT NOT NULL,
+  entry_date TEXT NOT NULL,
+  category_id INTEGER NOT NULL REFERENCES expense_categories(id),
+  description TEXT NOT NULL,
+  amount INTEGER NOT NULL CHECK (amount > 0),
+  method TEXT NOT NULL DEFAULT 'Cash',
+  account_id INTEGER REFERENCES cash_accounts(id),
+  session_id INTEGER REFERENCES cashier_sessions(id),
+  reference TEXT,
+  entered_by INTEGER NOT NULL,
+  approved_by INTEGER,
+  status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending','Approved','Paid','Rejected','Reversed')),
+  paid_at TEXT,
+  paid_business_date TEXT,
+  reversal_reason TEXT,
+  txn_token TEXT UNIQUE,
+  created_at TEXT NOT NULL
+);
+
+-- ---------------------------------------------------------------- end of day
+CREATE TABLE business_days (
+  business_date TEXT PRIMARY KEY,
+  status TEXT NOT NULL CHECK (status IN ('Open','Closed','Reopened')),
+  opened_by INTEGER,
+  opened_at TEXT NOT NULL,
+  closed_by INTEGER,
+  closed_at TEXT
+);
+
+CREATE TABLE eod_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_date TEXT NOT NULL REFERENCES business_days(business_date),
+  version INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK (status IN
+    ('Awaiting Manager Review','Variance Investigation','Closed','Reopened by Authorization')),
+  summary_json TEXT,
+  submitted_by INTEGER,
+  submitted_at TEXT,
+  notes TEXT,
+  reviewed_by INTEGER,
+  reviewed_at TEXT,
+  review_notes TEXT,
+  backup_status TEXT,
+  backup_file TEXT,
+  UNIQUE (business_date, version)
+);
+
+CREATE TABLE eod_reopen_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_date TEXT NOT NULL REFERENCES business_days(business_date),
+  requested_by INTEGER NOT NULL,
+  requested_at TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending','Approved','Rejected')),
+  decided_by INTEGER,
+  decided_at TEXT,
+  decision_notes TEXT
+);
+
+-- ---------------------------------------------------------------- controls
+CREATE TABLE audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  username TEXT,
+  at TEXT NOT NULL,
+  business_date TEXT,
+  action TEXT NOT NULL,
+  module TEXT NOT NULL,
+  record_type TEXT,
+  record_id TEXT,
+  prev_value TEXT,
+  new_value TEXT,
+  reason TEXT,
+  approval_ref TEXT,
+  ip TEXT
+);
+CREATE INDEX ix_audit_at ON audit_logs(at);
+CREATE INDEX ix_audit_rec ON audit_logs(record_type, record_id);
+
+CREATE TABLE attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  entity_type TEXT NOT NULL,
+  entity_id INTEGER NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'document',
+  original_name TEXT NOT NULL,
+  stored_name TEXT NOT NULL,
+  mime TEXT,
+  size INTEGER,
+  uploaded_by INTEGER,
+  uploaded_at TEXT NOT NULL,
+  note TEXT
+);
+CREATE INDEX ix_att_entity ON attachments(entity_type, entity_id);
+
+CREATE TABLE backup_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at TEXT NOT NULL,
+  type TEXT NOT NULL,
+  file TEXT,
+  size INTEGER,
+  status TEXT NOT NULL,
+  verified INTEGER NOT NULL DEFAULT 0,
+  message TEXT,
+  user_id INTEGER
+);
+
+CREATE TABLE import_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at TEXT NOT NULL,
+  user_id INTEGER,
+  kind TEXT NOT NULL,
+  file TEXT,
+  rows_total INTEGER,
+  rows_imported INTEGER,
+  rows_rejected INTEGER,
+  message TEXT
+);
+
+CREATE TABLE export_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at TEXT NOT NULL,
+  user_id INTEGER,
+  kind TEXT NOT NULL,
+  format TEXT,
+  rows_total INTEGER
+);
+
+-- ---------------------------------------------------------------- derived views
+CREATE VIEW v_loan_balances AS
+SELECT l.id AS loan_id,
+  COALESCE(SUM(CASE WHEN g.component='principal' THEN g.amount END),0) AS principal_out,
+  COALESCE(SUM(CASE WHEN g.component='interest'  THEN g.amount END),0) AS interest_out,
+  COALESCE(SUM(CASE WHEN g.component='penalty'   THEN g.amount END),0) AS penalty_out,
+  COALESCE(SUM(CASE WHEN g.component='fee'       THEN g.amount END),0) AS fee_out,
+  COALESCE(SUM(g.amount),0) AS total_out,
+  COALESCE(-SUM(CASE WHEN g.type IN ('payment','payment_reversal') THEN g.amount END),0) AS paid_total,
+  COALESCE(-SUM(CASE WHEN g.type IN ('payment','payment_reversal') AND g.component='principal' THEN g.amount END),0) AS paid_principal,
+  COALESCE(-SUM(CASE WHEN g.type IN ('payment','payment_reversal') AND g.component='interest'  THEN g.amount END),0) AS paid_interest,
+  COALESCE(-SUM(CASE WHEN g.type IN ('payment','payment_reversal') AND g.component='penalty'   THEN g.amount END),0) AS paid_penalty,
+  COALESCE(-SUM(CASE WHEN g.type IN ('payment','payment_reversal') AND g.component='fee'       THEN g.amount END),0) AS paid_fee,
+  COALESCE(SUM(CASE WHEN g.type='penalty' THEN g.amount END),0) AS penalty_accrued,
+  MAX(CASE WHEN g.type='payment' THEN g.entry_date END) AS last_payment_date
+FROM loans l LEFT JOIN loan_ledger g ON g.loan_id = l.id
+GROUP BY l.id;
+
+-- ---------------------------------------------------------------- integrity triggers
+-- Financial history is append-only: no deletes, and no edits of immutable columns.
+CREATE TRIGGER trg_audit_no_update BEFORE UPDATE ON audit_logs
+BEGIN SELECT RAISE(ABORT, 'Audit records cannot be modified.'); END;
+CREATE TRIGGER trg_audit_no_delete BEFORE DELETE ON audit_logs
+BEGIN SELECT RAISE(ABORT, 'Audit records cannot be deleted.'); END;
+
+CREATE TRIGGER trg_ledger_no_update BEFORE UPDATE ON loan_ledger
+BEGIN SELECT RAISE(ABORT, 'Ledger entries cannot be modified. Post a reversal instead.'); END;
+CREATE TRIGGER trg_ledger_no_delete BEFORE DELETE ON loan_ledger
+BEGIN SELECT RAISE(ABORT, 'Ledger entries cannot be deleted. Post a reversal instead.'); END;
+
+CREATE TRIGGER trg_cm_no_update BEFORE UPDATE ON cash_movements
+BEGIN SELECT RAISE(ABORT, 'Cash movements cannot be modified. Post a reversal instead.'); END;
+CREATE TRIGGER trg_cm_no_delete BEFORE DELETE ON cash_movements
+BEGIN SELECT RAISE(ABORT, 'Cash movements cannot be deleted. Post a reversal instead.'); END;
+
+CREATE TRIGGER trg_pay_no_delete BEFORE DELETE ON payments
+BEGIN SELECT RAISE(ABORT, 'Payments cannot be deleted. Reverse the payment instead.'); END;
+CREATE TRIGGER trg_pay_no_edit BEFORE UPDATE OF loan_id, client_id, amount, method, payment_date, business_date, cashier_id ON payments
+BEGIN SELECT RAISE(ABORT, 'Posted payments cannot be altered. Reverse the payment instead.'); END;
+CREATE TRIGGER trg_alloc_no_change BEFORE UPDATE ON payment_allocations
+BEGIN SELECT RAISE(ABORT, 'Payment allocations cannot be modified.'); END;
+CREATE TRIGGER trg_alloc_no_delete BEFORE DELETE ON payment_allocations
+BEGIN SELECT RAISE(ABORT, 'Payment allocations cannot be deleted.'); END;
+
+CREATE TRIGGER trg_receipt_no_delete BEFORE DELETE ON receipts
+BEGIN SELECT RAISE(ABORT, 'Receipts cannot be deleted.'); END;
+CREATE TRIGGER trg_disb_no_delete BEFORE DELETE ON disbursements
+BEGIN SELECT RAISE(ABORT, 'Disbursements cannot be deleted.'); END;
+CREATE TRIGGER trg_eod_no_delete BEFORE DELETE ON eod_records
+BEGIN SELECT RAISE(ABORT, 'EOD records cannot be deleted.'); END;
+CREATE TRIGGER trg_loans_no_delete BEFORE DELETE ON loans
+BEGIN SELECT RAISE(ABORT, 'Loans cannot be deleted. Cancel or close the loan instead.'); END;
+CREATE TRIGGER trg_clients_no_delete BEFORE DELETE ON clients
+BEGIN SELECT RAISE(ABORT, 'Clients cannot be deleted. Archive the client instead.'); END;
