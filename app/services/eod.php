@@ -89,35 +89,86 @@ final class Eod
      */
     public static function runDay(string $date, string $notes, int $branch): array
     {
+        self::runPhase('check', $date, $notes, $branch);
+        must(self::preBackupDone($date), 'Take the verified backup first, then run End of Day.');
+        self::runPhase('close', $date, $notes, $branch);
+        self::runPhase('ledger', $date, $notes, $branch);
+        $b = self::runPhase('closing_backup', $date, $notes, $branch);
+        self::runPhase('next', $date, $notes, $branch);
+        $b['next_date'] = current_bd($branch);
+        return $b;
+    }
+
+    /** The phases of the one-step End of Day, in order. The screen runs them one after the other and shows each as it completes. */
+    public const PHASES = ['check' => 'Checking the branch is ready', 'backup' => 'Backing up the database', 'close' => 'Accruing penalties and closing the business date',
+        'ledger' => 'Posting the day to the general ledger', 'closing_backup' => 'Taking the closing backup', 'next' => 'Opening the next business day'];
+
+    public static function runPhase(string $phase, string $date, string $notes, int $branch): array
+    {
         require_perm('eod.run');
         $br = branch_row($branch);
         must($br && $br['status'] === 'active', 'This branch is inactive.');
         $day = self::day($date, $branch);
-        must($day && $day['status'] !== 'Closed' && current_bd($branch) === $date, 'That business date is not the open day of this branch.');
-        $blockers = self::blockers($date, $branch);
-        must(!$blockers, 'End of Day cannot run yet: ' . implode('; ', array_map(fn($b) => $b['label'] . ' (' . $b['detail'] . ')', $blockers)) . '.');
-        must(self::preBackupDone($date), 'Take the verified backup first, then run End of Day.');
-        $rid = tx(function () use ($date, $notes, $branch) {
-            Penalty::accrue($date, $branch);
-            Loans::refreshStatuses(null, $branch);
-            $rec = self::latestRecord($date, $branch);
-            $var = self::absVariance($date, $branch);
-            $id = insert('eod_records', ['branch_id' => $branch, 'business_date' => $date, 'version' => $rec ? $rec['version'] + 1 : 1, 'status' => 'Closed', 'summary_json' => json_encode(self::summary($date, $branch)),
-                'submitted_by' => uid(), 'submitted_at' => now(), 'reviewed_by' => uid(), 'reviewed_at' => now(), 'notes' => $notes ?: null, 'review_notes' => 'Run by the System Administrator', 'required_authority' => 'System Administrator']);
-            update('business_days', ['status' => 'Closed', 'closed_by' => uid(), 'closed_at' => now()], 'branch_id = :b AND business_date = :d', ['b' => $branch, 'd' => $date]);
-            bd_changed();
-            audit('End of Day run and business date locked', 'End of Day', 'eod_record', $id, null, ['date' => $date, 'cash variance (absolute)' => $var], $notes, 'run by the System Administrator', null, null, $branch);
-            return $id;
-        });
-        Gl::postPendingSafe($branch, $date);
-        $b = Backup::create('EOD', $date);
-        update('eod_records', ['backup_status' => $b['ok'] ? 'Verified' : 'FAILED: ' . $b['message'], 'backup_file' => $b['file'] ?? null], 'id = :id', ['id' => $rid]);
-        if (setting('eod_auto_open_next') === '1') {
-            try { self::openDayCore(self::suggestNextDate($branch), false, $branch); }
-            catch (Throwable $e) { error_log('Next business day was not opened automatically: ' . $e->getMessage()); }
+        if ($phase === 'check' || $phase === 'backup' || $phase === 'close') {
+            must($day && $day['status'] !== 'Closed' && current_bd($branch) === $date, 'That business date is not the open day of this branch.');
         }
-        $b['next_date'] = current_bd($branch);
-        return $b;
+        switch ($phase) {
+            case 'check':
+                $blockers = self::blockers($date, $branch);
+                must(!$blockers, 'End of Day cannot run yet: ' . implode('; ', array_map(fn($b) => $b['label'] . ' (' . $b['detail'] . ')', $blockers)) . '.');
+                return ['ok' => true, 'message' => 'The branch is ready: tills are counted and reconciled.'];
+            case 'backup':
+                require_perm('backup.manage');
+                $b = Backup::create('Pre-EOD', $date);
+                must($b['ok'], 'The backup failed, so the business date was NOT closed: ' . $b['message']);
+                return ['ok' => true, 'message' => 'Verified backup taken (' . ($b['file'] ?? '') . ').'];
+            case 'close':
+                must(self::blockers($date, $branch) === [], 'The branch is no longer ready to close.');
+                must(self::preBackupDone($date), 'Take the verified backup first, then run End of Day.');
+                tx(function () use ($date, $notes, $branch) {
+                    Penalty::accrue($date, $branch);
+                    Loans::refreshStatuses(null, $branch);
+                    $rec = self::latestRecord($date, $branch);
+                    $var = self::absVariance($date, $branch);
+                    $id = insert('eod_records', ['branch_id' => $branch, 'business_date' => $date, 'version' => $rec ? $rec['version'] + 1 : 1, 'status' => 'Closed', 'summary_json' => json_encode(self::summary($date, $branch)),
+                        'submitted_by' => uid(), 'submitted_at' => now(), 'reviewed_by' => uid(), 'reviewed_at' => now(), 'notes' => $notes ?: null, 'review_notes' => 'Run by the System Administrator', 'required_authority' => 'System Administrator']);
+                    update('business_days', ['status' => 'Closed', 'closed_by' => uid(), 'closed_at' => now()], 'branch_id = :b AND business_date = :d', ['b' => $branch, 'd' => $date]);
+                    bd_changed();
+                    audit('End of Day run and business date locked', 'End of Day', 'eod_record', $id, null, ['date' => $date, 'cash variance (absolute)' => $var], $notes, 'run by the System Administrator', null, null, $branch);
+                });
+                return ['ok' => true, 'message' => fmt_date($date) . ' is closed and locked.'];
+            case 'ledger':
+                $n = Gl::postPendingSafe($branch, $date);
+                return ['ok' => true, 'message' => $n ? $n . ' ledger journal(s) posted.' : 'The ledger is up to date.'];
+            case 'closing_backup':
+                $rec = self::latestRecord($date, $branch);
+                $b = Backup::create('EOD', $date);
+                if ($rec) update('eod_records', ['backup_status' => $b['ok'] ? 'Verified' : 'FAILED: ' . $b['message'], 'backup_file' => $b['file'] ?? null], 'id = :id', ['id' => $rec['id']]);
+                return $b + ['message' => $b['message'] ?? ''];
+            case 'next':
+                if (setting('eod_auto_open_next') === '1') {
+                    try { self::openDayCore(self::suggestNextDate($branch), false, $branch); }
+                    catch (Throwable $e) { error_log('Next business day was not opened automatically: ' . $e->getMessage()); return ['ok' => true, 'message' => 'The next business day was not opened automatically (' . $e->getMessage() . ') - start it below.']; }
+                }
+                $nx = current_bd($branch);
+                return ['ok' => true, 'message' => $nx ? 'The system date is now ' . fmt_date($nx) . '.' : 'Start the next business day when ready.'];
+        }
+        throw new AppError('Unknown End-of-Day step.');
+    }
+
+    /** Tell the people responsible that the day was closed (e-mail where an address and a mail server exist; always recorded in the audit trail). */
+    public static function notifyClosed(int $branch, string $date, ?string $nextDate, bool $backupOk): void
+    {
+        $name = branch_name($branch);
+        $subject = 'End of Day completed: ' . $name . ' (' . fmt_date($date) . ')';
+        $html = '<p>End of Day was run successfully for <b>' . e($name) . '</b>.</p><ul><li>Business date closed and locked: <b>' . e(fmt_date($date)) . '</b></li>'
+            . '<li>Next system date: <b>' . e($nextDate ? fmt_date($nextDate) : 'not yet opened') . '</b></li><li>Closing backup: <b>' . ($backupOk ? 'verified' : 'FAILED - take a manual backup') . '</b></li>'
+            . '<li>Run by: ' . e(user()['full_name']) . ' at ' . e(fmt_dt(now())) . '</li></ul>';
+        $to = [];
+        foreach (rows("SELECT DISTINCT u.email FROM users u LEFT JOIN user_branches ub ON ub.user_id = u.id WHERE u.status = 'active' AND u.email IS NOT NULL AND u.email <> ''
+                       AND (u.role = 'COO' OR u.id = ? OR (ub.branch_id = ? AND u.role = 'Branch Manager'))", [uid(), $branch]) as $r) $to[] = $r['email'];
+        foreach (array_unique($to) as $addr) { try { send_mail($addr, $subject, $html); } catch (Throwable $e) { error_log('EOD notice not sent to ' . $addr . ': ' . $e->getMessage()); } }
+        audit('End-of-Day notice sent', 'End of Day', 'business_day', $date, null, count(array_unique($to)) . ' recipient(s)', '', '', null, null, $branch);
     }
 
     public static function suggestNextDate(?int $branch = null): string

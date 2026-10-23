@@ -739,7 +739,8 @@ eq(current_bd($C), $res['next_date'], 'closing End-of-Day moves the system date'
 ok(current_bd($C) !== null && current_bd($C) > $dC, 'the new system date is after the closed one (' . current_bd($C) . ')');
 as_('admin');
 $h = $render('eodsys', []);
-ok(str_contains($h, 'Run End of Day') && str_contains($h, 'Back up') && str_contains($h, 'Kampala Main') && str_contains($h, 'System date'), 'the administrator sees each branch with its system date, the backup step and the Run End of Day step');
+ok((str_contains($h, 'Run End of Day') || str_contains($h, 'Not ready to close yet')) && str_contains($h, 'Kampala Main') && str_contains($h, 'System date') && str_contains($h, 'One click'), 'the administrator sees each branch with its system date and the one-click Run End of Day (or what is still pending)');
+ok(str_contains($h, 'data-eod') || str_contains($h, 'eod-wait'), 'the screen carries the progress runner for a ready branch');
 ok(!str_contains($h, 'Cash in tills') && !str_contains($h, 'UGX'), 'the administrator page shows no financial figures');
 section('Report Centre: 104 reports, access by role, scoped data');
 $cat = ReportCatalog::all();

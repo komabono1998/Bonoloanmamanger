@@ -191,14 +191,16 @@ echo "
 ";
 $admin->get($admin->url('eodsys'));
 step('the End of Day page shows each branch with its system date', $admin->code === 200 && str_contains($admin->body, 'Run End of Day') && str_contains($admin->body, 'System date'), info($admin));
-$admin->submitWhere('a=run', ['branch' => (string)$B], ['confirm' => '1']);
-step('End of Day cannot run before the backup', str_contains($admin->flashText(), 'backup first'), info($admin));
+preg_match('~data-eod data-branch="' . $B . '" data-date="([^"]+)" data-url="([^"]+)" data-csrf="([^"]+)"~', $admin->body, $em);
+step('a ready branch offers one Run End of Day button with a progress runner', count($em) === 4 && str_contains($admin->body, 'eod-bar') && str_contains($admin->body, 'data-eod-start'), info($admin));
+$eodStep = function (string $phase) use ($admin, $em, $B) { $admin->req(html_entity_decode($em[2]), ['_csrf' => $em[3], 'branch' => (string)$B, 'date' => $em[1], 'phase' => $phase, 'notes' => 'flow test close']); return json_decode($admin->body, true) ?: ['ok' => false, 'message' => substr($admin->body, 0, 120)]; };
+$r = $eodStep('close');
+step('the day cannot be closed before the backup', !$r['ok'] && str_contains($r['message'], 'backup first'), json_encode($r));
+$allOk = true; $trace = [];
+foreach (['check', 'backup', 'close', 'ledger', 'closing_backup', 'next', 'done'] as $ph) { $r = $eodStep($ph); $trace[] = $ph . ':' . ($r['ok'] ? 'ok' : 'FAIL ' . $r['message']); if (!$r['ok']) $allOk = false; }
+step('run End of Day step by step: backup, close, ledger, closing backup, next day, notice', $allOk, implode(' | ', $trace));
 $admin->get($admin->url('eodsys'));
-$admin->submitWhere('a=backup', ['branch' => (string)$B]);
-step('take the backup before End of Day', flashOk($admin, 'Verified backup'), info($admin));
-$admin->get($admin->url('eodsys'));
-$admin->submitWhere('a=run', ['branch' => (string)$B], ['confirm' => '1', 'notes' => 'flow test close']);
-step('run End of Day: the day is closed, locked and the system date moves on', flashOk($admin, 'End of Day complete') && str_contains($admin->flashText(), 'system date is now'), info($admin));
+step('the day is closed, locked and the system date has moved on', !str_contains($admin->body, 'data-eod-start') || !str_contains($admin->body, 'data-date="' . $em[1] . '"'), info($admin));
 $bm->get($bm->url('eod'));
 step('the branch manager sees the new system date and no approval step', $bm->code === 200 && !str_contains($bm->body, 'a=approve'), info($bm));
 $bm->get($bm->url('dashboard'));

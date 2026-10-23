@@ -36,7 +36,37 @@ if (get('a') === 'startday') post_action(function () use ($branches) {
     return 'Business day ' . fmt_date(post('date')) . ' is open for ' . branch_name($bid) . '.';
 });
 
-page_head('End of Day', '', 'One step, one place, one person: back up, then run End of Day. Closing locks the business date and moves the system date to the next working day.');
+if (get('a') === 'step' && is_post()) {   // one phase of End of Day, answered as JSON so the screen can show progress
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Content-Type: application/json; charset=utf-8'); header('Cache-Control: no-store');
+    try {
+        csrf_check();
+        require_perm('eod.run');
+        must(Eod::adminMode(), 'End of Day by the administrator is switched off in Settings.');
+        $bid = (int)post('branch');
+        must(isset($branches[$bid]), 'Choose a branch.');
+        $date = post('date');
+        must(is_date($date), 'Business date is not valid.');
+        $ph = post('phase');
+        if ($ph === 'done') {
+            $nx = current_bd($bid);
+            Eod::notifyClosed($bid, $date, $nx, post('backup_ok') !== '0');
+            echo json_encode(['ok' => true, 'message' => 'Notice sent to the branch manager and the COO.', 'next_date' => $nx ? fmt_date($nx) : '']);
+        } else {
+            must(isset(Eod::PHASES[$ph]), 'Unknown step.');
+            $r = Eod::runPhase($ph, $date, clean(post('notes')), $bid);
+            echo json_encode(['ok' => (bool)($r['ok'] ?? true), 'message' => (string)($r['message'] ?? '')]);
+        }
+    } catch (AppError $e) {
+        echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
+    } catch (Throwable $e) {
+        error_log($e->getMessage());
+        echo json_encode(['ok' => false, 'message' => 'The step could not be completed. Nothing further was run; try again or contact support.']);
+    }
+    exit;
+}
+
+page_head('End of Day', '', 'One click closes the day: it backs up, closes and locks the business date, posts to the ledger and moves the system date to the next working day.');
 if (!Eod::adminMode()) echo '<div class="notice">This institution uses the two-person workflow (finance prepares, a manager approves). The one-step process is switched off in Settings → Cash &amp; End of Day.</div>';
 if (!$branches) echo '<div class="card"><p class="muted">No branches yet.</p></div>';
 
@@ -55,32 +85,27 @@ foreach ($branches as $bid => $bn) {
         continue;
     }
     $blockers = Eod::blockers($bd, (int)$bid);
-    $pre = Eod::lastPreBackup($bd);
-    echo '<ol class="eod-steps">';
-    // step 0: readiness (tills reconciled)
-    echo '<li class="' . ($blockers ? 'todo' : 'done') . '"><b>Branch ready</b><div>' . ($blockers
-        ? '<span class="muted">Waiting on the branch team:</span> ' . e(implode('; ', array_map(fn($b) => $b['label'] . ' — ' . $b['detail'], $blockers)))
-        : 'All tills are counted and reconciled.') . '</div></li>';
-    // step 1: backup
-    echo '<li class="' . ($pre ? 'done' : 'todo') . '"><b>1. Back up</b><div>' . ($pre ? 'Verified backup taken ' . e(fmt_dt($pre['at'])) . ' (' . e((string)$pre['file']) . ').' : 'A verified backup of the whole database must be taken before End of Day.') . '</div>';
-    if (can('backup.manage')) {
-        form_open(url('eodsys', ['a' => 'backup']), ['attrs' => 'style="grid-template-columns:auto;display:block;margin-top:.4rem" data-confirm="Take a verified backup now?"']);
-        field('branch', '', ['type' => 'hidden', 'value' => $bid]);
-        submit_btn($pre ? 'Back up again' : 'Back up now', $pre ? 'default' : 'primary'); form_close();
+    $canRun = can('eod.run') && Eod::adminMode();
+    if ($blockers) {
+        echo '<div class="eod-wait"><b>Not ready to close yet</b><ul>';
+        foreach ($blockers as $b) echo '<li>' . e($b['label']) . ' <span class="muted">&mdash; ' . e($b['detail']) . '</span></li>';
+        echo '</ul><a class="btn sm" href="' . e(url('till')) . '">Open Cashier &amp; Till</a></div>';
+        echo '</div>';
+        continue;
     }
-    echo '</li>';
-    // step 2: run
-    $ready = !$blockers && $pre && Eod::adminMode();
-    echo '<li class="' . ($ready ? 'todo ready' : 'locked') . '"><b>2. Run End of Day</b><div>' . ($ready ? 'Closes and locks ' . e(fmt_date($bd)) . ', records the day, takes the closing backup and opens the next working day.' : 'Available after the branch is ready and the backup is done.') . '</div>';
-    if (can('eod.run') && Eod::adminMode()) {
-        form_open(url('eodsys', ['a' => 'run']), ['attrs' => 'style="grid-template-columns:1fr;margin-top:.4rem" data-confirm="Run End of Day for ' . e($bn) . '? ' . e(fmt_date($bd)) . ' will be closed and locked."']);
-        field('branch', '', ['type' => 'hidden', 'value' => $bid]);
-        field('notes', 'Notes (optional)', ['type' => 'textarea', 'attrs' => $ready ? '' : 'disabled']);
-        field('confirm', 'I confirm the branch has finished for the day and I am closing ' . fmt_date($bd) . '.', ['type' => 'checkbox', 'attrs' => $ready ? '' : 'disabled']);
-        echo '<div class="form-actions"><button class="btn primary" ' . ($ready ? '' : 'disabled') . '>' . icon('check', 15) . ' Run End of Day</button></div>'; form_close();
-    }
-    echo '</li></ol></div>';
+    echo '<div class="eod-go" data-eod data-branch="' . (int)$bid . '" data-date="' . e($bd) . '" data-url="' . e(url('eodsys', ['a' => 'step'])) . '" data-csrf="' . e(csrf_token()) . '" data-branchname="' . e($bn) . '">';
+    echo '<div class="eod-ready"><p>The branch is ready. One click backs up the database, closes and locks <b>' . e(fmt_date($bd)) . '</b>, posts the day to the ledger and opens the next working day.</p>';
+    if ($canRun) {
+        echo '<details class="eod-note"><summary>Add a note (optional)</summary><textarea data-eod-notes rows="2" placeholder="Anything worth recording about today"></textarea></details>';
+        echo '<button type="button" class="btn primary eod-btn" data-eod-start>' . icon('check', 18) . ' Run End of Day</button>';
+    } else echo '<p class="muted">You do not have permission to run End of Day.</p>';
+    echo '</div><div class="eod-run" hidden><div class="eod-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span data-eod-fill></span></div>'
+        . '<div class="eod-pct" data-eod-pct>0%</div><ol class="eod-list">';
+    foreach (Eod::PHASES as $k => $label) echo '<li data-phase="' . e($k) . '"><span class="eod-ic"></span><span class="eod-lb">' . e($label) . '</span><small data-msg></small></li>';
+    echo '<li data-phase="done"><span class="eod-ic"></span><span class="eod-lb">Sending the completion notice</span><small data-msg></small></li>';
+    echo '</ol><div class="eod-result" data-eod-result hidden></div></div></div></div>';
 }
+echo '<script src="' . e(asset('eod_run.js')) . '"></script>';
 
 echo '<div class="card"><h2>End-of-Day history</h2>';
 data_table(['branch' => 'Branch', 'business_date' => ['Business date', 'date'], 'status' => ['Status', 'badge'], 'closed_at' => ['Closed', 'dt'], 'closer' => 'Closed by', 'backup' => 'Closing backup'],
