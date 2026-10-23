@@ -242,3 +242,5 @@ a { color: var(--brand-2); }
 @media print { .topbar, .subbar { display: none !important; } }
 
 body.bare { background: linear-gradient(160deg, var(--side), var(--brand)); }
+
+.row-actions { display: flex; gap: .4rem; align-items: center; } .row-actions form { margin: 0; } .row-actions .btn svg { vertical-align: -2px; }

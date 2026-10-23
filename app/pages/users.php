@@ -76,6 +76,19 @@ if ($a === 'update') post_action(function () use ($id, $roles) {
     });
     return 'User updated.';
 });
+if ($a === 'setstatus') post_action(function () use ($id) {
+    require_perm('user.manage');
+    $u = row('SELECT * FROM users WHERE id = ?', [$id]);
+    must((bool)$u, 'User not found.');
+    $to = post('to') === 'active' ? 'active' : 'inactive';
+    must($id !== uid(), 'You cannot deactivate your own account.');
+    if ($to === 'inactive' && $u['role'] === 'System Administrator') must(active_admins() > 1, 'At least one active System Administrator is required.');
+    if ($u['status'] !== $to) {
+        update('users', ['status' => $to], 'id = :id', ['id' => $id]);
+        audit($to === 'active' ? 'User activated' : 'User deactivated', 'Users', 'user', $id, $u['status'], $to, clean(post('reason')));
+    }
+    return ($u['full_name']) . ($to === 'active' ? ' can sign in again.' : ' has been deactivated and can no longer sign in.');
+});
 if ($a === 'reset') post_action(function () use ($id) {
     require_perm('user.manage');
     [$sent, $link] = PasswordReset::send($id, 'reset', uid());
@@ -230,7 +243,16 @@ if ($tab === 'users' && $a === 'new') {
     foreach ($us as &$r) $r['branches'] = $r['role'] === 'COO' ? 'All (COO)' : implode(', ', $ub[$r['id']] ?? []);
     unset($r);
     data_table(['staff_no' => 'Staff ID', 'full_name' => 'Name', 'username' => 'Username', 'role' => 'Role', 'branches' => 'Branches', 'phone' => 'Phone', 'mfa_enabled' => ['MFA', fn($r) => $r['mfa_enabled'] ? badge('Active') : (mfa_required_for($r) ? badge('Pending') : '<span class="muted">off</span>')],
-        'status' => ['Status', 'badge'], 'last_login' => ['Last login', 'dt']], $us, ['link' => fn($r) => url('users', ['a' => 'edit', 'id' => $r['id']])]);
+        'status' => ['Status', 'badge'], 'last_login' => ['Last login', 'dt'],
+        'x' => ['Actions', function ($r) {
+            $o = '<div class="row-actions"><a class="btn sm" href="' . e(url('users', ['a' => 'edit', 'id' => $r['id']])) . '">' . icon('settings', 13) . ' Edit</a>';
+            if ((int)$r['id'] !== uid()) {
+                $act = $r['status'] === 'active';
+                $o .= '<form method="post" action="' . e(url('users', ['a' => 'setstatus', 'id' => $r['id']])) . '" data-confirm="' . e(($act ? 'Deactivate ' : 'Activate ') . $r['full_name'] . '?') . '">' . csrf_field()
+                    . '<input type="hidden" name="to" value="' . ($act ? 'inactive' : 'active') . '"><button class="btn sm ' . ($act ? 'danger' : 'primary') . '">' . ($act ? 'Deactivate' : 'Activate') . '</button></form>';
+            }
+            return $o . '</div>';
+        }]], $us, ['class' => 'users-tbl', 'link' => fn($r) => url('users', ['a' => 'edit', 'id' => $r['id']])]);
 }
 
 if ($tab === 'roles') {
