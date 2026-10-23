@@ -10,7 +10,7 @@ post_action(function () {
 $valid = PasswordReset::find($token) !== null;
 ?>
 <div class="card">
-  <?php if (logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" style="display:block;margin:0 auto 1rem;max-height:70px;max-width:200px"><?php endif; ?>
+  <img class="sys-logo" src="<?= e(asset('bono-logo.png')) ?>" alt="Bono Loan Management System">
   <h1 style="text-align:center">Choose a password</h1>
   <?php if (!$valid): ?>
     <div class="notice bad">This link is invalid, has already been used, or has expired.</div>

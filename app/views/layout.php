@@ -19,6 +19,7 @@ $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title><?= e($pageTitle) ?></title>
+<link rel="icon" type="image/png" href="<?= e(asset('favicon.png')) ?>">
 <link rel="stylesheet" href="<?= e(asset('style.css')) ?>">
 <style><?= brand_theme_css() ?></style>
 </head>
@@ -27,6 +28,7 @@ $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
   <main class="bare-main">
     <?php foreach ($flashes as [$t, $m]): ?><div class="flash <?= e($t) ?>"><?= e($m) ?></div><?php endforeach; ?>
     <?= $content ?>
+    <p class="bare-foot">Bono Loan Management System</p>
   </main>
 <?php else: ?>
   <?php
@@ -40,7 +42,7 @@ $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
   <header class="topbar">
     <button class="burger" type="button" data-nav-toggle aria-label="Menu"><?= icon('menu', 20) ?></button>
     <a class="brand" href="<?= e(url('dashboard')) ?>">
-      <?php if (logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" class="logo"><?php else: ?><div class="logo-mark"><?= e(strtoupper(substr(business_name(), 0, 1))) ?></div><?php endif; ?>
+      <?php if (logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" class="logo"><?php else: ?><img src="<?= e(asset('bono-mark.png')) ?>" alt="" class="logo sys-mark"><?php endif; ?>
       <div><b><?= e(business_name()) ?></b><small><?= e(setting('business_tagline') ?: 'Loan Management System') ?></small></div>
     </a>
     <?php if ($canSearch): ?>
@@ -110,7 +112,7 @@ $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
         <?php foreach ($flashes as [$t, $m]): ?><div class="flash <?= e($t) ?>"><?= e($m) ?></div><?php endforeach; ?>
         <?= $content ?>
       </main>
-      <footer class="foot"><?= e(business_name()) ?> · all amounts in <?= e(setting('currency')) ?> · signed in over <?= request_is_https() ? 'HTTPS' : 'HTTP (local)' ?></footer>
+      <footer class="foot"><img src="<?= e(asset('bono-mark.png')) ?>" alt="" class="foot-mark"> <?= e(business_name()) ?> · Bono Loan Management System · all amounts in <?= e(setting('currency')) ?> · signed in over <?= request_is_https() ? 'HTTPS' : 'HTTP (local)' ?></footer>
     </div>
   </div>
 <?php endif; ?>

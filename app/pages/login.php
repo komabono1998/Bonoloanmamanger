@@ -31,8 +31,8 @@ if (is_post()) {
 }
 ?>
 <div class="card">
-  <?php if (is_installed() && logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" style="display:block;margin:0 auto 1rem;max-height:70px;max-width:200px"><?php else: ?><div class="logo-mark" style="background:var(--brand);color:#fff;border-radius:12px;display:grid;place-items:center">B</div><?php endif; ?>
-  <h1 style="text-align:center"><?= e(business_name()) ?></h1>
+  <img class="sys-logo" src="<?= e(asset('bono-logo.png')) ?>" alt="Bono Loan Management System">
+  <h1 style="text-align:center"><?php if (logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" class="inst-logo"><?php endif; ?><?= e(business_name()) ?></h1>
   <?php if ($mfaStep): ?>
     <p class="muted" style="text-align:center">Enter the 6-digit code from your authenticator app (or a recovery code).</p>
     <?php form_open(null) ?>

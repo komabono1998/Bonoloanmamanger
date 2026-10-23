@@ -244,3 +244,9 @@ a { color: var(--brand-2); }
 body.bare { background: linear-gradient(160deg, var(--side), var(--brand)); }
 
 .row-actions { display: flex; gap: .4rem; align-items: center; } .row-actions form { margin: 0; } .row-actions .btn svg { vertical-align: -2px; }
+
+.sys-logo { display: block; margin: 0 auto 1.1rem; width: 250px; max-width: 80%; height: auto; }
+.inst-logo { height: 34px; width: auto; vertical-align: middle; margin-right: .5rem; border-radius: 6px; }
+.topbar .logo.sys-mark { background: transparent; object-fit: contain; }
+.foot { display: flex; align-items: center; gap: .5rem; } .foot-mark { height: 18px; width: 18px; }
+.bare-foot { text-align: center; color: rgba(255,255,255,.7); font-size: .8rem; margin-top: 1rem; }

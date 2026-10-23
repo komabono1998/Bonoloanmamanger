@@ -11,7 +11,7 @@ post_action(function () {
 });
 ?>
 <div class="card">
-  <?php if (is_installed() && logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" style="display:block;margin:0 auto 1rem;max-height:70px;max-width:200px"><?php else: ?><div class="logo-mark" style="background:var(--brand);color:#fff;border-radius:12px;display:grid;place-items:center">B</div><?php endif; ?>
+  <img class="sys-logo" src="<?= e(asset('bono-logo.png')) ?>" alt="Bono Loan Management System">
   <h1 style="text-align:center">Welcome to Bono Loan Manager</h1>
   <p class="muted" style="text-align:center">First-time setup of the cloud system. This creates the first branch and the <b>System Administrator</b> (technical account — it cannot approve loans or post money).</p>
   <?php form_open(null) ?>
