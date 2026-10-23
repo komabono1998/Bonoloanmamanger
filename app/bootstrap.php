@@ -12,6 +12,6 @@ ini_set('log_errors', '1');
 ini_set('error_log', (getenv('LOG_TO_STDERR') === '1' && DIRECTORY_SEPARATOR === '/') ? '/dev/stderr' : BASE_PATH . '/storage/logs/php-error.log');
 
 foreach (['config', 'triggers', 'db', 'helpers', 'settings', 'perms', 'mfa', 'storage', 'branch', 'brand', 'mail', 'auth', 'install'] as $f) require_once BASE_PATH . "/app/lib/$f.php";
-foreach (['calc', 'approvals', 'eod', 'loans', 'cash', 'payments', 'penalty', 'backup', 'reports', 'system', 'pwreset'] as $f) require_once BASE_PATH . "/app/services/$f.php";
+foreach (['calc', 'approvals', 'eod', 'loans', 'cash', 'payments', 'penalty', 'backup', 'reports', 'system', 'pwreset', 'dashboard'] as $f) require_once BASE_PATH . "/app/services/$f.php";
 
 if (PHP_SAPI !== 'cli') start_session();

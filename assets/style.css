@@ -265,3 +265,11 @@ body.bare { background: linear-gradient(160deg, var(--side), var(--brand)); }
 
 
 .dash-grid.one { grid-template-columns: minmax(280px, 520px); }
+
+/* dashboard v3.3 */
+.kpis-sm { margin-bottom: 1.1rem; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; } .seg a { padding: .25rem .8rem; font-size: .84rem; color: var(--muted); } .seg a.on { background: var(--brand); color: #fff; } .seg a:hover { text-decoration: none; }
+.chart-legend { display: flex; gap: 1.1rem; flex-wrap: wrap; font-size: .82rem; color: var(--muted); margin-top: .4rem; } .chart-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: .35rem; vertical-align: -1px; } .chart-legend i.ln { height: 3px; width: 18px; border-radius: 0; vertical-align: 3px; } .chart-legend i.dash { background: repeating-linear-gradient(90deg, var(--bad) 0 6px, transparent 6px 10px); }
+.activity .as { display: flex; flex-direction: column; align-items: flex-end; gap: .15rem; flex: none; }
+.focus .kpis { margin-bottom: .6rem; } .focus { margin-bottom: 1rem; }
+.legend small { font-size: .78rem; }
