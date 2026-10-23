@@ -30,7 +30,7 @@ if (is_post()) {
     redirect(url('login'));
 }
 ?>
-<div class="card">
+<div class="card login-card">
   <img class="sys-logo" src="<?= e(asset('bono-logo.png')) ?>" alt="Bono Loan Management System">
   <h1 style="text-align:center"><?php if (logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" class="inst-logo"><?php endif; ?><?= e(business_name()) ?></h1>
   <?php if ($mfaStep): ?>
@@ -42,14 +42,19 @@ if (is_post()) {
     <?php form_close() ?>
     <?php if (get('cancel')) { unset($_SESSION['mfa_uid']); redirect(url('login')); } ?>
   <?php else: ?>
-    <p class="muted" style="text-align:center">Sign in with your username, email or Staff ID</p>
-    <?php form_open(null) ?>
-      <?php if (Tenancy::all() || tenant()): ?><?php field('org', 'Organisation code', ['value' => tenant_slug() ?: (string)get('org'), 'help' => 'Leave blank for ' . ($GLOBALS['__tenant'] ? 'the main organisation' : business_name()) . '.', 'attrs' => 'autocapitalize="none" spellcheck="false" autocomplete="organization"']); ?><?php endif; ?>
-      <?php field('username', 'Username, email or Staff ID', ['required' => true, 'attrs' => 'autocomplete="username"']); ?>
-      <?php field('password', 'Password', ['type' => 'password', 'required' => true, 'attrs' => 'autocomplete="current-password"']); ?>
-      <div class="form-actions"><?php submit_btn('Sign in', 'primary') ?></div>
+    <?php form_open(null, ['attrs' => 'class="login-form"']) ?>
+      <?php if (Tenancy::all() || tenant()): ?>
+        <label for="lf-org">Organisation code :</label>
+        <input id="lf-org" type="text" name="org" value="<?= e(tenant_slug() ?: (string)get('org')) ?>" placeholder="Leave blank for <?= e($GLOBALS['__tenant'] ? 'the main organisation' : business_name()) ?>" autocapitalize="none" spellcheck="false" autocomplete="organization">
+      <?php endif; ?>
+      <label for="lf-user">Username :</label>
+      <input id="lf-user" type="text" name="username" placeholder="Username, email or Staff ID" required autofocus autocomplete="username" value="<?= e((string)old('username', '')) ?>">
+      <label for="lf-pass">Password :</label>
+      <div class="pw-wrap"><input id="lf-pass" type="password" name="password" placeholder="Password" required autocomplete="current-password"><button type="button" class="pw-toggle" data-toggle-pw aria-label="Show or hide the password"><?= icon('eye', 18) ?></button></div>
+      <div class="login-links"><a href="<?= e(url('forgot')) ?>">Forgot Password ?</a></div>
+      <div class="login-go"><button class="btn-navy" type="submit">Sign In</button></div>
     <?php form_close() ?>
-    <p style="text-align:center;margin:.8rem 0 0"><a href="<?= e(url('forgot')) ?>">Forgot your password?</a></p>
     <?php if (Tenancy::enabled()): ?><div class="org-cta"><span>New here?</span><a class="btn" href="<?= e(url('register')) ?>"><?= icon('building', 16) ?> Set up a new organisation</a></div><?php endif; ?>
   <?php endif; ?>
+  <div class="login-foot"><span><?= icon('lock', 13) ?> <?= request_is_https() ? 'Secure connection' : 'Local connection' ?></span><span class="by">Powered by <img src="<?= e(asset('bono-mark.png')) ?>" alt=""> <b>Bono</b></span></div>
 </div>

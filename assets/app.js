@@ -160,6 +160,11 @@
     });
   });
 
+  // ---- show / hide the password on the sign-in page
+  document.querySelectorAll('[data-toggle-pw]').forEach(function (b) {
+    b.addEventListener('click', function () { var i = b.parentNode.querySelector('input'); if (i) i.type = i.type === 'password' ? 'text' : 'password'; });
+  });
+
   // ---- photograph capture: choose a file or use the device camera
   document.querySelectorAll('[data-photo]').forEach(function (box) {
     var input = box.querySelector('[data-photo-file]'), prev = box.querySelector('.photo-prev'), cam = box.querySelector('.cam'),

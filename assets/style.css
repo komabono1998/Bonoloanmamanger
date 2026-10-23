@@ -375,3 +375,23 @@ table.matrix thead th { top: 62px; background: var(--th); color: #fff; }
 .rep-cats .chip { cursor: pointer; font: inherit; font-size: .86rem; } .rep-cats .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; } .rep-cats .chip.on .count { background: #fff; color: var(--brand); }
 
 .pw-remind { display: flex; align-items: center; gap: .4rem; }
+
+/* ======================= sign-in: clean white card on a light background ======================= */
+body.bare { background: #eef3f8; }
+@media (prefers-color-scheme: dark) { body.bare { background: #0f1320; } }
+.bare-main { max-width: 500px; padding: 7vh 1rem 2rem; }
+.bare .card { border-radius: 6px; box-shadow: 0 1px 3px rgba(15,23,42,.08); border: 0; padding: 2.2rem 2.6rem 1.4rem; }
+.bare .sys-logo { width: 300px; max-width: 86%; margin: .2rem auto 1.4rem; }
+.bare .card h1 { font-size: 1.15rem; font-weight: 600; color: var(--muted); margin: 0 0 1.4rem; }
+.login-form { display: grid; gap: .45rem; }
+.login-form label { font-size: 1.1rem; font-weight: 500; color: var(--ink); margin-top: .8rem; }
+.login-form input { width: 100%; padding: .85rem 1rem; font: inherit; font-size: 1rem; border: 1px solid #a8aeb8; border-radius: 6px; background: var(--card); color: var(--ink); }
+.login-form input::placeholder { color: #b5bac4; }
+.login-form input:focus { outline: none; border-color: var(--th); box-shadow: 0 0 0 3px color-mix(in srgb, var(--th) 14%, transparent); }
+.pw-wrap { position: relative; } .pw-wrap input { padding-right: 3rem; } .pw-toggle { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); background: none; border: 0; color: var(--muted); cursor: pointer; padding: .4rem; border-radius: 6px; } .pw-toggle:hover { color: var(--ink); background: var(--bg); }
+.login-links { text-align: right; margin-top: .6rem; } .login-links a { color: #1a0dab; text-decoration: underline; font-size: 1rem; }
+.login-go { text-align: center; margin: 1.2rem 0 .4rem; }
+.btn-navy { background: var(--th); color: #fff; border: 0; border-radius: 8px; padding: .8rem 3.2rem; font: inherit; font-size: 1.2rem; font-weight: 500; cursor: pointer; } .btn-navy:hover { background: color-mix(in srgb, var(--th) 82%, #fff); }
+.bare .org-cta { margin-top: 1.4rem; }
+.login-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 1.4rem; padding-top: .8rem; font-size: .78rem; color: var(--muted); } .login-foot .by { display: inline-flex; align-items: center; gap: .3rem; } .login-foot img { height: 18px; width: 18px; }
+@media (max-width: 520px) { .bare .card { padding: 1.5rem 1.2rem 1rem; } }
