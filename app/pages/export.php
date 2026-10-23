@@ -10,13 +10,24 @@ if ($kind === 'report') {
     $def = ReportCatalog::get($key);
     must($def && $def['available'], 'Unknown report.');
     if (!report_allowed($key)) { try { audit('Access denied', 'Security', 'report', $key, null, 'export refused: report not granted'); } catch (Throwable $e) {} must(false, 'You have not been given access to this report.'); }
-    $asOf = reporting_date();
-    $days = max(1, setting_int('report_default_days'));
-    $f = ['from' => is_date(get('from')) ? get('from') : date('Y-m-d', strtotime("-$days days", strtotime($asOf))), 'to' => is_date(get('to')) ? get('to') : $asOf,
-        'officer' => (int)get('officer'), 'cashier' => (int)get('cashier'), 'method' => get('method'), 'client' => (int)get('client'), 'branch' => (int)get('branch'), 'loan' => trim((string)get('loan')), 'days' => (int)get('days')];
-    $rep = ReportEngines::run($def['engine'], $f);
-    $data = Reports::plain($rep);
-    $name = $key . '_' . $f['from'] . '_' . $f['to'];
+    $p = ReportRun::params($_GET);
+    $run = ReportRun::execute($def, $p);
+    $lines = ReportRun::headerLines($def, $p, $run);
+    $fmt = (string)get('format', 'csv'); if ($fmt === 'xls') $fmt = 'xlsx';
+    must(in_array($fmt, ['pdf', 'xlsx', 'csv', 'doc', 'json'], true), 'Unknown download format.');
+    insert('export_history', ['at' => now(), 'user_id' => uid(), 'kind' => 'report:' . $key, 'format' => $fmt, 'rows_total' => $run['shown']]);
+    audit('Data exported', 'Export', 'export', 'report:' . $key, null, $run['shown'] . ' rows (' . $fmt . ')');
+    while (ob_get_level() > 0) ob_end_clean();
+    $file = $key . '_' . ($p['from'] === $p['to'] ? $p['from'] : $p['from'] . '_to_' . $p['to']) . '_' . date('His');
+    switch ($fmt) {
+        case 'pdf': header('Content-Type: application/pdf'); header('Content-Disposition: attachment; filename="' . $file . '.pdf"'); echo ReportRun::pdf($def, $run, $lines); break;
+        case 'xlsx': header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); header('Content-Disposition: attachment; filename="' . $file . '.xlsx"'); echo ReportRun::xlsx($def, $run, $lines); break;
+        case 'doc': header('Content-Type: application/msword; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.doc"'); echo ReportRun::doc($def, $run, $lines); break;
+        case 'json': header('Content-Type: application/json; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.json"'); echo ReportRun::json($def, $p, $run, $lines); break;
+        default: header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.csv"'); echo ReportRun::csv($def, $run, $lines);
+    }
+    header('X-Content-Type-Options: nosniff');
+    exit;
 } elseif ($kind === 'audit') {
     require_perm('audit.all'); require_perm('report.export');
     $w = ['substr(at,1,10) BETWEEN ? AND ?']; $p = [is_date(get('from')) ? get('from') : '2000-01-01', is_date(get('to')) ? get('to') : today()];

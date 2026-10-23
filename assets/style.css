@@ -359,3 +359,17 @@ table.matrix thead th { top: 62px; background: var(--th); color: #fff; }
 @media print { .side, .topbar { display: none !important; } }
 
 .stat .sl { padding-right: 2.4rem; }
+
+/* Report filters and downloads */
+.filters2 { padding: 1rem 1.2rem; } .filters2 .presets { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-bottom: .8rem; }
+.pill { padding: .25rem .8rem; border: 1px solid var(--line); border-radius: 999px; font-size: .84rem; color: var(--ink); background: var(--card); } .pill:hover { text-decoration: none; border-color: var(--brand); } .pill.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .7rem .9rem; align-items: end; } .fgrid .fld.wide { grid-column: span 2; } .fgrid input, .fgrid select { width: 100%; }
+.fbtns { display: flex; gap: .5rem; }
+.applied { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin: -.3rem 0 .9rem; }
+.chip-x { background: var(--brand-soft); color: var(--brand); border-radius: 999px; padding: .2rem .7rem; font-size: .82rem; } .chip-x:hover { text-decoration: none; background: var(--brand); color: #fff; } .chip-x b { color: var(--ink); } .chip-x:hover b { color: #fff; }
+.dl { position: relative; } .dl summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: .35rem; } .dl summary::-webkit-details-marker { display: none; }
+.dl-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(15,23,42,.18); min-width: 230px; padding: .35rem; }
+.dl-menu a { display: flex; align-items: center; gap: .6rem; padding: .5rem .65rem; border-radius: 7px; color: var(--ink); } .dl-menu a:hover { background: var(--bg); text-decoration: none; } .dl-menu small { display: block; padding: .35rem .65rem .2rem; color: var(--muted); font-size: .76rem; }
+@media print { .filters2, .applied, .dl { display: none !important; } }
+
+.rep-cats .chip { cursor: pointer; font: inherit; font-size: .86rem; } .rep-cats .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; } .rep-cats .chip.on .count { background: #fff; color: var(--brand); }

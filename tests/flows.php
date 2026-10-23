@@ -197,6 +197,14 @@ $ffo = $W['ffo' . $sfx];
 foreach (['CR-01', 'FN-01', 'EOD-03', 'CR-06'] as $rid) { $ffo->get($ffo->url('reports', ['r' => $rid])); step("finance report $rid opens", $ffo->code === 200 && str_contains($ffo->body, 'Scope:'), info($ffo)); }
 $ffo->get($ffo->url('export', ['kind' => 'report', 'format' => 'csv', 'r' => 'CR-01']));
 step('a permitted report exports to CSV', $ffo->code === 200 && (str_contains($ffo->body, 'Business date') || str_contains($ffo->body, 'Payments')), info($ffo));
+foreach (['csv' => 'Business date', 'pdf' => '%PDF-1.4', 'xlsx' => 'PK', 'doc' => '<table>', 'json' => '"report"'] as $fmt => $sig) {
+    $ffo->get($ffo->url('export', ['kind' => 'report', 'format' => $fmt, 'r' => 'CR-01', 'preset' => 'year']));
+    step("download a report as " . strtoupper($fmt), $ffo->code === 200 && str_contains(substr($ffo->body, 0, 4000), $sig), 'status ' . $ffo->code . ' starts: ' . substr($ffo->body, 0, 60));
+}
+$ffo->get($ffo->url('reports', ['r' => 'CR-01', 'preset' => 'month', 'q' => 'zzz-nothing']));
+step('report filters (period preset + text search) apply on screen', $ffo->code === 200 && str_contains($ffo->body, 'Text:') && str_contains($ffo->body, 'Showing 0 of') || str_contains($ffo->body, '0 row'), info($ffo));
+$lo->get($lo->url('export', ['kind' => 'report', 'format' => 'pdf', 'r' => 'FN-01']));
+step('a download of a report the profile does not have is refused', $lo->code !== 200 || !str_starts_with($lo->body, '%PDF'), 'status ' . $lo->code);
 
 // ================================================================= F. administrator: settings, branches, users, report access, backup
 echo "\n== Administrator: settings, branches, users, report access, backup\n";

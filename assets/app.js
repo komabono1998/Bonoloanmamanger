@@ -140,16 +140,24 @@
     slugSrc.addEventListener('input', function () { if (!touched) slugDst.value = slugSrc.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24); });
   }
 
-  // ---- report search (Report Centre)
-  var rs = document.querySelector('[data-report-search]');
-  if (rs) rs.addEventListener('input', function () {
-    var q = rs.value.trim().toLowerCase(), any = false;
+  // ---- Report Centre: filter the list by category and by words
+  var rs = document.querySelector('[data-report-search]'), catSel = '';
+  function filterReports() {
+    var q = rs ? rs.value.trim().toLowerCase() : '', any = false;
     document.querySelectorAll('[data-report-cat]').forEach(function (cat) {
-      var n = 0;
-      cat.querySelectorAll('[data-report-item]').forEach(function (it) { var m = !q || it.getAttribute('data-text').indexOf(q) !== -1; it.hidden = !m; if (m) n++; });
+      var n = 0, inCat = !catSel || cat.getAttribute('data-cat') === catSel;
+      cat.querySelectorAll('[data-report-item]').forEach(function (it) { var m = inCat && (!q || it.getAttribute('data-text').indexOf(q) !== -1); it.hidden = !m; if (m) n++; });
       cat.hidden = n === 0; if (n) any = true;
     });
-    var none = document.querySelector('[data-report-none]'); if (none) none.hidden = any || !q;
+    var none = document.querySelector('[data-report-none]'); if (none) none.hidden = any;
+  }
+  if (rs) rs.addEventListener('input', filterReports);
+  document.querySelectorAll('[data-cat-filter]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      catSel = b.getAttribute('data-cat-filter');
+      document.querySelectorAll('[data-cat-filter]').forEach(function (x) { x.classList.toggle('on', x === b); });
+      filterReports();
+    });
   });
 
   // ---- photograph capture: choose a file or use the device camera
