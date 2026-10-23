@@ -86,18 +86,19 @@ foreach ($branches as $bid => $bn) {
     }
     $blockers = Eod::blockers($bd, (int)$bid);
     $canRun = can('eod.run') && Eod::adminMode();
+    echo '<div class="eod-go" data-eod data-branch="' . (int)$bid . '" data-date="' . e($bd) . '" data-datelabel="' . e(fmt_date($bd)) . '" data-url="' . e(url('eodsys', ['a' => 'step'])) . '" data-csrf="' . e(csrf_token()) . '" data-branchname="' . e($bn) . '">';
+    echo '<div class="eod-ready">';
     if ($blockers) {
         echo '<div class="eod-wait"><b>Not ready to close yet</b><ul>';
         foreach ($blockers as $b) echo '<li>' . e($b['label']) . ' <span class="muted">&mdash; ' . e($b['detail']) . '</span></li>';
         echo '</ul><a class="btn sm" href="' . e(url('till')) . '">Open Cashier &amp; Till</a></div>';
-        echo '</div>';
-        continue;
+    } else {
+        echo '<p>The branch is ready: every till is counted and reconciled. Running End of Day backs up the database, closes and locks <b>' . e(fmt_date($bd)) . '</b>, posts the day to the ledger and opens the next working day.</p>';
     }
-    echo '<div class="eod-go" data-eod data-branch="' . (int)$bid . '" data-date="' . e($bd) . '" data-url="' . e(url('eodsys', ['a' => 'step'])) . '" data-csrf="' . e(csrf_token()) . '" data-branchname="' . e($bn) . '">';
-    echo '<div class="eod-ready"><p>The branch is ready. One click backs up the database, closes and locks <b>' . e(fmt_date($bd)) . '</b>, posts the day to the ledger and opens the next working day.</p>';
     if ($canRun) {
         echo '<details class="eod-note"><summary>Add a note (optional)</summary><textarea data-eod-notes rows="2" placeholder="Anything worth recording about today"></textarea></details>';
-        echo '<button type="button" class="btn primary eod-btn" data-eod-start>' . icon('check', 18) . ' Run End of Day</button>';
+        echo '<button type="button" class="btn primary eod-btn" data-eod-start' . ($blockers ? ' disabled title="Close and count every till first"' : '') . '>' . icon('check', 18) . ' Run End of Day for ' . e(fmt_date($bd)) . '</button>';
+        if ($blockers) echo '<p class="muted" style="margin:.4rem 0 0;font-size:.82rem">The button unlocks once every till is closed and reconciled.</p>';
     } else echo '<p class="muted">You do not have permission to run End of Day.</p>';
     echo '</div><div class="eod-run" hidden><div class="eod-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span data-eod-fill></span></div>'
         . '<div class="eod-pct" data-eod-pct>0%</div><ol class="eod-list">';
@@ -105,6 +106,9 @@ foreach ($branches as $bid => $bn) {
     echo '<li data-phase="done"><span class="eod-ic"></span><span class="eod-lb">Sending the completion notice</span><small data-msg></small></li>';
     echo '</ol><div class="eod-result" data-eod-result hidden></div></div></div></div>';
 }
+echo '<div class="eod-modal" data-eod-modal hidden role="dialog" aria-modal="true" aria-labelledby="eod-q"><div class="eod-dialog"><h2 id="eod-q">Run End of Day?</h2>'
+    . '<p data-eod-question></p><p class="muted">The business date will be closed and locked, and the system date moves to the next working day. This cannot be undone without a manager reopening the date.</p>'
+    . '<div class="eod-dialog-actions"><button type="button" class="btn" data-eod-no>No, not yet</button><button type="button" class="btn primary" data-eod-yes>Yes, run End of Day</button></div></div></div>';
 echo '<script src="' . e(asset('eod_run.js')) . '"></script>';
 
 echo '<div class="card"><h2>End-of-Day history</h2>';

@@ -23,7 +23,7 @@
     function fail(li, msg) {
       mark(li, 'err', msg); busy = false;
       result.hidden = false; result.className = 'eod-result bad';
-      result.innerHTML = '<b>End of Day stopped.</b> ' + esc(msg) + ' <button type="button" class="btn sm" data-eod-retry>Try again from this step</button>';
+      result.innerHTML = '<b>End of Day FAILED.</b> ' + esc(msg) + ' <button type="button" class="btn sm" data-eod-retry>Try again from this step</button>';
       result.querySelector('[data-eod-retry]').addEventListener('click', function () { result.hidden = true; busy = true; next(); });
     }
     function esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
@@ -48,10 +48,19 @@
         mark(li, 'ok', r.message); idx++; next();
       }).catch(function () { fail(li, 'The connection was interrupted. Reload the page to see how far End of Day got.'); });
     }
+    var modal = document.querySelector('[data-eod-modal]');
+    function begin() { busy = true; ready.hidden = true; run.hidden = false; idx = 0; progress(false); next(); }
     start.addEventListener('click', function () {
-      if (busy) return;
-      if (!window.confirm('Run End of Day for ' + box.getAttribute('data-branchname') + '? The business date will be closed and locked.')) return;
-      busy = true; ready.hidden = true; run.hidden = false; idx = 0; progress(false); next();
+      if (busy || start.disabled) return;
+      modal.querySelector('[data-eod-question]').innerHTML = 'Are you ready to run End of Day for <b>' + esc(box.getAttribute('data-branchname')) + '</b> on <b>' + esc(box.getAttribute('data-datelabel')) + '</b>?';
+      modal.hidden = false;
+      var yes = modal.querySelector('[data-eod-yes]'), no = modal.querySelector('[data-eod-no]');
+      function close() { modal.hidden = true; yes.onclick = null; no.onclick = null; document.removeEventListener('keydown', esc2); }
+      function esc2(e) { if (e.key === 'Escape') close(); }
+      document.addEventListener('keydown', esc2);
+      yes.onclick = function () { close(); begin(); };
+      no.onclick = close;
+      yes.focus();
     });
   });
 })();

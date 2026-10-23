@@ -480,3 +480,8 @@ body.bare { background: #eef3f8; }
 .swatch-any { display: inline-flex; align-items: center; gap: .45rem; margin-left: .5rem; font-size: .85rem; cursor: pointer; }
 .swatch-any input[type=color] { width: 44px; height: 38px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; cursor: pointer; }
 .colour-preview { display: flex; align-items: center; gap: .8rem; margin-bottom: .3rem; } .cp-btn { color: #fff; padding: .45rem 1rem; border-radius: 8px; font-weight: 600; font-size: .85rem; } .cp-bar { flex: 1; max-width: 220px; height: 6px; border-radius: 4px; }
+
+.eod-btn[disabled] { opacity: .5; cursor: not-allowed; }
+.eod-modal { position: fixed; inset: 0; background: rgba(15,20,35,.55); display: grid; place-items: center; z-index: 1000; padding: 1rem; } .eod-modal[hidden] { display: none; }
+.eod-dialog { background: var(--card); border-radius: 14px; padding: 1.4rem 1.6rem; max-width: 460px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.35); } .eod-dialog h2 { margin: 0 0 .6rem; }
+.eod-dialog-actions { display: flex; gap: .6rem; justify-content: flex-end; margin-top: 1rem; }

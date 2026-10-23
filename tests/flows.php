@@ -191,7 +191,7 @@ echo "
 ";
 $admin->get($admin->url('eodsys'));
 step('the End of Day page shows each branch with its system date', $admin->code === 200 && str_contains($admin->body, 'Run End of Day') && str_contains($admin->body, 'System date'), info($admin));
-preg_match('~data-eod data-branch="' . $B . '" data-date="([^"]+)" data-url="([^"]+)" data-csrf="([^"]+)"~', $admin->body, $em);
+preg_match('~data-eod data-branch="' . $B . '" data-date="([^"]+)" data-datelabel="[^"]*" data-url="([^"]+)" data-csrf="([^"]+)"~', $admin->body, $em);
 step('a ready branch offers one Run End of Day button with a progress runner', count($em) === 4 && str_contains($admin->body, 'eod-bar') && str_contains($admin->body, 'data-eod-start'), info($admin));
 $eodStep = function (string $phase) use ($admin, $em, $B) { $admin->req(html_entity_decode($em[2]), ['_csrf' => $em[3], 'branch' => (string)$B, 'date' => $em[1], 'phase' => $phase, 'notes' => 'flow test close']); return json_decode($admin->body, true) ?: ['ok' => false, 'message' => substr($admin->body, 0, 120)]; };
 $r = $eodStep('close');
