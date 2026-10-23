@@ -11,6 +11,7 @@ final class Loans
                   FROM loans l JOIN clients c ON c.id = l.client_id JOIN users u ON u.id = l.officer_id WHERE l.id = ?', [$id]);
         must((bool)$l, 'Loan does not exist.');
         assert_branch((int)$l['branch_id']);
+        assert_portfolio_loan($l);
         return $l;
     }
 

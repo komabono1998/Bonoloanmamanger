@@ -101,7 +101,7 @@ if ($a === 'new' || $a === 'edit') {
     require_perm('client.manage');
     $c = $a === 'edit' ? row('SELECT * FROM clients WHERE id = ?', [$id]) : [];
     must($a === 'new' || (bool)$c, 'Client ID does not exist.');
-    if ($a === 'edit') assert_active_branch((int)$c['branch_id']);
+    if ($a === 'edit') { assert_active_branch((int)$c['branch_id']); assert_portfolio_client($c); }
     page_head($a === 'new' ? 'Register client' : 'Edit client ' . $c['client_no'], btn('Cancel', $id ? url('clients', ['a' => 'view', 'id' => $id]) : url('clients')));
     echo '<div class="card">';
     form_open(url('clients', ['a' => 'save', 'id' => $id ?: '']), ['upload' => true]);
@@ -144,6 +144,7 @@ if ($a === 'view') {
     $c = row('SELECT c.*, u.full_name AS reg_by FROM clients c LEFT JOIN users u ON u.id = c.registered_by WHERE c.id = ?', [$id]);
     must((bool)$c, 'Client ID does not exist.');
     assert_branch((int)$c['branch_id']);
+    assert_portfolio_client($c);
     $photo = val("SELECT id FROM attachments WHERE entity_type = 'client' AND entity_id = ? AND kind = 'photo' ORDER BY id DESC LIMIT 1", [$id]);
     $tab = get('tab', 'overview');
     $act = '';
@@ -223,7 +224,7 @@ if ($a === 'view') {
 
 // ----------------------------------------------------------------- list
 $q = get('q'); $st = get('status', 'Active');
-$where = [branch_scope('c.branch_id', branch_filter_ids((int)get('branch')))]; $p = [];
+$where = [branch_scope('c.branch_id', branch_filter_ids((int)get('branch'))) . client_scope('c')]; $p = [];
 if ($q !== '') { $where[] = '(c.full_name LIKE ? OR c.client_no LIKE ? OR c.phone LIKE ? OR c.phone2 LIKE ? OR c.nin LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%", "%$q%", "%$q%"); }
 if ($st !== '' && $st !== 'all') { $where[] = 'c.status = ?'; $p[] = $st; }
 $list = rows("SELECT c.*, (SELECT COUNT(*) FROM loans l WHERE l.client_id = c.id AND l.status IN ('Active','Overdue')) AS open_loans,

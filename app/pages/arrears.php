@@ -41,7 +41,7 @@ tabs(['arrears' => 'Overdue loans', 'defaulters' => 'Defaulters', 'ageing' => 'A
 
 $baseSql = "SELECT l.id, l.loan_no, c.full_name, c.phone, l.due_date, l.overdue_since, " . sql_daydiff('?', 'l.overdue_since') . " AS days, b.principal_out, b.interest_out, b.penalty_out, b.total_out,
             b.last_payment_date, u.full_name AS officer, l.collection_status, l.status
-            FROM loans l JOIN clients c ON c.id = l.client_id JOIN v_loan_balances b ON b.loan_id = l.id JOIN users u ON u.id = l.officer_id WHERE l.status = 'Overdue' AND " . branch_scope('l.branch_id');
+            FROM loans l JOIN clients c ON c.id = l.client_id JOIN v_loan_balances b ON b.loan_id = l.id JOIN users u ON u.id = l.officer_id WHERE l.status = 'Overdue' AND " . branch_scope('l.branch_id') . loan_scope('l');
 $cols = ['loan_no' => 'Loan', 'full_name' => 'Client', 'phone' => 'Contact', 'due_date' => ['Due', 'date'], 'days' => ['Days overdue', 'num'], 'principal_out' => ['Principal', 'money'], 'interest_out' => ['Interest', 'money'],
     'penalty_out' => ['Penalty', 'money'], 'total_out' => ['Total owed', 'money'], 'last_payment_date' => ['Last payment', 'date'], 'officer' => 'Officer', 'collection_status' => ['Collection status', 'badge']];
 

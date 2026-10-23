@@ -3,7 +3,7 @@ $title = 'Loan portfolio';
 foreach (accessible_branch_ids() as $__b) Loans::refreshStatuses(null, (int)$__b);
 $asOf = reporting_date();
 $q = get('q'); $st = get('status', 'open'); $of = (int)get('officer'); $soon = get('soon');
-$w = ['l.disbursed_at IS NOT NULL', branch_scope('l.branch_id', branch_filter_ids((int)get('branch')))]; $p = [];
+$w = ['l.disbursed_at IS NOT NULL', branch_scope('l.branch_id', branch_filter_ids((int)get('branch'))) . loan_scope('l')]; $p = [];
 if ($st === 'open') $w[] = "l.status IN ('Active','Overdue')"; elseif ($st !== '' && $st !== 'all') { $w[] = 'l.status = ?'; $p[] = $st; }
 if ($q !== '') { $w[] = '(l.loan_no LIKE ? OR c.full_name LIKE ? OR c.client_no LIKE ? OR c.phone LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%", "%$q%"); }
 if ($of) { $w[] = 'l.officer_id = ?'; $p[] = $of; }

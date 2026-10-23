@@ -21,7 +21,7 @@ function permission_catalogue(): array
             'payment.view' => 'View payments and receipts', 'payment.record' => 'Record payments (collections)', 'payment.reverse.request' => 'Request a payment reversal',
             'payment.reverse' => 'Approve payment reversals', 'receipt.reprint' => 'Reprint receipts', 'credit.manage' => 'Apply / refund customer credits',
         ],
-        'Portfolio' => ['portfolio.view' => 'View loan portfolio', 'arrears.manage' => 'Record collection follow-ups', 'penalty.adjust' => 'Adjust / waive penalties (within authority)'],
+        'Portfolio' => ['portfolio.all' => 'See every client and loan in the branch (without it, only own clients and assigned loans)', 'portfolio.view' => 'View loan portfolio', 'arrears.manage' => 'Record collection follow-ups', 'penalty.adjust' => 'Adjust / waive penalties (within authority)'],
         'Security' => ['security.manage' => 'Register collateral', 'security.release' => 'Release collateral'],
         'Cash' => [
             'till.use' => 'Open and use a cashier till', 'till.reconcile' => 'Reconcile cashier sessions', 'expense.view' => 'View expenses and cashbook',
@@ -90,8 +90,8 @@ function principal_roles(): array
 function default_role_permissions(): array
 {
     return [
-        'Loan Officer' => ['dashboard.view', 'client.view', 'client.manage', 'client.sensitive', 'guarantor.manage', 'loan.view', 'loan.create', 'loan.assess', 'portfolio.view', 'arrears.manage',
-            'security.manage', 'payment.view', 'report.view', 'audit.own'],
+        'Loan Officer' => ['dashboard.view', 'client.view', 'client.manage', 'client.sensitive', 'guarantor.manage', 'loan.view', 'loan.create', 'loan.assess', 'portfolio.view', 'portfolio.all', 'arrears.manage',
+            'security.manage', 'report.view'],
         'Finance Officer' => ['dashboard.view', 'client.view', 'loan.view', 'payment.view', 'payment.reverse.request', 'receipt.reprint', 'portfolio.view', 'expense.view', 'expense.create',
             'till.reconcile', 'eod.view', 'eod.manage', 'eod.reopen', 'report.view', 'report.export', 'audit.financial'],
         'Branch Manager' => ['dashboard.view', 'client.view', 'client.manage', 'client.sensitive', 'guarantor.manage', 'loan.view', 'loan.approve', 'loan.disburse.authorize', 'loan.close', 'payment.view',

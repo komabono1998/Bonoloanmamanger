@@ -107,3 +107,37 @@ function seed_branch_accounts(int $branchId): void
         q('INSERT INTO cash_accounts(branch_id, name, type) VALUES (?,?,?) ON CONFLICT (branch_id, name) DO NOTHING', [$branchId, $n, $t]);
     }
 }
+
+// ------------------------------------------------------------------ portfolio scope (record ownership)
+/**
+ * Loan originators WITHOUT the "portfolio.all" permission are limited to the clients they registered and the loans
+ * assigned to them (on top of the branch restriction). Everyone else works at branch level.
+ */
+function portfolio_restricted(): bool
+{
+    static $c = [];
+    $u = (int)(uid() ?? 0);
+    if (!isset($c[$u])) $c[$u] = $u > 0 && can('loan.create') && !can('portfolio.all');
+    return $c[$u];
+}
+
+function loan_scope(string $alias = 'l'): string
+{
+    return portfolio_restricted() ? " AND $alias.officer_id = " . (int)uid() : '';
+}
+
+function client_scope(string $alias = 'c'): string
+{
+    return portfolio_restricted() ? " AND ($alias.registered_by = " . (int)uid() . " OR EXISTS (SELECT 1 FROM loans px WHERE px.client_id = $alias.id AND px.officer_id = " . (int)uid() . '))' : '';
+}
+
+function assert_portfolio_loan(array $loan): void
+{
+    must(!portfolio_restricted() || (int)$loan['officer_id'] === (int)uid(), 'This loan is not assigned to you.');
+}
+
+function assert_portfolio_client(array $client): void
+{
+    must(!portfolio_restricted() || (int)($client['registered_by'] ?? 0) === (int)uid()
+        || (int)val('SELECT COUNT(*) FROM loans WHERE client_id = ? AND officer_id = ?', [$client['id'], uid()]) > 0, 'This client is not in your portfolio.');
+}

@@ -9,6 +9,8 @@ $need = match ($att['entity_type']) {
     default => 'loan.view',
 };
 if ($att['branch_id'] && !in_array((int)$att['branch_id'], accessible_branch_ids(), true)) { http_response_code(403); throw new AppError('You do not have access to records of that branch.'); }
+if ($att['entity_type'] === 'client') { $cl = row('SELECT * FROM clients WHERE id = ?', [(int)$att['entity_id']]); if ($cl) assert_portfolio_client($cl); }
+if ($att['entity_type'] === 'loan') { $ln = row('SELECT * FROM loans WHERE id = ?', [(int)$att['entity_id']]); if ($ln) assert_portfolio_loan($ln); }
 if (!can($need)) { http_response_code(403); throw new AppError('You do not have permission to perform this action.'); }
 $key = basename($att['stored_name']);
 if (!Storage::exists($key)) { http_response_code(404); throw new AppError('File not found in storage.'); }

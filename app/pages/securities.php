@@ -35,7 +35,7 @@ if ($a === 'status') {
 
 page_head('Security & collateral register', btn('Print register', url('print', ['doc' => 'securities']), ''), 'Assets pledged by borrowers and guarantors. Register new security from the loan file.');
 $q = get('q'); $st = get('status'); $lid = (int)get('loan_id');
-$w = [branch_scope('l.branch_id')]; $p = [];
+$w = [branch_scope('l.branch_id') . loan_scope('l')]; $p = [];
 if ($q !== '') { $w[] = '(s.security_no LIKE ? OR s.description LIKE ? OR s.serial_no LIKE ? OR l.loan_no LIKE ? OR c.full_name LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%", "%$q%", "%$q%"); }
 if ($st !== '') { $w[] = 's.status = ?'; $p[] = $st; }
 if ($lid) { $w[] = 's.loan_id = ?'; $p[] = $lid; }

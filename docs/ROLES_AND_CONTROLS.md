@@ -66,3 +66,29 @@ assigned to them (the COO sees all). Cross-branch access by guessing an ID is re
 TOTP (RFC 6238) authenticator apps. Mandatory by default for System Administrator, COO and Branch Manager (Settings → Security: choose roles; System Administrator is always included).
 Seeds are encrypted at rest; one-time recovery codes; an administrator can reset a user's MFA (audited). Accounts lock for 5 minutes after 5 failures; repeated failures from one IP are throttled;
 sessions expire after inactivity; optional password expiry; every sign-in is logged (IP, device, result) and sign-ins from a new address are flagged on *Security monitoring*.
+
+
+## Loan Officer role template (RBAC specification)
+
+**Authorized modules (menu):** Dashboard, Client Management (Clients), Loan Applications (Loan Applications, Credit Assessment), Loan Accounts (Repayment Schedules, Loan Portfolio), Guarantors & Collateral (Guarantors, Securities), Arrears & Recovery (Arrears & Defaulters), Reports & Analytics (Reports). No payments, receipts, till, expenses, End of Day, users, settings, backup or audit modules.
+
+**No financial authority:** approval limit UGX 0 (cannot approve, authorize disbursement, override fees, waive penalties, restructure, write off, reverse transactions, release security, approve/reopen EOD, or manage users/roles/settings). The officer prepares, assesses and *recommends*; a Branch Manager/COO approves; a separate authorized user disburses.
+
+**Record scope:** branch-restricted by default (derived from the account on the server, never from the browser). Portfolio scope is configurable with the permission `portfolio.all`: remove it (role or individual user) and the officer sees only the clients they registered and the loans assigned to them, in every list, search, dashboard, loan/client page and document download.
+
+**Permission codes** (stable codes; spec name -> implemented code):
+
+| Specification | Implemented |
+|---|---|
+| dashboard.view | dashboard.view |
+| clients.view / create / update | client.view / client.manage (create + edit) |
+| loan_applications.create / update_draft / submit | loan.create |
+| loan_applications.recommend | loan.assess |
+| loan_accounts.view | loan.view |
+| guarantors.view / create | client.view / guarantor.manage |
+| collateral.update | security.manage (release needs security.release) |
+| arrears.view / recovery_notes.create | portfolio.view / arrears.manage |
+| reports.view_branch / reports.export | report.view (per-report control per user) / report.export |
+| (portfolio scope) | portfolio.all |
+
+**Server enforcement:** every page and service call checks the permission, branch scope and (where applicable) portfolio scope; denied requests are refused (403 for signed-in users, sign-in redirect when unauthenticated); deactivation and permission revocation apply on the next request. Automated acceptance tests for each item of the specification are in `tests/run.php` ("Loan Officer RBAC acceptance").

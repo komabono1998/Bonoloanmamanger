@@ -263,3 +263,5 @@ body.bare { background: linear-gradient(160deg, var(--side), var(--brand)); }
 .cam video { width: 100%; max-width: 320px; border-radius: 12px; background: #000; display: block; margin-bottom: .5rem; transform: scaleX(-1); }
 .cam[hidden] { display: none; }
 
+
+.dash-grid.one { grid-template-columns: minmax(280px, 520px); }

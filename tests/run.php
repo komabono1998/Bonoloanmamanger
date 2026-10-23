@@ -568,6 +568,78 @@ ok(str_contains(pfp($att, 'Staff A', 36), 'src='), 'profile picture renders the 
 ok(!str_contains(pfp(null, 'Staff A', 36), '<img') && str_contains(pfp(null, 'Staff A', 36), '>S<'), 'no photo falls back to the initial');
 ok(str_contains((function () { ob_start(); photo_field('photo', 'Profile photo'); return ob_get_clean(); })(), 'data-photo-cam'), 'photo field offers the camera');
 $_FILES = []; @unlink($tmpPng);
+
+section('Loan Officer RBAC acceptance (Bono RBAC specification, section 8)');
+preg_match_all("/'(\\w+)'\\s*=>\\s*\\['\\w+',\\s*(null|'[^']*'),\\s*(null|'[^']*'),\\s*(null|'[^']*')\\]/", (string)file_get_contents(BASE_PATH . '/index.php'), $mm, PREG_SET_ORDER);
+$menuFor = function () use ($mm) {
+    $o = [];
+    foreach ($mm as [, $k, $perm, $group, $label]) {
+        if ($group === 'null') continue;
+        if ($perm !== 'null' && !can_any(trim($perm, "'"))) continue;
+        $o[] = trim($label, "'");
+    }
+    return $o;
+};
+$routePerm = function (string $key) use ($mm) { foreach ($mm as [, $k, $perm]) if ($k === $key) return $perm === 'null' ? null : trim($perm, "'"); return 'missing'; };
+as_('lo');
+$menu = $menuFor();
+$expected = ['Dashboard', 'Clients', 'Guarantors', 'Loan Applications', 'Credit Assessment', 'Securities', 'Repayment Schedules', 'Loan Portfolio', 'Arrears & Defaulters', 'Reports'];
+eq(array_values(array_diff($menu, $expected)), [], 'Loan Officer menu contains only the seven authorized modules (' . implode(', ', $menu) . ')');
+ok(count(array_diff($expected, $menu)) === 0, 'every authorized module is available');
+foreach (['payments', 'receipts', 'till', 'cashbook', 'eod', 'users', 'settings', 'backup', 'audit', 'branches', 'importexport', 'disbursements', 'approvals', 'inbox'] as $k) {
+    ok(!can_any((string)$routePerm($k)), "unauthorized URL p=$k is refused for the Loan Officer");
+}
+foreach (['loan.approve', 'loan.disburse', 'loan.disburse.authorize', 'loan.adjust', 'loan.close', 'payment.reverse', 'payment.reverse.request', 'penalty.adjust', 'security.release', 'eod.approve', 'eod.reopen', 'user.manage', 'settings.manage', 'settings.policy', 'report.export', 'authority.branch'] as $p) {
+    ok(!can($p), "Loan Officer does not hold $p");
+}
+$h = $render('loan', ['id' => $lid]);
+ok(str_contains($h, (string)Loans::get($lid)['loan_no']) && !str_contains($h, 'Fatal'), 'the loan account page renders for a Loan Officer without payment rights');
+$h = $render('dashboard', []);
+ok(str_contains($h, 'My assigned loans') && !str_contains($h, 'Cash in tills') && !str_contains($h, 'Cashier variances') && !str_contains($h, 'Collections trend'), 'Loan Officer dashboard: assigned-loan performance, no cash / till / collection figures');
+as_('lob');
+throws(fn() => Loans::get($lid), 'access', 'a loan of another branch is refused');
+as_('lo');
+$subm = Loans::saveApplication(['client_id' => $cid, 'amount_requested' => '250000', 'purpose' => 'Acceptance test', 'application_date' => $d1]);
+ok(Loans::get($subm)['status'] === 'Draft', 'new application starts as a draft');
+Loans::submit($subm);
+eq(Loans::get($subm)['status'], 'Submitted', 'a valid application enters the review workflow');
+throws(fn() => Loans::saveApplication(['client_id' => $cid, 'amount_requested' => '999999', 'purpose' => 'tamper'], $lid), '', 'cannot change the amount of an approved loan');
+throws(fn() => Loans::approve($subm, ['approved_principal' => '250000'] + $terms), 'permission', 'Loan Officer cannot approve (approval limit UGX 0)');
+throws(fn() => Payments::reverse($pm, 'attempt'), 'permission', 'cannot reverse a posted repayment');
+throws(fn() => Payments::requestReversal($pm, 'attempt'), 'permission', 'cannot even request a reversal');
+throws(fn() => Loans::waive($lid, 'penalty', 1000, 'attempt'), '', 'cannot waive penalties');
+throws(fn() => Loans::manualClose($lid, 'attempt'), '', 'cannot close a loan directly');
+q('INSERT INTO user_report_access(user_id, report_key, allowed) VALUES (?,?,0)', [$U['lo'], 'client_register']);
+ok(in_array('client_register', array_column(rows('SELECT report_key FROM user_report_access WHERE user_id = ? AND allowed = 0', [$U['lo']]), 'report_key'), true), 'an unauthorized report is blocked for this user');
+q('DELETE FROM user_report_access WHERE user_id = ?', [$U['lo']]);
+ok(val('SELECT COUNT(*) FROM audit_logs WHERE record_id = ?', [(string)$subm]) > 0, 'sensitive actions on the application are audited');
+// revoking a permission takes effect on the next request
+q('INSERT INTO user_permissions(user_id, permission, granted) VALUES (?,?,0)', [$U['lo'], 'loan.create']);
+as_('lo');
+ok(!can('loan.create'), 'after the administrator revokes loan.create the user can no longer create loans');
+throws(fn() => Loans::saveApplication(['client_id' => $cid, 'amount_requested' => '100000', 'purpose' => 'x', 'application_date' => $d1]), 'permission', 'revoked permission is enforced by the backend');
+q('DELETE FROM user_permissions WHERE user_id = ?', [$U['lo']]);
+// deactivation: access is denied immediately
+q("UPDATE users SET status = 'inactive' WHERE id = ?", [$U['lo']]);
+$_SESSION['uid'] = $U['lo']; $_SESSION['last_activity'] = time(); load_session_user();
+ok(user() === null, 'a deactivated account loses its active session immediately');
+q("UPDATE users SET status = 'active' WHERE id = ?", [$U['lo']]);
+// portfolio scope (configurable): without portfolio.all only own clients and assigned loans are reachable
+mkuser('lo2', 'Loan Officer', [$A]);
+q('INSERT INTO user_permissions(user_id, permission, granted) VALUES (?,?,0)', [$U['lo2'], 'portfolio.all']);
+as_('lo2');
+ok(portfolio_restricted(), 'removing portfolio.all restricts a Loan Officer to assigned records');
+throws(fn() => Loans::get($lid), 'not assigned', 'a colleague\'s loan in the same branch is not reachable');
+ok(str_contains(loan_scope('l'), 'officer_id') && str_contains(client_scope('c'), 'registered_by'), 'list queries are narrowed to the user portfolio');
+as_('lo');
+ok(!portfolio_restricted(), 'the default role template keeps branch-wide visibility');
+// protected documents follow the branch rule
+$_FILES['photo'] = ['name' => 'id.png', 'type' => 'image/png', 'tmp_name' => $tmpPng2 = tempnam(sys_get_temp_dir(), 'bn'), 'error' => UPLOAD_ERR_OK, 'size' => 70];
+file_put_contents($tmpPng2, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+$docId = save_upload('photo', 'client', $cid, 'id_document');
+$_FILES = []; @unlink($tmpPng2);
+as_('lob');
+ok(!in_array((int)val('SELECT branch_id FROM attachments WHERE id = ?', [$docId]), accessible_branch_ids(), true), 'a document of another branch is not disclosed');
 echo "\n----------------------------------------\n";
 echo "Passed: $pass   Failed: $fail   (" . db_driver() . ")\n";
 db_close();

@@ -61,7 +61,7 @@ $w = [branch_scope('l.branch_id', branch_filter_ids((int)get('branch')))]; $p = 
 if ($q !== '') { $w[] = '(l.loan_no LIKE ? OR c.full_name LIKE ? OR c.client_no LIKE ? OR c.phone LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%", "%$q%"); }
 if ($st !== '') { $w[] = 'l.status = ?'; $p[] = $st; }
 if ($of) { $w[] = 'l.officer_id = ?'; $p[] = $of; }
-if (!can('loan.approve') && !can('portfolio.view') && !can('payment.view')) { $w[] = 'l.officer_id = ?'; $p[] = uid(); }
+if (!can('loan.approve') && !can('portfolio.view') && !can('payment.view') || portfolio_restricted()) { $w[] = 'l.officer_id = ?'; $p[] = uid(); }
 $list = rows("SELECT l.id, l.loan_no, c.full_name, c.client_no, l.application_date, l.amount_requested, l.approved_principal, l.status, u.full_name AS officer
               FROM loans l JOIN clients c ON c.id = l.client_id JOIN users u ON u.id = l.officer_id WHERE " . implode(' AND ', $w) . ' ORDER BY l.id DESC LIMIT 500', $p);
 page_head('Loan applications', can('loan.create') ? btn('New application', url('loans', ['a' => 'new']), 'primary') : '', 'Track each request from draft to approval, disbursement and closure.');

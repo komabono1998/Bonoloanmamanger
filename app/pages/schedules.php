@@ -2,7 +2,7 @@
 $title = 'Repayment schedules';
 page_head('Repayment schedules', '', 'Generated at disbursement from the approved terms. Open a loan to view or print its schedule.');
 $q = get('q'); $st = get('status', 'open');
-$w = ['l.disbursed_at IS NOT NULL', branch_scope('l.branch_id')]; $p = [];
+$w = ['l.disbursed_at IS NOT NULL', branch_scope('l.branch_id') . loan_scope('l')]; $p = [];
 if ($st === 'open') $w[] = "l.status IN ('Active','Overdue')"; elseif ($st === 'Closed') $w[] = "l.status = 'Closed'";
 if ($q !== '') { $w[] = '(l.loan_no LIKE ? OR c.full_name LIKE ? OR c.client_no LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%"); }
 $list = rows("SELECT l.id, l.loan_no, c.full_name, l.approved_principal, l.interest_amount, (l.approved_principal + l.interest_amount) AS total_pi, l.disbursement_date, l.due_date, l.frequency,
