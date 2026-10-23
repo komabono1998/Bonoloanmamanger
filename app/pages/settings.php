@@ -307,6 +307,16 @@ foreach ($g[2] as $key => $def) {
         echo '</div><small>' . e($help) . '</small></div>';
         continue;
     }
+    if ($type === 'color') {   // choose a colour from a palette or the colour picker; no codes to type
+        $cur = preg_match('/^#[0-9A-Fa-f]{6}$/', setting($key)) ? strtolower(setting($key)) : '#e8631a';
+        $palette = ['#e8631a' => 'Orange', '#c0283d' => 'Crimson', '#d6336c' => 'Pink', '#6d3fc0' => 'Purple', '#2563eb' => 'Blue', '#1b3a6b' => 'Navy', '#0b5c4d' => 'Teal', '#1e8e5a' => 'Green', '#d49a00' => 'Gold', '#475569' => 'Slate'];
+        echo '<div class="fld span4 colour-pick"><label>' . e($label) . '</label><div class="swatches">';
+        foreach ($palette as $hex => $nm) echo '<button type="button" class="swatch' . ($hex === $cur ? ' on' : '') . '" data-hex="' . $hex . '" style="background:' . $hex . '" title="' . e($nm) . '" aria-label="' . e($nm) . '"></button>';
+        echo '<label class="swatch-any" title="Pick any colour"><input type="color" name="' . e($key) . '" value="' . e($cur) . '" data-colour-input> <span>Choose any colour</span></label></div>'
+            . '<div class="colour-preview"><span class="cp-btn" data-cp-btn style="background:' . e($cur) . '">Sample button</span><span class="cp-bar" data-cp-bar style="background:' . e($cur) . '"></span></div><small>' . e($help) . '</small></div>';
+        echo '<script>(function(){var w=document.querySelector(".colour-pick"),i=w.querySelector("[data-colour-input]");function set(h){i.value=h;w.querySelectorAll(".swatch").forEach(function(s){s.classList.toggle("on",s.getAttribute("data-hex")===h.toLowerCase())});w.querySelector("[data-cp-btn]").style.background=h;w.querySelector("[data-cp-bar]").style.background=h}w.querySelectorAll(".swatch").forEach(function(s){s.addEventListener("click",function(){set(s.getAttribute("data-hex"))})});i.addEventListener("input",function(){set(i.value)})})();</script>';
+        continue;
+    }
     $opts = ['value' => $key === 'smtp_pass' ? '' : setting($key), 'help' => $help, 'span' => in_array($key, ['business_address', 'receipt_footer', 'backup_dir', 'working_days'], true) ? 2 : 1];
     if ($type === 'select') { $opts['type'] = 'select'; $opts['options'] = $def[2]; }
     elseif ($type === 'checkbox') $opts['type'] = 'checkbox';
