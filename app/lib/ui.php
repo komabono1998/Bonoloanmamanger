@@ -47,7 +47,9 @@ function post_action(callable $fn, ?string $failTo = null): void
 
 function page_head(string $title, string $actions = '', string $sub = ''): void
 {
-    echo '<div class="page-head"><div><h1>' . e($title) . '</h1>' . ($sub ? '<p class="sub">' . e($sub) . '</p>' : '') . '</div><div class="actions">' . $actions . '</div></div>';
+    $words = explode(' ', trim($title)); $last = count($words) > 1 ? array_pop($words) : null;
+    $h1 = $last === null ? e($title) : e(implode(' ', $words)) . ' <span class="accent">' . e($last) . '</span>';
+    echo '<div class="page-head"><div><h1>' . $h1 . '</h1>' . ($sub ? '<p class="sub">' . e($sub) . '</p>' : '') . '</div><div class="actions">' . $actions . '</div></div>';
 }
 
 function btn(string $label, string $href, string $cls = ''): string

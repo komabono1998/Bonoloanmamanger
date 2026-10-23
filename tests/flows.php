@@ -70,7 +70,7 @@ $nin = 'CM' . rand(10000000, 99999999) . 'ZZ';
 $lo->submit('a=save', ['full_name' => 'Flow Client' . $sfx, 'gender' => 'Female', 'dob' => '1990-05-05', 'nin' => $nin, 'phone' => '07' . rand(10000000, 99999999), 'address' => 'Plot 1 Gulu', 'district' => 'Gulu', 'occupation' => 'Trader', 'monthly_income' => '2,000,000', 'monthly_expenses' => '800,000']);
 step('register a client', flashOk($lo, 'registered'), info($lo));
 preg_match('~[?&]id=(\d+)~', $lo->lastUrl, $m); $clientId = (int)($m[1] ?? 0);
-step('the client profile opens', $clientId > 0 && str_contains($lo->body, 'Flow Client' . $sfx), info($lo));
+step('the client profile opens', $clientId > 0 && str_contains(strip_tags($lo->body), 'Flow Client' . $sfx), info($lo));
 foreach (['overview', 'loans', 'payments', 'guarantors', 'securities'] as $tab) { $lo->get($lo->url('clients', ['a' => 'view', 'id' => $clientId, 'tab' => $tab])); step("client profile tab: $tab", $lo->code === 200 && !str_contains($lo->body, 'Something went wrong'), info($lo)); }
 $lo->get($lo->url('guarantors', ['a' => 'new']));
 $lo->submit('a=save', ['surname' => 'Guarantor', 'first_name' => 'Flow', 'phone' => '07' . rand(10000000, 99999999), 'nin' => 'CF' . rand(10000000, 99999999) . 'GG', 'address' => 'Gulu', 'gender' => 'Male']);

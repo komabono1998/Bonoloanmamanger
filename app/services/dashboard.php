@@ -41,6 +41,19 @@ final class Dashboard
         return $o;
     }
 
+    /** Active, past-due and upcoming loans for the dashboard tables (limited to the user's scope). */
+    public static function loanLists(?array $only): array
+    {
+        $asOf = reporting_date();
+        $L = self::loans($only);
+        $base = "SELECT l.id, c.full_name || ' (' || c.client_no || ')' AS full_name, b.principal_out, b.total_out, l.due_date FROM loans l JOIN clients c ON c.id = l.client_id JOIN v_loan_balances b ON b.loan_id = l.id WHERE $L";
+        return [
+            'active' => rows("$base AND l.status = 'Active' ORDER BY l.due_date, l.id LIMIT 8"),
+            'past' => rows("$base AND l.status = 'Overdue' ORDER BY l.due_date, l.id LIMIT 8"),
+            'upcoming' => rows("$base AND l.status = 'Active' AND l.due_date BETWEEN ? AND ? ORDER BY l.due_date, l.id LIMIT 8", [$asOf, Calc::addDays($asOf, 14)]),
+        ];
+    }
+
     /** Collections per bucket for the chosen granularity, with the previous equal-length period and a target. */
     public static function collectionSeries(?array $only, string $mode): array
     {

@@ -90,8 +90,10 @@ $safe = function (string $what, callable $fn) {
 $first = explode(' ', trim(user()['full_name']))[0];
 $hour = (int)date('G');
 $refreshed = date('H:i:s');
-echo '<div class="welcome"><div><h1>' . ($hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening')) . ', ' . e($first) . '!</h1><p>Here’s what’s happening at ' . ($only ? e(branch_name($only[0])) : (count(accessible_branch_ids()) > 1 ? 'your branches' : 'your branch')) . ' today.</p></div>'
-    . '<div class="when"><span>' . icon('calendar', 18) . e(date('D, j M Y', strtotime($asOf))) . '</span><span>' . icon('building', 18) . e($scope) . '</span><span class="muted" title="Figures are read live from the database">Data as of ' . $refreshed . ' <a href="' . e($_SERVER['REQUEST_URI'] ?? '') . '">Refresh</a></span></div></div>';
+echo '<div class="welcome"><div><h1>Dashboard <span class="accent">Summary</span></h1><p>' . ($hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening')) . ', ' . e($first) . '! Here’s what’s happening at ' . ($only ? e(branch_name($only[0])) : (count(accessible_branch_ids()) > 1 ? 'your branches' : 'your branch')) . ' today.</p></div>'
+    . '<div class="when"><span>' . icon('calendar', 18) . e(date('D, j M Y', strtotime($asOf))) . '</span><span>' . icon('building', 18) . e($scope) . '</span><span class="muted" title="Figures are read live from the database">Data as of ' . $refreshed . '</span></div></div>';
+echo '<div class="dash-actions">' . (can('client.manage') ? '<a class="btn primary" href="' . e(url('clients', ['a' => 'new'])) . '">' . icon('plus', 14) . ' New Borrower</a>' : '') . (can('loan.create') ? '<a class="btn primary" href="' . e(url('loans', ['a' => 'new'])) . '">' . icon('plus', 14) . ' New Loan</a>' : '')
+    . (can('payment.record') ? '<a class="btn primary" href="' . e(url('payments')) . '">' . icon('file', 14) . ' Payment Form</a>' : '') . '<a class="btn" href="' . e($_SERVER['REQUEST_URI'] ?? '') . '">' . icon('activity', 14) . ' Refresh</a></div>';
 
 $sm = null;
 $safe('The summary cards', function () use ($only, &$sm) {
@@ -107,6 +109,18 @@ $safe('The summary cards', function () use ($only, &$sm) {
         . kpi('Overdue loan balance', ugx($sm['overdue_balance']), 'requires collection follow-up', $sm['overdue_balance'] ? 'bad' : '')
         . kpi('Pending applications', num($sm['pending_apps']), 'awaiting assessment or approval', $sm['pending_apps'] ? 'warn' : '')
         . kpi('Loans due today', num($sm['due_today']), 'accounts requiring follow-up', $sm['due_today'] ? 'warn' : '') . '</div>';
+});
+
+$safe('The loan lists', function () use ($only) {
+    if (!can_any('loan.view|portfolio.view')) return;
+    $ll = Dashboard::loanLists($only);
+    echo '<div class="dash-lists"><div class="card"><div class="card-h"><div><h2>Client Loan List</h2><small class="muted">Active loans with the amount outstanding and the next due date</small></div></div>';
+    data_table(['full_name' => 'Client name', 'principal_out' => ['Principal', 'money'], 'total_out' => ['Total owed', 'money'], 'due_date' => ['Due date', 'date']], $ll['active'], ['class' => 'nofilter dark', 'empty' => 'No active loans.', 'link' => fn($r) => url('loan', ['id' => $r['id']])]);
+    echo '</div><div class="card"><div class="card-h"><div><h2>Past Due Payments</h2><small class="muted">Loans past their due date</small></div></div>';
+    data_table(['full_name' => 'Client name', 'total_out' => ['Amount due', 'money'], 'due_date' => ['Due date', 'date']], $ll['past'], ['class' => 'nofilter dark', 'empty' => 'Nothing is past due.', 'link' => fn($r) => url('loan', ['id' => $r['id']])]);
+    echo '</div></div><div class="card"><div class="card-h"><div><h2>Upcoming Loan Payments</h2><small class="muted">Loans falling due in the next 14 days</small></div></div>';
+    data_table(['full_name' => 'Client name', 'total_out' => ['Amount due', 'money'], 'due_date' => ['Due date', 'date']], $ll['upcoming'], ['class' => 'nofilter dark', 'empty' => 'No loans fall due in the next 14 days.', 'link' => fn($r) => url('loan', ['id' => $r['id']])]);
+    echo '</div>';
 });
 
 $safe('The role summary', function () use ($only) {

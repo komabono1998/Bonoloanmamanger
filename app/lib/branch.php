@@ -143,6 +143,19 @@ function assert_portfolio_client(array $client): void
 }
 
 /** The date shown under the signed-in profile: the open business date of the user's branch (or of all branches, for the administrator). */
+/** The system date as Y-m-d when it is a single date (branch user, or all branches on the same date), else null. */
+function system_date_raw(): ?string
+{
+    try {
+        $own = branch_id() ? current_bd(branch_id()) : null;
+        if ($own) return $own;
+        $dates = [];
+        foreach (array_keys(all_branch_options(false)) as $b) { $d = current_bd((int)$b); if ($d) $dates[$d] = 1; }
+        if (count($dates) === 1) return (string)array_key_first($dates);
+    } catch (Throwable $e) {}
+    return null;
+}
+
 function system_date_label(): string
 {
     try {

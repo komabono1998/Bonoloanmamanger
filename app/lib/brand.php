@@ -77,8 +77,8 @@ function brand_theme_css(): string
     [$h, $s] = hex_to_hsl($hex);
     $s = max(.35, $s);
     $c = fn(float $hh, float $ss, float $ll) => sprintf('hsl(%d,%d%%,%d%%)', round(fmod($hh + 360, 360)), round($ss * 100), round($ll * 100));
-    $vars = ['--brand' => $hex, '--brand-2' => $c($h, $s, .42), '--brand-soft' => $c($h, min(1, $s), .95), '--side' => $c($h - 8, .55, .17), '--side-on' => $hex, '--side-ink' => $c($h - 8, .25, .85)];
-    $dark = ['--brand-soft' => $c($h, .35, .2), '--side' => $c($h - 8, .5, .1)];
+    $vars = ['--brand' => $hex, '--brand-2' => $c($h, $s, .42), '--brand-soft' => $c($h, min(1, $s), .95), '--side' => 'hsl(224,34%,9%)', '--side-on' => 'hsl(224,26%,19%)', '--th' => 'hsl(224,34%,12%)', '--side-ink' => 'hsl(222,18%,80%)'];
+    $dark = ['--brand-soft' => $c($h, .35, .2)];
     $o = ':root{';
     foreach ($vars as $k => $v) $o .= "$k:$v;";
     $o .= '}@media (prefers-color-scheme:dark){:root{';
