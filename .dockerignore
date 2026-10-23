@@ -1,0 +1,7 @@
+.git
+.env
+storage/db/*
+storage/backups/*
+storage/uploads/*
+storage/logs/*
+tests

@@ -23,12 +23,15 @@ if ($a === 'save') {
         }
         $gid = tx(function () use ($d, $id) {
             if ($id) {
+                assert_active_branch((int)val('SELECT branch_id FROM guarantors WHERE id = ?', [$id]));
                 $d['updated_at'] = now();
                 update('guarantors', $d, 'id = :id', ['id' => $id]);
                 audit('Guarantor updated', 'Guarantors', 'guarantor', $id, null, $d['surname'] . ' ' . $d['first_name']);
                 $gid = $id;
             } else {
                 $d += ['guarantor_no' => make_number('guarantor_prefix', 'guarantor', false), 'created_by' => uid(), 'created_at' => now()];
+                assert_active_branch(branch_id());
+                $d['branch_id'] = branch_id();
                 $gid = insert('guarantors', $d);
                 audit('Guarantor registered', 'Guarantors', 'guarantor', $gid, null, $d['guarantor_no']);
             }
@@ -44,6 +47,7 @@ if ($a === 'new' || $a === 'edit') {
     require_perm('guarantor.manage');
     $g = $a === 'edit' ? row('SELECT * FROM guarantors WHERE id = ?', [$id]) : [];
     must($a === 'new' || (bool)$g, 'Guarantor does not exist.');
+    if ($a === 'edit') assert_active_branch((int)$g['branch_id']);
     page_head($a === 'new' ? 'Register guarantor' : 'Edit guarantor ' . $g['guarantor_no'], btn('Cancel', url('guarantors')));
     echo '<div class="card">';
     form_open(url('guarantors', ['a' => 'save', 'id' => $id ?: '']), ['upload' => true]);
@@ -82,6 +86,7 @@ if ($a === 'new' || $a === 'edit') {
 if ($a === 'view') {
     $g = row('SELECT * FROM guarantors WHERE id = ?', [$id]);
     must((bool)$g, 'Guarantor does not exist.');
+    assert_branch((int)$g['branch_id']);
     $photo = val("SELECT id FROM attachments WHERE entity_type = 'guarantor' AND entity_id = ? AND kind='photo' ORDER BY id DESC LIMIT 1", [$id]);
     page_head($g['surname'] . ' ' . $g['first_name'], can('guarantor.manage') ? btn('Edit', url('guarantors', ['a' => 'edit', 'id' => $id])) : '', $g['guarantor_no']);
     echo '<div class="card"><div class="profile">' . photo_img($photo ? (int)$photo : null) . '<div style="flex:1">';
@@ -103,8 +108,8 @@ if ($a === 'view') {
 
 page_head('Guarantors', can('guarantor.manage') ? btn('Register guarantor', url('guarantors', ['a' => 'new']), 'primary') : '', 'Guarantors are linked to individual loans from the loan page.');
 $q = get('q');
-$p = []; $w = '1=1';
-if ($q !== '') { $w = '(g.surname LIKE ? OR g.first_name LIKE ? OR g.guarantor_no LIKE ? OR g.phone LIKE ? OR g.nin LIKE ?)'; $p = array_fill(0, 5, "%$q%"); }
+$p = []; $w = branch_scope('g.branch_id');
+if ($q !== '') { $w .= ' AND (g.surname LIKE ? OR g.first_name LIKE ? OR g.guarantor_no LIKE ? OR g.phone LIKE ? OR g.nin LIKE ?)'; $p = array_fill(0, 5, "%$q%"); }
 $list = rows("SELECT g.id, g.guarantor_no, g.surname || ' ' || g.first_name AS name, g.phone, g.district, g.nin,
               (SELECT COUNT(*) FROM loan_guarantors lg WHERE lg.guarantor_id = g.id) AS loans,
               (SELECT COUNT(*) FROM loan_guarantors lg JOIN loans l ON l.id = lg.loan_id WHERE lg.guarantor_id = g.id AND l.status IN ('Active','Overdue')) AS open_loans

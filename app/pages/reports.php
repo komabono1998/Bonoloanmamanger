@@ -20,7 +20,7 @@ if (!$key || !isset($cat[$key])) {
 }
 
 [$group, $rtitle, $rdesc, $uses] = $cat[$key];
-$f = ['from' => get('from') ?: date('Y-m-d', strtotime("-$days days", strtotime($asOf))), 'to' => get('to') ?: $asOf, 'officer' => (int)get('officer'), 'cashier' => (int)get('cashier'), 'method' => get('method'), 'client' => (int)get('client')];
+$f = ['from' => get('from') ?: date('Y-m-d', strtotime("-$days days", strtotime($asOf))), 'to' => get('to') ?: $asOf, 'officer' => (int)get('officer'), 'cashier' => (int)get('cashier'), 'method' => get('method'), 'client' => (int)get('client'), 'branch' => (int)get('branch')];
 if (!is_date($f['from'])) $f['from'] = date('Y-m-d', strtotime("-$days days", strtotime($asOf)));
 if (!is_date($f['to'])) $f['to'] = $asOf;
 must($f['from'] <= $f['to'], 'The start date must not be after the end date.');
@@ -28,7 +28,7 @@ $rep = Reports::run($key, $f);
 $periodic = (bool)array_intersect($uses, ['from', 'to']);
 $title = $rtitle;
 
-$params = array_filter(['r' => $key, 'from' => $f['from'], 'to' => $f['to'], 'officer' => $f['officer'] ?: '', 'cashier' => $f['cashier'] ?: '', 'method' => $f['method'], 'client' => $f['client'] ?: ''], fn($v) => $v !== '');
+$params = array_filter(['r' => $key, 'from' => $f['from'], 'to' => $f['to'], 'officer' => $f['officer'] ?: '', 'cashier' => $f['cashier'] ?: '', 'method' => $f['method'], 'client' => $f['client'] ?: '', 'branch' => $f['branch'] ?: ''], fn($v) => $v !== '');
 $act = btn('All reports', url('reports'));
 $act .= '<a class="btn" href="#" data-print>Print / PDF</a>';
 if (can('report.export')) $act .= btn('CSV', url('export', ['kind' => 'report', 'format' => 'csv'] + $params)) . btn('Excel', url('export', ['kind' => 'report', 'format' => 'xls'] + $params));
@@ -39,8 +39,9 @@ if (in_array('from', $uses, true)) { $filters['from'] = ['label' => 'From', 'typ
 if (in_array('officer', $uses, true)) { $o = []; foreach (rows('SELECT id, full_name FROM users ORDER BY full_name') as $u) $o[$u['id']] = $u['full_name']; $filters['officer'] = ['label' => 'Loan officer', 'type' => 'select', 'options' => $o]; }
 if (in_array('cashier', $uses, true)) { $o = []; foreach (rows('SELECT id, full_name FROM users ORDER BY full_name') as $u) $o[$u['id']] = $u['full_name']; $filters['cashier'] = ['label' => 'Cashier', 'type' => 'select', 'options' => $o]; }
 if (in_array('method', $uses, true)) $filters['method'] = ['label' => 'Payment method', 'type' => 'select', 'options' => array_combine(Payments::METHODS, Payments::METHODS)];
+if (in_array('branch', $uses, true) && count(accessible_branch_ids()) > 1) $filters['branch'] = ['label' => 'Branch', 'type' => 'select', 'all' => 'All my branches', 'options' => branch_options()];
 if (in_array('client', $uses, true)) $filters['client'] = ['label' => 'Client', 'type' => 'select', 'options' => client_select_options()];
-if ($filters) filter_bar($filters, ['from' => $f['from'], 'to' => $f['to'], 'officer' => $f['officer'] ?: '', 'cashier' => $f['cashier'] ?: '', 'method' => $f['method'], 'client' => $f['client'] ?: ''], 'reports', ['r' => $key]);
+if ($filters) filter_bar($filters, ['from' => $f['from'], 'to' => $f['to'], 'officer' => $f['officer'] ?: '', 'cashier' => $f['cashier'] ?: '', 'method' => $f['method'], 'client' => $f['client'] ?: '', 'branch' => $f['branch'] ?: ''], 'reports', ['r' => $key]);
 
 echo '<div class="card"><div class="muted" style="margin-bottom:.6rem">' . e(business_name()) . ' · <b>' . e($rtitle) . '</b> · '
     . ($periodic ? 'Period ' . e(fmt_date($f['from'])) . ' to ' . e(fmt_date($f['to'])) . ' (business dates)' : 'As at business date ' . e(fmt_date($asOf))) . ' · generated ' . e(fmt_dt(now())) . ' by ' . e(user()['full_name']) . ' · ' . count($rep['rows']) . ' row(s)</div>';

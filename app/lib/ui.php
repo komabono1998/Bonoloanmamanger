@@ -33,7 +33,7 @@ function post_action(callable $fn, ?string $failTo = null): void
         $_SESSION['old'] = $_POST;
         $m = $e->getMessage();
         if (stripos($m, 'UNIQUE') !== false) flash('error', 'This record conflicts with an existing one (a unique value is already in use).');
-        elseif (preg_match('/(cannot be (deleted|altered|modified)[^"\']*)/', $m, $x)) flash('error', ucfirst($x[1]));
+        elseif (preg_match('/([^\n:]*cannot be (deleted|altered|modified|truncated)[^\n"\']*)/', $m, $x)) flash('error', ucfirst(trim($x[1])));
         elseif (stripos($m, 'locked') !== false) flash('error', 'The database is busy. Please try again in a moment.');
         else flash('error', 'The transaction could not be completed and nothing was saved. If this continues, contact the administrator.');
         redirect($failTo ?? $self);
@@ -227,11 +227,9 @@ function save_upload(string $field, string $entityType, int $entityId, string $k
     must(isset($types[$ext]), 'Only JPG, PNG, GIF, WEBP and PDF files are allowed.');
     $mime = (new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
     must($mime === $types[$ext] || ($ext === 'jpg' && $mime === 'image/jpeg'), 'The file content does not match its extension.');
-    $dir = BASE_PATH . '/storage/uploads';
-    if (!is_dir($dir)) mkdir($dir, 0775, true);
     $stored = bin2hex(random_bytes(16)) . '.' . $ext;
-    must(move_uploaded_file($f['tmp_name'], $dir . '/' . $stored), 'The file could not be saved.');
-    $id = insert('attachments', ['entity_type' => $entityType, 'entity_id' => $entityId, 'kind' => $kind, 'original_name' => basename($f['name']),
+    Storage::put($stored, $f['tmp_name'], $types[$ext]);
+    $id = insert('attachments', ['branch_id' => branch_id() ?: null, 'entity_type' => $entityType, 'entity_id' => $entityId, 'kind' => $kind, 'original_name' => basename($f['name']),
         'stored_name' => $stored, 'mime' => $types[$ext], 'size' => $f['size'], 'uploaded_by' => uid(), 'uploaded_at' => now(), 'note' => $note ?: null]);
     audit('File uploaded', 'Documents', $entityType, $entityId, null, $f['name']);
     return $id;
@@ -248,15 +246,16 @@ function photo_img(?int $attId, string $cls = 'avatar'): string
 function client_select_options(): array
 {
     $o = [];
-    foreach (rows("SELECT id, client_no, full_name, phone FROM clients WHERE status = 'Active' ORDER BY full_name") as $c) $o[$c['id']] = $c['full_name'] . ' — ' . $c['client_no'] . ' · ' . $c['phone'];
+    foreach (rows("SELECT id, client_no, full_name, phone FROM clients WHERE status = 'Active' AND " . branch_scope('branch_id', [branch_id()]) . ' ORDER BY full_name') as $c) $o[$c['id']] = $c['full_name'] . ' — ' . $c['client_no'] . ' · ' . $c['phone'];
     return $o;
 }
 
 function user_options(string $perm): array
 {
     $o = [];
+    $br = branch_id();
     foreach (rows("SELECT id, full_name, role FROM users WHERE status = 'active' ORDER BY full_name") as $u) {
-        if (in_array($perm, user_permissions((int)$u['id']), true)) $o[$u['id']] = $u['full_name'] . ' (' . $u['role'] . ')';
+        if (in_array($perm, user_permissions((int)$u['id']), true) && in_array($br, accessible_branch_ids((int)$u['id']), true)) $o[$u['id']] = $u['full_name'] . ' (' . $u['role'] . ')';
     }
     return $o;
 }

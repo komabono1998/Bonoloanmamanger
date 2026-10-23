@@ -1,17 +1,33 @@
 <?php
-/** Front controller: routing, authentication gate, permission checks and page layout. */
+/** Front controller: HTTPS + headers, routing, authentication gate, permission checks and page layout. */
 require __DIR__ . '/app/bootstrap.php';
 require BASE_PATH . '/app/lib/ui.php';
 
-// page => [file, permission (null = any signed-in user), menu group, menu label]
+// ---------------------------------------------------------------- transport security and headers
+if (is_production() && !request_is_https()) {
+    header('Location: https://' . ($_SERVER['HTTP_HOST'] ?? '') . ($_SERVER['REQUEST_URI'] ?? '/'), true, 301);
+    exit;
+}
+$GLOBALS['csp_nonce'] = rtrim(base64_encode(random_bytes(16)), '=');
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-" . $GLOBALS['csp_nonce'] . "'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+    . "frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'");
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: SAMEORIGIN');
+header('Referrer-Policy: same-origin');
+header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+if (request_is_https()) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+
+// page => [file, permission ('a|b' = any of; null = any signed-in user), menu group, menu label]
 $ROUTES = [
     'dashboard'     => ['dashboard', 'dashboard.view', 'Overview', 'Dashboard'],
+    'inbox'         => ['inbox', 'loan.approve|payment.reverse|expense.approve|till.reconcile|eod.approve|backup.authorize', 'Overview', 'My Approvals'],
+    'compliance'    => ['compliance', 'compliance.view', 'Overview', 'Branch Compliance'],
     'clients'       => ['clients', 'client.view', 'Lending', 'Clients'],
     'guarantors'    => ['guarantors', 'client.view', 'Lending', 'Guarantors'],
     'loans'         => ['loans', 'loan.view', 'Lending', 'Loan Applications'],
     'assessment'    => ['assessment', 'loan.assess', 'Lending', 'Credit Assessment'],
     'approvals'     => ['approvals', 'loan.approve', 'Lending', 'Loan Approval'],
-    'disbursements' => ['disbursements', 'loan.disburse', 'Lending', 'Loan Disbursement'],
+    'disbursements' => ['disbursements', 'loan.disburse|loan.disburse.authorize', 'Lending', 'Loan Disbursement'],
     'loan'          => ['loan', 'loan.view', null, null],
     'securities'    => ['securities', 'loan.view', 'Lending', 'Securities'],
     'schedules'     => ['schedules', 'loan.view', 'Collections', 'Repayment Schedules'],
@@ -23,12 +39,16 @@ $ROUTES = [
     'cashbook'      => ['cashbook', 'expense.view', 'Cash', 'Expenses & Cashbook'],
     'eod'           => ['eod', 'eod.view', 'Cash', 'End of Day'],
     'reports'       => ['reports', 'report.view', 'Reports', 'Reports'],
-    'importexport'  => ['importexport', 'import.run', 'Reports', 'Import / Export'],
-    'audit'         => ['audit', 'audit.view', 'Administration', 'Audit Trail'],
-    'users'         => ['users', 'user.manage', 'Administration', 'Users & Permissions'],
-    'settings'      => ['settings', 'settings.manage', 'Administration', 'Settings'],
-    'backup'        => ['backup', 'backup.manage', 'Administration', 'Backup & Restore'],
+    'importexport'  => ['importexport', 'import.run|export.run', 'Reports', 'Import / Export'],
+    'audit'         => ['audit', 'audit.own|audit.financial|audit.branch|audit.all|audit.technical', 'Administration', 'Audit Trail'],
+    'users'         => ['users', 'user.manage', 'Administration', 'Users & Access'],
+    'branches'      => ['branches', 'branch.manage', 'Administration', 'Branches'],
+    'settings'      => ['settings', 'settings.manage|settings.policy|limits.manage|branch.settings', 'Administration', 'Settings & Limits'],
+    'backup'        => ['backup', 'backup.manage|backup.request|backup.authorize', 'Administration', 'Backup & Recovery'],
+    'security'      => ['security', 'security.monitor', 'Administration', 'Security Monitoring'],
+    'system'        => ['system', 'system.health|compliance.view', 'Administration', 'System Health'],
     'account'       => ['account', null, null, null],
+    'mfa'           => ['mfa', null, null, null],
     'print'         => ['print', null, null, null],
     'file'          => ['file', null, null, null],
     'export'        => ['export', null, null, null],
@@ -39,6 +59,8 @@ $layout = 'app';
 $title = '';
 $content = '';
 
+if ($page === 'health') { require BASE_PATH . '/app/pages/health.php'; exit; }
+
 try {
     if (!is_installed()) {
         $page = 'setup';
@@ -47,9 +69,7 @@ try {
         migrate();                         // applies any new migration files on upgrade
         load_session_user();
         if (!user()) {
-            if (!in_array($page, ['login'], true)) {
-                $_SESSION['after_login'] = $_SERVER['REQUEST_URI'] ?? '';
-            }
+            if ($page !== 'login') $_SESSION['after_login'] = $_SERVER['REQUEST_URI'] ?? '';
             $page = 'login';
             $layout = 'bare';
         } elseif ($page === 'logout') {
@@ -57,6 +77,13 @@ try {
             flash('ok', 'You have been signed out.');
             redirect(url('login'));
         } elseif ($page === 'login' || $page === 'setup') {
+            redirect(url('dashboard'));
+        } elseif ($page === 'switch_branch') {
+            post_action(function () {
+                set_branch_context((int)post('branch'));
+                $back = post('back');
+                return ['Now working in ' . branch_name(branch_id()) . '.', (str_starts_with($back, '/') && !str_starts_with($back, '//')) ? $back : url('dashboard')];
+            });
             redirect(url('dashboard'));
         }
     }
@@ -67,6 +94,10 @@ try {
         if ($perm && !can_any($perm)) { http_response_code(403); throw new AppError('You do not have permission to perform this action.'); }
         $pageFile = BASE_PATH . '/app/pages/' . $file . '.php';
         if (user() && !empty(user()['must_change_password']) && $page !== 'account') redirect(url('account'));
+        if (user() && !empty($_SESSION['mfa_enroll']) && !in_array($page, ['mfa', 'logout'], true)) {
+            flash('warn', 'Multi-factor authentication is required for your role. Please set it up to continue.');
+            redirect(url('mfa'));
+        }
     } else {
         $pageFile = BASE_PATH . '/app/pages/' . $page . '.php';
     }

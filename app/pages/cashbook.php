@@ -43,7 +43,7 @@ if ($tab === 'new') {
 
 if ($tab === 'expenses') {
     $from = get('from') ?: date('Y-m-d', strtotime('-30 days', strtotime(reporting_date()))); $to = get('to') ?: reporting_date(); $st = get('status'); $cat = (int)get('cat');
-    $w = ['e.business_date BETWEEN ? AND ?']; $p = [$from, $to];
+    $w = ['e.business_date BETWEEN ? AND ?', branch_scope('e.branch_id')]; $p = [$from, $to];
     if ($st !== '') { $w[] = 'e.status = ?'; $p[] = $st; }
     if ($cat) { $w[] = 'e.category_id = ?'; $p[] = $cat; }
     $cats = []; foreach (rows('SELECT id, name FROM expense_categories ORDER BY name') as $c) $cats[$c['id']] = $c['name'];
@@ -69,7 +69,7 @@ if ($tab === 'expenses') {
 
 if ($tab === 'cashbook') {
     $from = get('from') ?: date('Y-m-d', strtotime('-7 days', strtotime(reporting_date()))); $to = get('to') ?: reporting_date(); $meth = get('method'); $cat = get('category');
-    $w = ['m.business_date BETWEEN ? AND ?']; $p = [$from, $to];
+    $w = ['m.business_date BETWEEN ? AND ?', branch_scope('m.branch_id')]; $p = [$from, $to];
     if ($meth !== '') { $w[] = 'm.method = ?'; $p[] = $meth; }
     if ($cat !== '') { $w[] = 'm.category = ?'; $p[] = $cat; }
     $mv = rows("SELECT m.*, u.full_name AS by_name, s.session_no, a.name AS account FROM cash_movements m LEFT JOIN users u ON u.id = m.user_id LEFT JOIN cashier_sessions s ON s.id = m.session_id
@@ -84,8 +84,9 @@ if ($tab === 'cashbook') {
     echo '<div class="grid g2"><div class="card"><h2>Summary by type</h2>';
     data_table(['label' => 'Type', 'method' => 'Method', 'money_in' => ['In', 'money'], 'money_out' => ['Out', 'money']], $sum, ['class' => 'nofilter', 'totals' => ['money_in', 'money_out'], 'empty' => 'No movements.']);
     echo '</div><div class="card"><h2>Account balances (all time)</h2>';
-    $bal = rows("SELECT a.name, a.type, COALESCE(SUM(m.direction*m.amount),0) AS balance FROM cash_accounts a LEFT JOIN cash_movements m ON m.account_id = a.id GROUP BY a.id ORDER BY a.id");
-    data_table(['name' => 'Account', 'type' => 'Type', 'balance' => ['Net movements', 'money']], $bal, ['class' => 'nofilter']);
+    $bal = rows("SELECT b.name AS branch, a.name, a.type, COALESCE(SUM(m.direction*m.amount),0) AS balance FROM cash_accounts a JOIN branches b ON b.id = a.branch_id LEFT JOIN cash_movements m ON m.account_id = a.id
+                 WHERE " . branch_scope('a.branch_id') . " GROUP BY a.id, b.name, a.name, a.type ORDER BY a.id");
+    data_table(['branch' => 'Branch', 'name' => 'Account', 'type' => 'Type', 'balance' => ['Net movements', 'money']], $bal, ['class' => 'nofilter']);
     echo '<p class="muted" style="margin-top:.5rem">Till cash is tracked per cashier session (Cashier & Till). Principal, interest, fees and penalties stay separate in the loan ledger and reports.</p></div></div>';
     echo '<div class="card"><h2>Cashbook entries</h2>';
     data_table(['business_date' => ['Business date', 'date'], 'created_at' => ['Time', 'dt'], 'category' => 'Type', 'description' => 'Description', 'method' => 'Method', 'session_no' => 'Till', 'account' => 'Account', 'reference' => 'Reference',

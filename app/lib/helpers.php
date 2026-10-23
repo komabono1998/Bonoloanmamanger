@@ -122,7 +122,15 @@ function get(string $k, $default = '')
     return is_string($v) ? trim($v) : $v;
 }
 
-function client_ip(): string { return $_SERVER['REMOTE_ADDR'] ?? 'cli'; }
+/** Client address; honours X-Forwarded-For only when TRUST_PROXY=1 (a trusted load balancer / reverse proxy sets it). */
+function client_ip(): string
+{
+    if (env('TRUST_PROXY') === '1' && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $first = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+        if (filter_var($first, FILTER_VALIDATE_IP)) return $first;
+    }
+    return $_SERVER['REMOTE_ADDR'] ?? 'cli';
+}
 
 // ------------------------------------------------------------------ CSRF + flash
 function csrf_token(): string

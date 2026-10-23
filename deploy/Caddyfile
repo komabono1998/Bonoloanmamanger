@@ -1,0 +1,11 @@
+# Automatic HTTPS (Let's Encrypt). Set DOMAIN in .env, e.g. loans.example.com, and point its DNS A record at this server.
+{$DOMAIN} {
+    encode gzip
+    reverse_proxy app:80
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+    log {
+        output stdout
+    }
+}

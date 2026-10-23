@@ -8,14 +8,15 @@ $need = match ($att['entity_type']) {
     'business' => 'dashboard.view',
     default => 'loan.view',
 };
+if ($att['branch_id'] && !in_array((int)$att['branch_id'], accessible_branch_ids(), true)) { http_response_code(403); throw new AppError('You do not have access to records of that branch.'); }
 if (!can($need)) { http_response_code(403); throw new AppError('You do not have permission to perform this action.'); }
-$path = BASE_PATH . '/storage/uploads/' . basename($att['stored_name']);
-if (!is_file($path)) { http_response_code(404); throw new AppError('File not found on disk.'); }
+$key = basename($att['stored_name']);
+if (!Storage::exists($key)) { http_response_code(404); throw new AppError('File not found in storage.'); }
 while (ob_get_level() > 0) ob_end_clean();
 header('Content-Type: ' . $att['mime']);
-header('Content-Length: ' . filesize($path));
+if (($sz = Storage::size($key)) !== null) header('Content-Length: ' . $sz);
 header('X-Content-Type-Options: nosniff');
 header('Content-Disposition: inline; filename="' . preg_replace('/[^A-Za-z0-9._-]/', '_', $att['original_name']) . '"');
 header('Cache-Control: private, max-age=3600');
-readfile($path);
+Storage::stream($key);
 exit;

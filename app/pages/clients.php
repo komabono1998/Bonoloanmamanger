@@ -48,6 +48,7 @@ if ($a === 'save') {
         if ($id) {
             $old = row('SELECT * FROM clients WHERE id = ?', [$id]);
             must((bool)$old, 'Client ID does not exist.');
+            assert_active_branch((int)$old['branch_id']);
             tx(function () use ($id, $d, $old) {
                 $d['updated_at'] = now(); $d['updated_by'] = uid();
                 update('clients', $d, 'id = :id', ['id' => $id]);
@@ -58,8 +59,9 @@ if ($a === 'save') {
             });
             return ['Client updated.', url('clients', ['a' => 'view', 'id' => $id])];
         }
+        assert_active_branch(branch_id());
         $nid = tx(function () use ($d) {
-            $d += ['client_no' => make_number('client_prefix', 'client', false), 'status' => 'Active', 'registered_by' => uid(), 'registered_at' => now()];
+            $d += ['client_no' => make_number('client_prefix', 'client', false), 'branch_id' => branch_id(), 'status' => 'Active', 'registered_by' => uid(), 'registered_at' => now()];
             $nid = insert('clients', $d);
             audit('Client registered', 'Clients', 'client', $nid, null, $d['client_no'] . ' ' . $d['full_name']);
             save_upload('photo', 'client', $nid, 'photo');
@@ -77,6 +79,7 @@ if ($a === 'status') {
         must($reason !== '', 'A reason is required.');
         $c = row('SELECT * FROM clients WHERE id = ?', [$id]);
         must((bool)$c, 'Client ID does not exist.');
+        assert_active_branch((int)$c['branch_id']);
         if ($st !== 'Active') must(!val("SELECT COUNT(*) FROM loans WHERE client_id = ? AND status IN ('Active','Overdue','Approved','Submitted','Under Review')", [$id]), 'This client has open loans and cannot be archived or blacklisted.');
         update('clients', ['status' => $st, 'updated_at' => now(), 'updated_by' => uid()], 'id = :id', ['id' => $id]);
         audit('Client status changed', 'Clients', 'client', $id, $c['status'], $st, $reason);
@@ -86,6 +89,7 @@ if ($a === 'status') {
 if ($a === 'photo') {
     post_action(function () use ($id) {
         require_perm('client.manage');
+        must(in_array((int)val('SELECT branch_id FROM clients WHERE id = ?', [$id]), accessible_branch_ids(), true), 'You do not have access to records of that branch.');
         $att = save_upload('photo', 'client', $id, 'photo');
         must((bool)$att, 'Choose a photograph to upload.');
         return 'Photograph uploaded.';
@@ -97,6 +101,7 @@ if ($a === 'new' || $a === 'edit') {
     require_perm('client.manage');
     $c = $a === 'edit' ? row('SELECT * FROM clients WHERE id = ?', [$id]) : [];
     must($a === 'new' || (bool)$c, 'Client ID does not exist.');
+    if ($a === 'edit') assert_active_branch((int)$c['branch_id']);
     page_head($a === 'new' ? 'Register client' : 'Edit client ' . $c['client_no'], btn('Cancel', $id ? url('clients', ['a' => 'view', 'id' => $id]) : url('clients')));
     echo '<div class="card">';
     form_open(url('clients', ['a' => 'save', 'id' => $id ?: '']), ['upload' => true]);
@@ -138,6 +143,7 @@ if ($a === 'new' || $a === 'edit') {
 if ($a === 'view') {
     $c = row('SELECT c.*, u.full_name AS reg_by FROM clients c LEFT JOIN users u ON u.id = c.registered_by WHERE c.id = ?', [$id]);
     must((bool)$c, 'Client ID does not exist.');
+    assert_branch((int)$c['branch_id']);
     $photo = val("SELECT id FROM attachments WHERE entity_type = 'client' AND entity_id = ? AND kind = 'photo' ORDER BY id DESC LIMIT 1", [$id]);
     $tab = get('tab', 'overview');
     $act = '';
@@ -217,13 +223,16 @@ if ($a === 'view') {
 
 // ----------------------------------------------------------------- list
 $q = get('q'); $st = get('status', 'Active');
-$where = ['1=1']; $p = [];
+$where = [branch_scope('c.branch_id', branch_filter_ids((int)get('branch')))]; $p = [];
 if ($q !== '') { $where[] = '(c.full_name LIKE ? OR c.client_no LIKE ? OR c.phone LIKE ? OR c.phone2 LIKE ? OR c.nin LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%", "%$q%", "%$q%"); }
 if ($st !== '' && $st !== 'all') { $where[] = 'c.status = ?'; $p[] = $st; }
 $list = rows("SELECT c.*, (SELECT COUNT(*) FROM loans l WHERE l.client_id = c.id AND l.status IN ('Active','Overdue')) AS open_loans,
               COALESCE((SELECT SUM(b.total_out) FROM v_loan_balances b JOIN loans l ON l.id=b.loan_id WHERE l.client_id = c.id AND l.status IN ('Active','Overdue')),0) AS owed
               FROM clients c WHERE " . implode(' AND ', $where) . ' ORDER BY c.id DESC LIMIT 500', $p);
 page_head('Clients', can('client.manage') ? btn('Register client', url('clients', ['a' => 'new']), 'primary') : '', 'One authoritative record per borrower.');
-filter_bar(['q' => ['label' => 'Search', 'placeholder' => 'Name, Client ID, phone or NIN'], 'status' => ['label' => 'Status', 'type' => 'select', 'all' => 'All', 'options' => ['Active' => 'Active', 'Archived' => 'Archived', 'Blacklisted' => 'Blacklisted']]], ['q' => $q, 'status' => $st === 'all' ? '' : $st], 'clients');
-data_table(['client_no' => 'Client ID', 'full_name' => 'Name', 'phone' => 'Phone', 'district' => 'District', 'open_loans' => ['Open loans', 'num'], 'owed' => ['Owed', 'money'], 'status' => ['Status', 'badge'], 'registered_at' => ['Registered', 'date']], $list,
+filter_bar((count(accessible_branch_ids()) > 1 ? ['branch' => ['label' => 'Branch', 'type' => 'select', 'all' => 'All my branches', 'options' => branch_options()]] : []) + ['q' => ['label' => 'Search', 'placeholder' => 'Name, Client ID, phone or NIN'], 'status' => ['label' => 'Status', 'type' => 'select', 'all' => 'All', 'options' => ['Active' => 'Active', 'Archived' => 'Archived', 'Blacklisted' => 'Blacklisted']]], ['q' => $q, 'status' => $st === 'all' ? '' : $st, 'branch' => get('branch')], 'clients');
+$brn = array_column(rows('SELECT id, name FROM branches'), 'name', 'id');
+foreach ($list as &$r) $r['branch'] = $brn[$r['branch_id']] ?? '';
+unset($r);
+data_table((count(accessible_branch_ids()) > 1 ? ['branch' => 'Branch'] : []) + ['client_no' => 'Client ID', 'full_name' => 'Name', 'phone' => 'Phone', 'district' => 'District', 'open_loans' => ['Open loans', 'num'], 'owed' => ['Owed', 'money'], 'status' => ['Status', 'badge'], 'registered_at' => ['Registered', 'date']], $list,
     ['link' => fn($r) => url('clients', ['a' => 'view', 'id' => $r['id']]), 'empty' => 'No clients match.']);

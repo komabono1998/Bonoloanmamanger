@@ -13,6 +13,7 @@ if ($a === 'accept') post_action(function () use ($id) {
     return post('decision') === 'accept' ? 'Client acceptance recorded. The loan can now be disbursed.' : 'Client declined the offer.';
 });
 if ($a === 'extend') post_action(function () use ($id) { Loans::extendOffer($id, clean(post('reason'))); return 'Offer validity extended.'; });
+if ($a === 'escalate') post_action(function () use ($id) { Loans::escalate($id, clean(post('reason'))); return 'Loan escalated to the COO.'; });
 if ($a === 'close') post_action(function () use ($id) { Loans::manualClose($id, clean(post('note'))); return 'Loan closed.'; });
 if ($a === 'waive') post_action(function () use ($id) {
     Loans::waive($id, post('component'), parse_money(post('amount'), 'Waiver amount'), clean(post('reason')));
@@ -23,7 +24,7 @@ if ($a === 'link_guarantor') post_action(function () use ($id, $back) {
     $l = Loans::get($id);
     must(in_array($l['status'], ['Draft', 'Submitted', 'Under Review', 'Returned for Correction', 'Approved'], true), 'Guarantors can no longer be added to this loan.');
     $gid = (int)post('guarantor_id');
-    must((bool)val('SELECT COUNT(*) FROM guarantors WHERE id = ?', [$gid]), 'Select a guarantor.');
+    must((bool)val('SELECT COUNT(*) FROM guarantors WHERE id = ? AND branch_id = ?', [$gid, $l['branch_id']]), 'Select a guarantor registered in this loan branch.');
     must(!val('SELECT COUNT(*) FROM loan_guarantors WHERE loan_id = ? AND guarantor_id = ?', [$id, $gid]), 'This guarantor is already linked to the loan.');
     $amt = post('guarantee_amount') !== '' ? parse_money(post('guarantee_amount'), 'Guarantee amount') : null;
     tx(function () use ($id, $gid, $l, $amt) {
@@ -86,7 +87,8 @@ if ($st === 'Approved' && $loan['acceptance_status'] === 'Accepted' && can('loan
 if ($loan['approved_principal']) $act .= btn('Offer letter', url('print', ['doc' => 'offer', 'id' => $id]));
 if ($loan['disbursed_at']) $act .= btn('Statement', url('print', ['doc' => 'statement', 'id' => $id]));
 if (in_array($st, Loans::OPEN_STATUSES, true) && can('payment.record')) $act .= btn('Receive payment', url('payments', ['loan_id' => $id]), 'primary');
-page_head($loan['loan_no'], $act, $loan['client_name'] . ' · ' . $loan['client_no']);
+page_head($loan['loan_no'], $act, $loan['client_name'] . ' · ' . $loan['client_no'] . ' · ' . branch_name((int)$loan['branch_id']));
+if ($loan['escalated_at'] && in_array($st, ['Submitted', 'Under Review'], true)) echo '<div class="notice info"><b>Escalated to the COO</b> on ' . e(fmt_dt($loan['escalated_at'])) . ': ' . e($loan['escalation_note']) . '</div>';
 
 echo '<div class="kpis">'
     . kpi('Status', badge($st))
@@ -247,7 +249,7 @@ if ($tab === 'guarantors') {
     echo '<p class="muted" style="margin-top:.6rem">A guarantor\'s liability follows the signed agreement and applicable law; record the guarantee limit and terms below.</p></div>';
     if (can('guarantor.manage') && in_array($st, ['Draft', 'Submitted', 'Under Review', 'Returned for Correction', 'Approved'], true)) {
         $opts = [];
-        foreach (rows('SELECT id, guarantor_no, surname, first_name, phone FROM guarantors ORDER BY surname') as $g) $opts[$g['id']] = $g['surname'] . ' ' . $g['first_name'] . ' — ' . $g['guarantor_no'] . ' · ' . $g['phone'];
+        foreach (rows('SELECT id, guarantor_no, surname, first_name, phone FROM guarantors WHERE branch_id = ? ORDER BY surname', [$loan['branch_id']]) as $g) $opts[$g['id']] = $g['surname'] . ' ' . $g['first_name'] . ' — ' . $g['guarantor_no'] . ' · ' . $g['phone'];
         echo '<div class="card"><div class="card-h"><h2>Link a guarantor</h2>' . btn('Register a new guarantor', url('guarantors', ['a' => 'new', 'return_loan' => $id]), 'sm') . '</div>';
         form_open(url('loan', ['id' => $id, 'a' => 'link_guarantor']), ['upload' => true]);
         field('guarantor_id', 'Guarantor', ['type' => 'select', 'options' => $opts, 'blank' => 'Select guarantor…', 'span' => 2, 'required' => true]);

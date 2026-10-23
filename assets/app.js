@@ -56,6 +56,27 @@
     if (p) { e.preventDefault(); window.print(); }
   });
 
+  // ---- connectivity: never let the user believe an unconfirmed transaction was saved
+  var banner = null;
+  var showOffline = function (on) {
+    if (on && !banner) {
+      banner = document.createElement('div');
+      banner.className = 'flash error';
+      banner.style.cssText = 'position:sticky;top:0;z-index:50;margin:0';
+      banner.textContent = 'You are offline. Nothing can be saved until the connection returns — do not assume a transaction was recorded unless you saw its confirmation.';
+      document.body.insertBefore(banner, document.body.firstChild);
+    } else if (!on && banner) { banner.remove(); banner = null; }
+  };
+  window.addEventListener('offline', function () { showOffline(true); });
+  window.addEventListener('online', function () { showOffline(false); });
+  if (navigator.onLine === false) showOffline(true);
+  document.addEventListener('submit', function (e) {
+    if (navigator.onLine === false) {
+      e.preventDefault();
+      window.alert('You are offline, so this was NOT saved. Reconnect and submit again.');
+    }
+  }, true);
+
   // ---- prevent double submission
   document.addEventListener('submit', function (e) {
     if (e.defaultPrevented) return;
@@ -111,12 +132,37 @@
     });
   }
 
+  // ---- CSP-safe behaviours driven by data attributes
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-nav-toggle]')) { var sd = document.getElementById('side'); if (sd) sd.classList.toggle('open'); }
+    if (e.target.closest('[data-back]')) { e.preventDefault(); if (history.length > 1) history.back(); else window.close(); }
+  });
+  document.addEventListener('change', function (e) {
+    var au = e.target.closest('[data-autosubmit]');
+    if (au && au.form) au.form.submit();
+    var g = e.target.closest('[data-goto]');
+    if (g && g.value) window.location.href = g.getAttribute('data-goto').replace('{v}', encodeURIComponent(g.value));
+    var c = e.target.closest('[data-check-values]');
+    if (c) { var p = c.getAttribute('data-check-values').split('|'); c.value = c.checked ? p[0] : p[1]; }
+  });
+  document.querySelectorAll('form[data-sum-target]').forEach(function (f) {
+    f.addEventListener('input', function (e) {
+      if (!e.target.dataset.dn) return;
+      var t = 0;
+      f.querySelectorAll('[data-dn]').forEach(function (i) { t += (parseInt(i.value, 10) || 0) * parseInt(i.dataset.dn, 10); });
+      var c = document.getElementById(f.getAttribute('data-sum-target'));
+      if (c) c.value = t ? t.toLocaleString('en-US') : '';
+    });
+  });
+  if (document.querySelector('[data-autoprint]')) window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 300); });
+
   // ---- idle warning (server enforces the real timeout)
-  if (window.IDLE_MS) {
+  var idleMs = parseInt(document.body.getAttribute('data-idle-ms') || '0', 10);
+  if (idleMs) {
     var idle;
     var reset = function () {
       clearTimeout(idle);
-      idle = setTimeout(function () { window.location.href = 'index.php?p=dashboard'; }, window.IDLE_MS + 2000);
+      idle = setTimeout(function () { window.location.href = 'index.php?p=dashboard'; }, idleMs + 2000);
     };
     ['click', 'keydown', 'mousemove', 'scroll'].forEach(function (ev) { document.addEventListener(ev, reset, { passive: true }); });
     reset();

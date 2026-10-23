@@ -41,7 +41,7 @@ $bd = current_bd();
 if ($tab === 'my' && can('till.use')) {
     if (!$bd) { echo '<div class="notice bad">No business day is open. A manager must start the day before tills can be opened.</div>'; return; }
     $s = Cash::mySession();
-    $latest = row("SELECT * FROM cashier_sessions WHERE cashier_id = ? AND business_date = ? ORDER BY id DESC LIMIT 1", [uid(), $bd]);
+    $latest = row("SELECT * FROM cashier_sessions WHERE branch_id = ? AND cashier_id = ? AND business_date = ? ORDER BY id DESC LIMIT 1", [branch_id(), uid(), $bd]);
     if (!$s && (!$latest || $latest['status'] === 'Reconciled')) {
         $last = Cash::lastClosingCash(uid());
         echo '<div class="card"><h2>Open your till</h2><p class="muted">Count the opening float in front of a witness and confirm it. ' . ($last !== null ? 'Your last reconciled closing cash was <b>' . ugx($last) . '</b>.' : '') . '</p>';
@@ -65,8 +65,8 @@ if ($tab === 'my' && can('till.use')) {
         echo '<div class="grid g2">';
         if ($sess['status'] === 'Open') {
             echo '<div class="card"><h2>Transfer cash</h2>';
-            $accs = []; foreach (rows('SELECT id, name FROM cash_accounts WHERE active = 1') as $x) $accs[$x['id']] = $x['name'];
-            $others = []; foreach (rows("SELECT s.id, s.session_no, u.full_name FROM cashier_sessions s JOIN users u ON u.id = s.cashier_id WHERE s.status = 'Open' AND s.business_date = ? AND s.id <> ?", [$bd, $id]) as $x) $others[$x['id']] = $x['session_no'] . ' — ' . $x['full_name'];
+            $accs = []; foreach (rows('SELECT id, name FROM cash_accounts WHERE active = 1 AND branch_id = ?', [branch_id()]) as $x) $accs[$x['id']] = $x['name'];
+            $others = []; foreach (rows("SELECT s.id, s.session_no, u.full_name FROM cashier_sessions s JOIN users u ON u.id = s.cashier_id WHERE s.status = 'Open' AND s.branch_id = ? AND s.business_date = ? AND s.id <> ?", [branch_id(), $bd, $id]) as $x) $others[$x['id']] = $x['session_no'] . ' — ' . $x['full_name'];
             form_open(url('till', ['a' => 'transfer']), ['attrs' => 'style="grid-template-columns:1fr 1fr"']);
             field('type', 'Direction', ['type' => 'select', 'options' => ['to_account' => 'Till → safe / bank (cash out)', 'from_account' => 'Safe / bank → till (cash in)', 'to_session' => 'Till → another cashier\'s till'], 'span' => 2]);
             field('account_id', 'Account', ['type' => 'select', 'options' => $accs, 'blank' => '—']);
@@ -77,7 +77,7 @@ if ($tab === 'my' && can('till.use')) {
         }
         echo '<div class="card"><h2>' . ($sess['status'] === 'Investigation' ? 'Recount and resubmit' : 'Count & close till') . '</h2>';
         if ($sess['status'] === 'Investigation') echo '<div class="notice bad">Sent for investigation: ' . e($sess['reconcile_notes']) . '</div>';
-        form_open(url('till', ['a' => 'count']), ['attrs' => 'id="count-form" style="grid-template-columns:1fr 1fr 1fr"']);
+        form_open(url('till', ['a' => 'count']), ['attrs' => 'id="count-form" data-sum-target="f_counted" style="grid-template-columns:1fr 1fr 1fr"']);
         field('session_id', '', ['type' => 'hidden', 'value' => $id]);
         foreach ([50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50] as $dn) {
             echo '<div class="fld"><label>' . number_format($dn) . ' ×</label><input type="number" min="0" name="dn_' . $dn . '" data-dn="' . $dn . '" value="" placeholder="0"></div>';
@@ -86,7 +86,6 @@ if ($tab === 'my' && can('till.use')) {
         field('reason', 'Variance explanation (required if counted ≠ expected)', ['type' => 'textarea', 'span' => 3]);
         echo '<div class="form-actions">'; submit_btn('Submit count', 'primary', 'data-confirm="Submit the count and close this till? No more transactions can be posted to it."'); echo '</div>'; form_close();
         echo '<p class="muted">Count what is physically in the drawer. A difference from the expected cash must be explained and is reviewed by a manager.</p>';
-        echo '<script>(function(){var f=document.getElementById("count-form");if(!f)return;f.addEventListener("input",function(e){if(!e.target.dataset.dn)return;var t=0;f.querySelectorAll("[data-dn]").forEach(function(i){t+=(parseInt(i.value)||0)*parseInt(i.dataset.dn)});var c=document.getElementById("f_counted");c.value=t?t.toLocaleString("en-US"):""})})();</script>';
         echo '</div></div>';
     }
     echo '<div class="card"><h2>Till transactions</h2>';
@@ -99,7 +98,7 @@ if ($tab === 'my' && can('till.use')) {
 }
 
 // -------------------------------------------------------------- sessions overview (reconciliation)
-$date = get('date') ?: ($bd ?: val('SELECT MAX(business_date) FROM cashier_sessions') ?: today());
+$date = get('date') ?: ($bd ?: val('SELECT MAX(business_date) FROM cashier_sessions WHERE branch_id = ?', [branch_id()]) ?: today());
 $sid = (int)get('session');
 if ($sid) {
     $s = Cash::session($sid);
@@ -137,7 +136,7 @@ if ($sid) {
     return;
 }
 filter_bar(['date' => ['label' => 'Business date', 'type' => 'date']], ['date' => $date], 'till', ['tab' => 'sessions']);
-$ss = rows('SELECT s.*, u.full_name AS cashier FROM cashier_sessions s JOIN users u ON u.id = s.cashier_id WHERE s.business_date = ? ORDER BY s.id', [$date]);
+$ss = rows('SELECT s.*, u.full_name AS cashier FROM cashier_sessions s JOIN users u ON u.id = s.cashier_id WHERE s.branch_id = ? AND s.business_date = ? ORDER BY s.id', [branch_id(), $date]);
 foreach ($ss as &$r) if ($r['status'] === 'Open') $r['expected_cash'] = Cash::expected((int)$r['id']);
 unset($r);
 data_table(['session_no' => 'Session', 'cashier' => 'Cashier', 'opened_at' => ['Opened', 'dt'], 'opening_float' => ['Float', 'money'], 'expected_cash' => ['Expected', 'money'], 'counted_cash' => ['Counted', 'money'],

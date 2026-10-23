@@ -1,6 +1,7 @@
 <?php
 $title = 'End of Day';
 $a = get('a');
+if ((int)get('branch') && in_array((int)get('branch'), accessible_branch_ids(), true) && (int)get('branch') !== branch_id()) set_branch_context((int)get('branch'));
 $bd = current_bd();
 
 if ($a === 'open') post_action(function () {
@@ -32,24 +33,24 @@ if ($a === 'reopen_decide') post_action(function () {
     return post('decision') === 'approve' ? 'Business date reopened by authorization. It must be reconciled and approved again.' : 'Reopen request rejected.';
 });
 
-page_head('End of Day', '', 'Reconcile every till, review the day, approve and lock the business date.');
+page_head('End of Day — ' . branch_name(branch_id()), '', 'Each branch runs its own business date. Finance prepares; an independent Branch Manager (or the COO, when a cash variance exceeds the limit) approves and locks it.');
 $viewDate = get('date');
 
 // ---------------------------------------------------------------- historical record view
 if ($viewDate && is_date($viewDate) && $viewDate !== $bd) {
-    $recs = rows('SELECT e.*, s.full_name AS sub, r.full_name AS rev FROM eod_records e LEFT JOIN users s ON s.id = e.submitted_by LEFT JOIN users r ON r.id = e.reviewed_by WHERE e.business_date = ? ORDER BY e.version DESC', [$viewDate]);
+    $recs = rows('SELECT e.*, s.full_name AS sub, r.full_name AS rev FROM eod_records e LEFT JOIN users s ON s.id = e.submitted_by LEFT JOIN users r ON r.id = e.reviewed_by WHERE e.branch_id = ? AND e.business_date = ? ORDER BY e.version DESC', [branch_id(), $viewDate]);
     echo '<div class="card"><div class="card-h"><h2>EOD records for ' . e(fmt_date($viewDate)) . '</h2>' . btn('Back', url('eod'), 'sm') . btn('Print closure summary', url('print', ['doc' => 'eod', 'date' => $viewDate]), 'sm') . '</div>';
     data_table(['version' => ['Version', 'num'], 'status' => ['Status', 'badge'], 'submitted_at' => ['Submitted', 'dt'], 'sub' => 'Submitted by', 'reviewed_at' => ['Reviewed', 'dt'], 'rev' => 'Reviewed by', 'review_notes' => 'Review notes', 'backup_status' => 'Backup'],
         $recs, ['class' => 'nofilter', 'empty' => 'No EOD record for this date.']);
     echo '</div>';
     if ($recs) { $sum = json_decode($recs[0]['summary_json'], true); echo '<h2>Snapshot (latest version)</h2>'; require BASE_PATH . '/app/views/eod_summary.php'; }
-    $rq = rows('SELECT q.*, u.full_name AS req, d.full_name AS dec FROM eod_reopen_requests q JOIN users u ON u.id = q.requested_by LEFT JOIN users d ON d.id = q.decided_by WHERE q.business_date = ? ORDER BY q.id', [$viewDate]);
+    $rq = rows('SELECT q.*, u.full_name AS req, d.full_name AS dec FROM eod_reopen_requests q JOIN users u ON u.id = q.requested_by LEFT JOIN users d ON d.id = q.decided_by WHERE q.branch_id = ? AND q.business_date = ? ORDER BY q.id', [branch_id(), $viewDate]);
     if ($rq) { echo '<div class="card"><h2>Reopen history</h2>'; data_table(['requested_at' => ['Requested', 'dt'], 'req' => 'By', 'reason' => 'Reason', 'status' => ['Status', 'badge'], 'dec' => 'Decided by', 'decision_notes' => 'Notes'], $rq, ['class' => 'nofilter']); echo '</div>'; }
     return;
 }
 
 // ---------------------------------------------------------------- pending reopen requests
-$pending = rows("SELECT q.*, u.full_name AS req FROM eod_reopen_requests q JOIN users u ON u.id = q.requested_by WHERE q.status = 'Pending'");
+$pending = rows("SELECT q.*, u.full_name AS req FROM eod_reopen_requests q JOIN users u ON u.id = q.requested_by WHERE q.status = 'Pending' AND q.branch_id = " . (int)branch_id());
 if ($pending && can('eod.approve')) {
     foreach ($pending as $q) {
         echo '<div class="card"><h2>Reopen request — ' . e(fmt_date($q['business_date'])) . '</h2><p><b>' . e($q['req']) . '</b> asked on ' . e(fmt_dt($q['requested_at'])) . ': ' . e($q['reason']) . '</p>';
@@ -64,7 +65,7 @@ if ($pending && can('eod.approve')) {
 
 // ---------------------------------------------------------------- no open day
 if (!$bd) {
-    $last = val('SELECT MAX(business_date) FROM business_days');
+    $last = val('SELECT MAX(business_date) FROM business_days WHERE branch_id = ?', [branch_id()]);
     if (can('eod.manage')) {
         echo '<div class="card"><h2>Start a new business day</h2>';
         echo $last ? '<p class="muted">Last closed business date: <b>' . e(fmt_date($last)) . '</b>.</p>' : '<p class="muted">No business day has been opened yet.</p>';
@@ -95,7 +96,7 @@ if (!$bd) {
         echo '<div class="check"><span class="' . ($i['ok'] ? 'ico-ok' : ($i['blocking'] ? 'ico-bad' : 'ico-warn')) . '">' . ($i['ok'] ? '✔' : ($i['blocking'] ? '✖' : '!')) . '</span><div><b>' . e($i['label']) . '</b><br><span class="muted">' . e($i['detail']) . '</span></div></div>';
     }
     echo '</div><div class="card"><h2>Cashier sessions</h2>';
-    $ss = rows('SELECT s.*, u.full_name AS cashier FROM cashier_sessions s JOIN users u ON u.id = s.cashier_id WHERE s.business_date = ? ORDER BY s.id', [$bd]);
+    $ss = rows('SELECT s.*, u.full_name AS cashier FROM cashier_sessions s JOIN users u ON u.id = s.cashier_id WHERE s.branch_id = ? AND s.business_date = ? ORDER BY s.id', [branch_id(), $bd]);
     foreach ($ss as &$r) if ($r['status'] === 'Open') $r['expected_cash'] = Cash::expected((int)$r['id']);
     unset($r);
     data_table(['session_no' => 'Session', 'cashier' => 'Cashier', 'expected_cash' => ['Expected', 'money'], 'counted_cash' => ['Counted', 'money'], 'variance' => ['Variance', 'money'], 'status' => ['Status', 'badge']], $ss,
@@ -103,7 +104,7 @@ if (!$bd) {
     echo '</div></div>';
 
     if ($status === 'Awaiting Manager Review' && $rec) {
-        echo '<div class="card"><h2>Awaiting manager approval</h2><p>Submitted by ' . e(val('SELECT full_name FROM users WHERE id = ?', [$rec['submitted_by']])) . ' on ' . e(fmt_dt($rec['submitted_at'])) . ($rec['notes'] ? ' — ' . e($rec['notes']) : '') . '. Version ' . (int)$rec['version'] . '.</p>';
+        echo '<div class="card"><h2>' . ($rec['status'] === 'Escalated to COO' ? 'Escalated to the COO' : 'Awaiting manager approval') . '</h2>' . ($rec['status'] === 'Escalated to COO' ? '<div class="notice bad">The cash variance (' . ugx(Eod::absVariance($bd)) . ') exceeds the Branch Manager limit. Only the COO can approve this End-of-Day.</div>' : '') . '<p>Submitted by ' . e(val('SELECT full_name FROM users WHERE id = ?', [$rec['submitted_by']])) . ' on ' . e(fmt_dt($rec['submitted_at'])) . ($rec['notes'] ? ' — ' . e($rec['notes']) : '') . '. Version ' . (int)$rec['version'] . '.</p>';
         if (can('eod.approve')) {
             echo '<div class="grid g2"><div>';
             form_open(url('eod', ['a' => 'approve']), ['attrs' => 'style="grid-template-columns:1fr" data-confirm="Approve and LOCK this business date? Normal posting to it will stop and a backup will be taken."']);
@@ -134,10 +135,10 @@ if (!$bd) {
 // ---------------------------------------------------------------- history
 echo '<div class="card"><h2>Business-day history</h2>';
 $hist = rows("SELECT d.business_date, d.status, d.opened_at, d.closed_at, ou.full_name AS opener, cu.full_name AS closer,
-              (SELECT version FROM eod_records e WHERE e.business_date = d.business_date ORDER BY version DESC LIMIT 1) AS version,
-              (SELECT backup_status FROM eod_records e WHERE e.business_date = d.business_date ORDER BY version DESC LIMIT 1) AS backup,
-              (SELECT COALESCE(SUM(variance),0) FROM cashier_sessions s WHERE s.business_date = d.business_date) AS variance
-              FROM business_days d LEFT JOIN users ou ON ou.id = d.opened_by LEFT JOIN users cu ON cu.id = d.closed_by ORDER BY d.business_date DESC LIMIT 60");
+              (SELECT version FROM eod_records e WHERE e.branch_id = d.branch_id AND e.business_date = d.business_date ORDER BY version DESC LIMIT 1) AS version,
+              (SELECT backup_status FROM eod_records e WHERE e.branch_id = d.branch_id AND e.business_date = d.business_date ORDER BY version DESC LIMIT 1) AS backup,
+              (SELECT COALESCE(SUM(variance),0) FROM cashier_sessions s WHERE s.branch_id = d.branch_id AND s.business_date = d.business_date) AS variance
+              FROM business_days d LEFT JOIN users ou ON ou.id = d.opened_by LEFT JOIN users cu ON cu.id = d.closed_by WHERE d.branch_id = " . (int)branch_id() . " ORDER BY d.business_date DESC LIMIT 60");
 data_table(['business_date' => ['Business date', 'date'], 'status' => ['Status', 'badge'], 'opener' => 'Opened by', 'closed_at' => ['Closed', 'dt'], 'closer' => 'Closed by', 'version' => ['Version', 'num'], 'variance' => ['Cash variance', 'money'], 'backup' => 'EOD backup'],
     $hist, ['link' => fn($r) => url('eod', ['date' => $r['business_date']]), 'empty' => 'No business days yet.', 'class' => 'nofilter']);
 echo '</div>';

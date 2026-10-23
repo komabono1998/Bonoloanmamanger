@@ -49,6 +49,6 @@ if ($id) {
 page_head('Credit assessment', '', 'Applications waiting for an assessment, and those already assessed.');
 $list = rows("SELECT l.id, l.loan_no, c.full_name, l.amount_requested, l.status, l.application_date, u.full_name AS officer,
               (SELECT recommendation FROM credit_assessments a WHERE a.loan_id = l.id ORDER BY a.id DESC LIMIT 1) AS recommendation
-              FROM loans l JOIN clients c ON c.id = l.client_id JOIN users u ON u.id = l.officer_id WHERE l.status IN ('Submitted','Under Review') ORDER BY l.id", []);
+              FROM loans l JOIN clients c ON c.id = l.client_id JOIN users u ON u.id = l.officer_id WHERE l.status IN ('Submitted','Under Review') AND " . branch_scope('l.branch_id') . ' ORDER BY l.id', []);
 data_table(['loan_no' => 'Loan', 'full_name' => 'Client', 'application_date' => ['Applied', 'date'], 'amount_requested' => ['Requested', 'money'], 'officer' => 'Officer', 'recommendation' => 'Recommendation', 'status' => ['Status', 'badge']],
     $list, ['link' => fn($r) => url('assessment', ['id' => $r['id']]), 'empty' => 'No applications are waiting for assessment.']);

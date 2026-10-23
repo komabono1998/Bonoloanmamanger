@@ -10,6 +10,7 @@ final class Loans
         $l = row('SELECT l.*, c.full_name AS client_name, c.client_no, c.phone AS client_phone, u.full_name AS officer_name
                   FROM loans l JOIN clients c ON c.id = l.client_id JOIN users u ON u.id = l.officer_id WHERE l.id = ?', [$id]);
         must((bool)$l, 'Loan does not exist.');
+        assert_branch((int)$l['branch_id']);
         return $l;
     }
 
@@ -26,7 +27,7 @@ final class Loans
     public static function ledger(int $loanId, string $type, string $component, int $amount, ?string $refType = null,
                                   ?int $refId = null, string $desc = '', ?string $bd = null): int
     {
-        $bd = $bd ?? posting_date();
+        $bd = $bd ?? posting_date((int)val('SELECT branch_id FROM loans WHERE id = ?', [$loanId]));
         return insert('loan_ledger', [
             'loan_id' => $loanId, 'business_date' => $bd, 'entry_date' => $bd, 'type' => $type, 'component' => $component,
             'amount' => $amount, 'ref_type' => $refType, 'ref_id' => $refId, 'description' => $desc ?: null,
@@ -49,6 +50,7 @@ final class Loans
         $clientId = (int)($in['client_id'] ?? 0);
         $client = row('SELECT * FROM clients WHERE id = ?', [$clientId]);
         must((bool)$client, 'Client ID does not exist.');
+        assert_active_branch((int)$client['branch_id']);
         must($client['status'] === 'Active', 'Loans can only be created for active clients (this client is ' . strtolower($client['status']) . ').');
         $amount = parse_money($in['amount_requested'] ?? '', 'Loan amount');
         $max = setting_int('requested_max_loan');
@@ -59,7 +61,7 @@ final class Loans
         must(in_array($freq, ['daily', 'weekly', 'monthly'], true), 'Invalid repayment frequency.');
         $data = [
             'client_id' => $clientId,
-            'application_date' => must_date($in['application_date'] ?? reporting_date(), 'Application date'),
+            'application_date' => must_date($in['application_date'] ?? reporting_date((int)$client['branch_id']), 'Application date'),
             'purpose' => clean($in['purpose'] ?? ''),
             'amount_requested' => $amount,
             'period_months' => $months,
@@ -89,7 +91,7 @@ final class Loans
             $dup = val("SELECT COUNT(*) FROM loans WHERE client_id=? AND amount_requested=? AND application_date=? AND status NOT IN ('Cancelled','Rejected')",
                 [$data['client_id'], $data['amount_requested'], $data['application_date']]);
             must(!$dup, 'A matching application for this client, amount and date already exists. Open it instead of creating a duplicate.');
-            $data += ['loan_no' => make_number('loan_prefix', 'loan', true), 'officer_id' => uid(), 'status' => 'Draft', 'created_at' => now()];
+            $data += ['loan_no' => make_number('loan_prefix', 'loan', true), 'officer_id' => uid(), 'branch_id' => (int)$client['branch_id'], 'status' => 'Draft', 'created_at' => now()];
             $newId = insert('loans', $data);
             insert('loan_status_history', ['loan_id' => $newId, 'from_status' => null, 'to_status' => 'Draft', 'user_id' => uid(), 'at' => now(), 'note' => 'Application created']);
             audit('Loan application created', 'Loans', 'loan', $newId, null, $data['loan_no'] . ' ' . ugx($data['amount_requested']));
@@ -220,13 +222,15 @@ final class Loans
         must(!$changed || $reason !== '' || $isAdjust, 'A reason is required when the approved amount or standard terms differ from the recommendation/defaults.');
         must(!$isAdjust || $reason !== '', 'A reason is required to adjust approved terms.');
         $t = Calc::terms($principal, $rateBp, $months, $procBp, $appFee, $inspFee, $other, $deducted);
-        $bd = reporting_date();
+        $br = (int)$l['branch_id'];
+        Approvals::assert('loan', $principal, $br, 'loan');          // escalation: above the Branch Manager limit only the COO may approve
+        $bd = reporting_date($br);
         $penalty = [
             'enabled' => setting('penalty_enabled') === '1', 'rate_bp' => pct_to_bp(setting('penalty_rate_pct')), 'basis' => setting('penalty_basis'),
             'compound' => setting('penalty_compound') === '1', 'cap_bp' => pct_to_bp(setting('penalty_cap_pct')), 'grace_days' => setting_int('penalty_grace_days'),
         ];
         tx(function () use ($id, $l, $t, $bd, $penalty, $in, $comments, $reason, $assess, $isAdjust, $months, $deducted, $procBp) {
-            $expiry = Calc::addWorkingDays($bd, setting_int('offer_validity_days'), 'is_working_day');
+            $expiry = Calc::addWorkingDays($bd, setting_int('offer_validity_days'), fn($d) => is_working_day($d, (int)$l['branch_id']));
             update('loans', [
                 'approved_principal' => $t['principal'], 'rate_bp' => $t['rate_bp'], 'interest_method' => setting('interest_method'),
                 'interest_amount' => $t['interest'], 'processing_fee_bp' => $procBp, 'processing_fee' => $t['processing_fee'],
@@ -242,7 +246,7 @@ final class Loans
                 'loan_id' => $id, 'decision' => 'Approved', 'requested_amount' => $l['amount_requested'],
                 'recommended_amount' => $assess['recommended_amount'] ?? null, 'approved_amount' => $t['principal'],
                 'snapshot_json' => json_encode($t + ['penalty' => $penalty, 'offer_expiry' => $expiry]), 'comments' => $comments ?: null,
-                'reason' => $reason ?: (trim($in['exception_reason'] ?? '') ?: null), 'approver_id' => uid(), 'decided_at' => now(), 'business_date' => $bd,
+                'reason' => $reason ?: (trim($in['exception_reason'] ?? '') ?: null), 'approver_id' => uid(), 'approver_role' => Approvals::authority(), 'decided_at' => now(), 'business_date' => $bd,
             ]);
             audit($isAdjust ? 'Approved loan terms adjusted' : 'Loan approved', 'Loans', 'loan', $id, $isAdjust ? ugx($l['approved_principal']) : null,
                 ugx($t['principal']) . ' @' . bp_to_pct($t['rate_bp']) . '%', $reason ?: $comments);
@@ -259,7 +263,7 @@ final class Loans
             update('loans', ['rejection_reason' => $reason, 'updated_at' => now()], 'id = :id', ['id' => $id]);
             self::setStatus($id, 'Rejected', $reason);
             insert('loan_approvals', ['loan_id' => $id, 'decision' => 'Rejected', 'requested_amount' => $l['amount_requested'], 'comments' => $reason,
-                'reason' => $reason, 'approver_id' => uid(), 'decided_at' => now(), 'business_date' => reporting_date()]);
+                'reason' => $reason, 'approver_id' => uid(), 'approver_role' => Approvals::authority(), 'decided_at' => now(), 'business_date' => reporting_date((int)$l['branch_id'])]);
             audit('Loan rejected', 'Loans', 'loan', $id, $l['status'], 'Rejected', $reason);
         });
     }
@@ -273,7 +277,7 @@ final class Loans
         tx(function () use ($id, $l, $comments) {
             self::setStatus($id, 'Returned for Correction', $comments);
             insert('loan_approvals', ['loan_id' => $id, 'decision' => 'Returned', 'requested_amount' => $l['amount_requested'], 'comments' => $comments,
-                'approver_id' => uid(), 'decided_at' => now(), 'business_date' => reporting_date()]);
+                'approver_id' => uid(), 'approver_role' => Approvals::authority(), 'decided_at' => now(), 'business_date' => reporting_date((int)$l['branch_id'])]);
             audit('Loan returned for correction', 'Loans', 'loan', $id, $l['status'], 'Returned for Correction', $comments);
         });
     }
@@ -281,7 +285,7 @@ final class Loans
     // ---------------------------------------------------------------- offer & acceptance
     public static function offerExpired(array $l): bool
     {
-        return $l['offer_expiry'] && reporting_date() > $l['offer_expiry'];
+        return $l['offer_expiry'] && reporting_date((int)$l['branch_id']) > $l['offer_expiry'];
     }
 
     public static function recordAcceptance(int $id, bool $accepted, string $date, string $note = ''): void
@@ -291,10 +295,25 @@ final class Loans
         must($l['status'] === 'Approved', 'This loan has not been approved.');
         must(!self::offerExpired($l), 'The loan offer expired on ' . fmt_date($l['offer_expiry']) . '. A manager must extend it before acceptance can be recorded.');
         must(is_date($date), 'Acceptance date is not valid.');
-        must($date <= max(reporting_date(), today()), 'Acceptance date cannot be in the future.');
+        must($date <= max(reporting_date((int)$l['branch_id']), today()), 'Acceptance date cannot be in the future.');
         tx(function () use ($id, $accepted, $date, $note, $l) {
             update('loans', ['acceptance_status' => $accepted ? 'Accepted' : 'Declined', 'acceptance_date' => $date, 'acceptance_note' => $note ?: null, 'updated_at' => now()], 'id = :id', ['id' => $id]);
             audit($accepted ? 'Loan offer accepted by client' : 'Loan offer declined by client', 'Loans', 'loan', $id, $l['acceptance_status'], $accepted ? 'Accepted' : 'Declined', $note);
+        });
+    }
+
+    /** Branch Manager hands a loan that is above their authority (or needs a second opinion) to the COO. */
+    public static function escalate(int $id, string $note): void
+    {
+        require_perm('loan.approve');
+        $l = self::get($id);
+        must(in_array($l['status'], ['Submitted', 'Under Review'], true), 'This loan is not awaiting approval.');
+        must($note !== '', 'Please state why the loan is being escalated.');
+        tx(function () use ($id, $l, $note) {
+            update('loans', ['escalated_at' => now(), 'escalated_by' => uid(), 'escalation_note' => $note, 'updated_at' => now()], 'id = :id', ['id' => $id]);
+            insert('loan_approvals', ['loan_id' => $id, 'decision' => 'Escalated', 'requested_amount' => $l['amount_requested'], 'comments' => $note, 'reason' => $note,
+                'approver_id' => uid(), 'approver_role' => Approvals::authority(), 'decided_at' => now(), 'business_date' => reporting_date((int)$l['branch_id'])]);
+            audit('Loan escalated to COO', 'Loans', 'loan', $id, null, 'Escalated', $note, '', null, null, (int)$l['branch_id']);
         });
     }
 
@@ -304,7 +323,7 @@ final class Loans
         $l = self::get($id);
         must($l['status'] === 'Approved', 'Only approved, undisbursed loans can have the offer extended.');
         must($reason !== '', 'A reason is required to extend an offer.');
-        $new = Calc::addWorkingDays(reporting_date(), setting_int('offer_validity_days'), 'is_working_day');
+        $new = Calc::addWorkingDays(reporting_date((int)$l['branch_id']), setting_int('offer_validity_days'), fn($d) => is_working_day($d, (int)$l['branch_id']));
         tx(function () use ($id, $l, $new, $reason) {
             update('loans', ['offer_expiry' => $new, 'updated_at' => now()], 'id = :id', ['id' => $id]);
             audit('Loan offer extended', 'Loans', 'loan', $id, $l['offer_expiry'], $new, $reason);
@@ -334,11 +353,17 @@ final class Loans
         must(in_array($method, ['Cash', 'Bank Transfer', 'Mobile Money', 'Other'], true), 'Invalid payment method.');
         $ref = trim($in['reference'] ?? '');
         must($method === 'Cash' || $ref !== '', 'A transaction reference is required for non-cash disbursements.');
-        $authId = (int)($in['authorized_by'] ?? 0) ?: (can('loan.approve') ? uid() : 0);
-        must($authId > 0 && in_array('loan.approve', user_permissions($authId), true), 'Select an authorizing manager.');
+        $br = (int)$l['branch_id'];
+        assert_active_branch($br);
+        $authId = (int)($in['authorized_by'] ?? 0) ?: (can('loan.disburse.authorize') ? uid() : 0);
+        must($authId > 0 && in_array('loan.disburse.authorize', user_permissions($authId), true), 'Select an authorizing manager.');
+        must($authId !== (int)$l['officer_id'], 'Separation of duties: the loan officer who originated the loan cannot authorize its disbursement.');
+        must($authId !== (int)uid() || (int)uid() !== (int)$l['officer_id'], 'You cannot authorize a disbursement on your own application.');
+        $needAuth = Approvals::required('disbursement', (int)$l['approved_principal'], $br);
+        must(Approvals::covers(Approvals::authority($authId), $needAuth), 'This disbursement of ' . ugx($l['approved_principal']) . ' exceeds the Branch Manager limit and must be authorized by the COO.');
 
-        return tx(function () use ($id, $l, $in, $method, $ref, $authId) {
-            $bd = posting_date();
+        return tx(function () use ($id, $l, $in, $method, $ref, $authId, $br) {
+            $bd = posting_date($br);
             $client = row('SELECT status FROM clients WHERE id = ?', [$l['client_id']]);
             must($client['status'] !== 'Blacklisted', 'This client is blacklisted.');
             $net = (int)$l['net_disbursement'];
@@ -351,7 +376,7 @@ final class Loans
             $due = self::maturityDate($l, $bd);
             $ded = (bool)$l['fees_deducted'];
             $did = insert('disbursements', [
-                'disb_no' => make_number('loan_prefix', 'disb', true), 'loan_id' => $id, 'client_id' => $l['client_id'],
+                'branch_id' => $br, 'disb_no' => make_number('loan_prefix', 'disb', true), 'loan_id' => $id, 'client_id' => $l['client_id'],
                 'approved_principal' => $l['approved_principal'],
                 'processing_fee' => $ded ? $l['processing_fee'] : 0, 'application_fee' => $ded ? $l['application_fee'] : 0,
                 'inspection_fee' => $ded ? $l['inspection_fee'] : 0, 'other_deductions' => $ded ? $l['other_fees'] : 0,
@@ -365,7 +390,7 @@ final class Loans
             if (!$ded && (int)$l['total_fees'] > 0) self::ledger($id, 'fee', 'fee', (int)$l['total_fees'], 'disbursement', $did, 'Fees payable separately', $bd);
             // cash / bank movement of the NET amount actually released
             Cash::record(['session' => $session['id'] ?? null, 'direction' => -1, 'amount' => $net, 'category' => 'disbursement', 'method' => $method,
-                'ref_type' => 'disbursement', 'ref_id' => $did, 'reference' => $ref ?: $l['loan_no'], 'description' => 'Loan disbursement ' . $l['loan_no'], 'bd' => $bd]);
+                'ref_type' => 'disbursement', 'ref_id' => $did, 'reference' => $ref ?: $l['loan_no'], 'description' => 'Loan disbursement ' . $l['loan_no'], 'bd' => $bd, 'branch' => $br]);
             // repayment schedule
             foreach (Calc::schedule((int)$l['approved_principal'], (int)$l['interest_amount'], $bd, $due, $l['frequency'], setting('freq_mode')) as $s) {
                 insert('repayment_schedules', ['loan_id' => $id, 'version' => 1, 'installment_no' => $s['no'], 'due_date' => $s['due_date'],
@@ -409,7 +434,7 @@ final class Loans
     /** @return array{days:int,since:?string,amount:int} */
     public static function overdueInfo(array $loan, ?string $asOf = null): array
     {
-        $asOf = $asOf ?? reporting_date();
+        $asOf = $asOf ?? reporting_date((int)$loan['branch_id']);
         if (!in_array($loan['status'], self::OPEN_STATUSES, true)) return ['days' => 0, 'since' => null, 'amount' => 0];
         $b = self::balances((int)$loan['id'], null);
         $sched = self::scheduleWithPaid($loan);
@@ -425,11 +450,11 @@ final class Loans
     }
 
     /** Recompute Active/Overdue status, overdue-since date and automatic collection status for open loans. */
-    public static function refreshStatuses(?int $onlyLoan = null): void
+    public static function refreshStatuses(?int $onlyLoan = null, ?int $branch = null): void
     {
-        $asOf = reporting_date();
-        $sql = "SELECT * FROM loans WHERE status IN ('Active','Overdue')" . ($onlyLoan ? ' AND id = ' . (int)$onlyLoan : '');
+        $sql = "SELECT * FROM loans WHERE status IN ('Active','Overdue')" . ($onlyLoan ? ' AND id = ' . (int)$onlyLoan : '') . ($branch ? ' AND branch_id = ' . (int)$branch : '');
         foreach (rows($sql) as $l) {
+            $asOf = reporting_date((int)$l['branch_id']);
             $info = self::overdueInfo($l, $asOf);
             $newStatus = $info['since'] ? 'Overdue' : 'Active';
             $cs = $l['collection_status'];
@@ -459,7 +484,7 @@ final class Loans
         $l = self::get($loanId);
         if (!in_array($l['status'], self::OPEN_STATUSES, true) || !self::isSettled($loanId)) return false;
         $unalloc = (int)val("SELECT COALESCE(SUM(remaining),0) FROM customer_credits WHERE loan_id = ? AND status = 'Open'", [$loanId]);
-        $bd = posting_date();
+        $bd = posting_date((int)$l['branch_id']);
         $waivers = (int)val("SELECT COALESCE(SUM(amount),0) FROM loan_adjustments WHERE loan_id = ? AND type LIKE '%Waiver%'", [$loanId]);
         tx(function () use ($loanId, $l, $bd, $finalRef, $waivers, $unalloc) {
             insert('loan_closures', [
@@ -505,10 +530,12 @@ final class Loans
         must($amount > 0, 'Waiver amount must be greater than zero.');
         $l = self::get($loanId);
         must(in_array($l['status'], self::OPEN_STATUSES, true), 'Waivers can only be applied to active loans.');
-        tx(function () use ($loanId, $component, $amount, $reason) {
+        assert_active_branch((int)$l['branch_id']);
+        Approvals::assert('waiver', $amount, (int)$l['branch_id'], 'waiver');
+        tx(function () use ($loanId, $component, $amount, $reason, $l) {
             $b = self::balances($loanId);
             must($amount <= $b[$component], 'Waiver exceeds the outstanding ' . $component . ' (' . ugx($b[$component]) . ').');
-            $bd = posting_date();
+            $bd = posting_date((int)$l['branch_id']);
             insert('loan_adjustments', ['loan_id' => $loanId, 'type' => ucfirst($component) . ' Waiver', 'component' => $component, 'amount' => $amount,
                 'reason' => $reason, 'approved_by' => uid(), 'created_by' => uid(), 'business_date' => $bd, 'created_at' => now()]);
             self::ledger($loanId, 'waiver', $component, -$amount, 'adjustment', null, 'Waiver: ' . $reason, $bd);

@@ -8,6 +8,7 @@ if ($id) {
     post_action(function () use ($id, $dec) {
         if ($dec === 'approve') { Loans::approve($id, $_POST); return ['Loan approved. Offer terms are now locked.', url('loan', ['id' => $id])]; }
         if ($dec === 'reject') { Loans::reject($id, clean(post('reason'))); return ['Application rejected.', url('approvals')]; }
+        if ($dec === 'escalate') { Loans::escalate($id, clean(post('reason'))); return ['Escalated to the COO.', url('approvals')]; }
         if ($dec === 'return') { Loans::returnForCorrection($id, clean(post('reason'))); return ['Returned to the loan officer for correction.', url('approvals')]; }
         throw new AppError('Choose an action.');
     });
@@ -23,6 +24,11 @@ if ($id) {
     $ex = Loans::clientExposure((int)$l['client_id'], $id);
     if ($ex['overdue_count']) echo '<div class="notice bad">This client has ' . $ex['overdue_count'] . ' overdue loan(s) and owes ' . ugx($ex['outstanding']) . '.</div>';
     elseif ($ex['outstanding']) echo '<div class="notice">Existing outstanding balance: ' . ugx($ex['outstanding']) . '.</div>';
+    $needAuth = Approvals::required('loan', (int)$l['amount_requested'], (int)$l['branch_id']);
+    $haveAuth = Approvals::authority();
+    echo '<div class="notice ' . (Approvals::covers($haveAuth, $needAuth) ? 'info' : 'bad') . '">Required approval authority for ' . ugx($l['amount_requested']) . ': <b>' . e($needAuth) . '</b>'
+        . (Approvals::limit('loan', (int)$l['branch_id']) === null ? ' (no loan limit configured — Branch Manager level applies)' : ' (Branch Manager limit ' . ugx((int)Approvals::limit('loan', (int)$l['branch_id'])) . ')')
+        . '. Your authority: <b>' . e($haveAuth ?? 'none') . '</b>.' . ($l['escalated_at'] ? ' Escalated: ' . e($l['escalation_note']) : '') . '</div>';
     if ($isAdjust) echo '<div class="notice">Adjusting approved terms resets client acceptance and requires a reason. This is audited.</div>';
 
     if (!$own) {
@@ -53,6 +59,13 @@ if ($id) {
         if ($assess) echo '<p class="muted" style="margin-top:.6rem">Recommended amount: ' . ugx($assess['recommended_amount']) . '</p>';
         echo '</div></div>';
 
+        if (!$isAdjust && !$l['escalated_at'] && $haveAuth === 'Branch Manager') {
+            echo '<div class="card"><h2>Escalate to the COO</h2><p class="muted">Use when the amount is above your limit or you want a second opinion. The loan leaves your queue.</p>';
+            form_open(url('approvals', ['id' => $id]), ['attrs' => 'style="grid-template-columns:1fr auto;align-items:end"']);
+            field('decision', '', ['type' => 'hidden', 'value' => 'escalate']);
+            field('reason', 'Reason for escalation', ['required' => true]);
+            echo '<div class="fld"><label>&nbsp;</label>'; submit_btn('Escalate', 'default'); echo '</div>'; form_close(); echo '</div>';
+        }
         if (!$isAdjust) {
             echo '<div class="grid g2"><div class="card"><h2>Return for correction</h2>';
             form_open(url('approvals', ['id' => $id]), ['attrs' => 'style="grid-template-columns:1fr"']);
@@ -74,11 +87,12 @@ page_head('Loan approval', '', 'Applications awaiting a decision, and approved o
 echo '<div class="card"><h2>Awaiting decision</h2>';
 $list = rows("SELECT l.id, l.loan_no, c.full_name, l.amount_requested, l.status, l.application_date, u.full_name AS officer,
               (SELECT recommendation || ' · ' || recommended_amount FROM credit_assessments a WHERE a.loan_id = l.id ORDER BY a.id DESC LIMIT 1) AS rec
-              FROM loans l JOIN clients c ON c.id = l.client_id JOIN users u ON u.id = l.officer_id WHERE l.status IN ('Submitted','Under Review') ORDER BY l.id");
+              FROM loans l JOIN clients c ON c.id = l.client_id JOIN users u ON u.id = l.officer_id WHERE l.status IN ('Submitted','Under Review') AND " . branch_scope('l.branch_id') . ' ORDER BY l.id');
+if (Approvals::authority() !== 'COO') $list = array_values(array_filter($list, fn($r) => Approvals::required('loan', (int)$r['amount_requested'], (int)val('SELECT branch_id FROM loans WHERE id = ?', [$r['id']])) === 'Branch Manager' && !val('SELECT escalated_at FROM loans WHERE id = ?', [$r['id']])));
 data_table(['loan_no' => 'Loan', 'full_name' => 'Client', 'application_date' => ['Applied', 'date'], 'amount_requested' => ['Requested', 'money'], 'officer' => 'Officer', 'rec' => 'Assessment', 'status' => ['Status', 'badge']],
     $list, ['link' => fn($r) => url('approvals', ['id' => $r['id']]), 'empty' => 'Nothing is waiting for approval.', 'class' => 'nofilter']);
 echo '</div><div class="card"><h2>Approved — awaiting acceptance / disbursement</h2>';
-$ap = rows("SELECT l.id, l.loan_no, c.full_name, l.approved_principal, l.net_disbursement, l.acceptance_status, l.offer_expiry, l.approval_date FROM loans l JOIN clients c ON c.id = l.client_id WHERE l.status = 'Approved' ORDER BY l.id");
+$ap = rows("SELECT l.id, l.loan_no, c.full_name, l.approved_principal, l.net_disbursement, l.acceptance_status, l.offer_expiry, l.approval_date FROM loans l JOIN clients c ON c.id = l.client_id WHERE l.status = 'Approved' AND " . branch_scope('l.branch_id') . " ORDER BY l.id");
 data_table(['loan_no' => 'Loan', 'full_name' => 'Client', 'approval_date' => ['Approved', 'date'], 'approved_principal' => ['Principal', 'money'], 'net_disbursement' => ['Net', 'money'],
     'acceptance_status' => ['Acceptance', 'badge'], 'offer_expiry' => ['Offer expires', fn($r) => $r['offer_expiry'] < reporting_date() ? '<span class="ico-bad">' . e(fmt_date($r['offer_expiry'])) . ' (expired)</span>' : e(fmt_date($r['offer_expiry']))]],
     $ap, ['link' => fn($r) => url('loan', ['id' => $r['id']]), 'empty' => 'No approved offers pending.', 'class' => 'nofilter']);

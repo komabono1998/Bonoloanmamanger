@@ -53,6 +53,14 @@ function setting_defaults(): array
         'expense_approval_limit' => '100000',
         // security
         'session_timeout_min' => '15',
+        'password_min_length' => '10',
+        'password_max_age_days' => '0',
+        'mfa_required_roles' => 'System Administrator,COO,Branch Manager',
+        'reversal_independent_approval' => '1',
+        'reopen_authority' => 'branch_manager',   // branch_manager | coo
+        'restore_requires_authorization' => '1',
+        'rto_hours' => '',
+        'rpo_hours' => '',
         // backups
         'backup_dir' => 'storage/backups',
         'backup_auto_hours' => '24',

@@ -1,0 +1,9 @@
+# secrets
+.env
+
+# local data - never commit client records, backups or uploads
+/storage/db/*
+/storage/backups/*
+/storage/uploads/*
+/storage/logs/*
+!/storage/**/.gitkeep

@@ -17,6 +17,7 @@ if ($a === 'new' || $a === 'edit') {
     if ($a === 'edit') must(in_array($l['status'], ['Draft', 'Returned for Correction'], true), 'Only draft or returned applications can be edited.');
     $cid = (int)($l['client_id'] ?? get('client_id'));
     $client = $cid ? row('SELECT * FROM clients WHERE id = ?', [$cid]) : null;
+    if ($client) assert_branch((int)$client['branch_id']);
     page_head($a === 'new' ? 'New loan application' : 'Edit application ' . $l['loan_no'], btn('Cancel', $id ? url('loan', ['id' => $id]) : url('loans')));
     if ($client) {
         $ex = Loans::clientExposure($cid, $id ?: null);
@@ -32,7 +33,7 @@ if ($a === 'new' || $a === 'edit') {
         field('client_id', '', ['type' => 'hidden', 'value' => $cid]);
     } else {
         field('client_id', 'Client', ['type' => 'select', 'options' => client_select_options(), 'blank' => 'Select client…', 'value' => $cid, 'required' => true, 'span' => 2,
-            'attrs' => 'onchange="if(this.value)location.href=\'' . e(url('loans', ['a' => 'new'])) . '&client_id=\'+this.value"']);
+            'attrs' => 'data-goto="' . e(url('loans', ['a' => 'new']) . '&client_id={v}') . '"']);
     }
     field('application_date', 'Application date', ['type' => 'date', 'value' => $v('application_date', reporting_date()), 'required' => true]);
     field('requested_disb_date', 'Requested disbursement date', ['type' => 'date', 'value' => $v('requested_disb_date')]);
@@ -56,7 +57,7 @@ if ($a === 'new' || $a === 'edit') {
 }
 
 $q = get('q'); $st = get('status'); $of = (int)get('officer');
-$w = ['1=1']; $p = [];
+$w = [branch_scope('l.branch_id', branch_filter_ids((int)get('branch')))]; $p = [];
 if ($q !== '') { $w[] = '(l.loan_no LIKE ? OR c.full_name LIKE ? OR c.client_no LIKE ? OR c.phone LIKE ?)'; array_push($p, "%$q%", "%$q%", "%$q%", "%$q%"); }
 if ($st !== '') { $w[] = 'l.status = ?'; $p[] = $st; }
 if ($of) { $w[] = 'l.officer_id = ?'; $p[] = $of; }
@@ -64,10 +65,10 @@ if (!can('loan.approve') && !can('portfolio.view') && !can('payment.view')) { $w
 $list = rows("SELECT l.id, l.loan_no, c.full_name, c.client_no, l.application_date, l.amount_requested, l.approved_principal, l.status, u.full_name AS officer
               FROM loans l JOIN clients c ON c.id = l.client_id JOIN users u ON u.id = l.officer_id WHERE " . implode(' AND ', $w) . ' ORDER BY l.id DESC LIMIT 500', $p);
 page_head('Loan applications', can('loan.create') ? btn('New application', url('loans', ['a' => 'new']), 'primary') : '', 'Track each request from draft to approval, disbursement and closure.');
-$offs = []; foreach (rows('SELECT id, full_name FROM users ORDER BY full_name') as $u) $offs[$u['id']] = $u['full_name'];
+$offs = []; foreach (rows("SELECT id, full_name FROM users WHERE role IN ('Loan Officer','Branch Manager','COO') ORDER BY full_name") as $u) $offs[$u['id']] = $u['full_name'];
 $sts = ['Draft', 'Submitted', 'Under Review', 'Returned for Correction', 'Approved', 'Rejected', 'Cancelled', 'Active', 'Overdue', 'Closed'];
-filter_bar(['q' => ['label' => 'Search', 'placeholder' => 'Loan no, client name, ID or phone'], 'status' => ['label' => 'Status', 'type' => 'select', 'options' => array_combine($sts, $sts)],
-    'officer' => ['label' => 'Loan officer', 'type' => 'select', 'options' => $offs]], ['q' => $q, 'status' => $st, 'officer' => $of ?: ''], 'loans');
+filter_bar((count(accessible_branch_ids()) > 1 ? ['branch' => ['label' => 'Branch', 'type' => 'select', 'all' => 'All my branches', 'options' => branch_options()]] : []) + ['q' => ['label' => 'Search', 'placeholder' => 'Loan no, client name, ID or phone'], 'status' => ['label' => 'Status', 'type' => 'select', 'options' => array_combine($sts, $sts)],
+    'officer' => ['label' => 'Loan officer', 'type' => 'select', 'options' => $offs]], ['q' => $q, 'status' => $st, 'officer' => $of ?: '', 'branch' => get('branch')], 'loans');
 data_table(['loan_no' => 'Loan no.', 'full_name' => 'Client', 'client_no' => 'Client ID', 'application_date' => ['Applied', 'date'], 'amount_requested' => ['Requested', 'money'],
     'approved_principal' => ['Approved', 'money'], 'status' => ['Status', 'badge'], 'officer' => 'Officer'], $list,
     ['link' => fn($r) => url('loan', ['id' => $r['id']]), 'empty' => 'No applications found.']);

@@ -42,13 +42,13 @@ if ($id) {
 }
 
 page_head('Loan disbursement', '', 'Approved loans with a signed acceptance are ready to be disbursed.');
-$ready = rows("SELECT l.id, l.loan_no, c.full_name, l.approved_principal, l.net_disbursement, l.acceptance_status, l.offer_expiry FROM loans l JOIN clients c ON c.id = l.client_id WHERE l.status = 'Approved' ORDER BY l.id");
+$ready = rows("SELECT l.id, l.loan_no, c.full_name, l.approved_principal, l.net_disbursement, l.acceptance_status, l.offer_expiry FROM loans l JOIN clients c ON c.id = l.client_id WHERE l.status = 'Approved' AND " . branch_scope('l.branch_id') . " ORDER BY l.id");
 echo '<div class="card"><h2>Ready / pending</h2>';
 data_table(['loan_no' => 'Loan', 'full_name' => 'Client', 'approved_principal' => ['Gross principal', 'money'], 'net_disbursement' => ['Net to release', 'money'], 'acceptance_status' => ['Acceptance', 'badge'],
     'offer_expiry' => ['Offer expires', 'date']], $ready, ['link' => fn($r) => url('disbursements', ['id' => $r['id']]), 'empty' => 'No approved loans are waiting.', 'class' => 'nofilter']);
 echo '</div><div class="card"><h2>Recent disbursements</h2>';
 $done = rows("SELECT d.id, d.disb_no, d.business_date, l.loan_no, c.full_name, d.approved_principal, (d.processing_fee+d.application_fee+d.inspection_fee+d.other_deductions) AS fees, d.net_amount, d.method, u.full_name AS by_name
-              FROM disbursements d JOIN loans l ON l.id = d.loan_id JOIN clients c ON c.id = d.client_id JOIN users u ON u.id = d.disbursed_by ORDER BY d.id DESC LIMIT 200");
+              FROM disbursements d JOIN loans l ON l.id = d.loan_id JOIN clients c ON c.id = d.client_id JOIN users u ON u.id = d.disbursed_by WHERE " . branch_scope('d.branch_id') . " ORDER BY d.id DESC LIMIT 200");
 data_table(['disb_no' => 'Voucher', 'business_date' => ['Business date', 'date'], 'loan_no' => 'Loan', 'full_name' => 'Client', 'approved_principal' => ['Gross', 'money'], 'fees' => ['Fees deducted', 'money'],
     'net_amount' => ['Net released', 'money'], 'method' => 'Method', 'by_name' => 'By'], $done, ['link' => fn($r) => url('print', ['doc' => 'voucher', 'id' => $r['id']]), 'empty' => 'Nothing disbursed yet.']);
 echo '</div>';

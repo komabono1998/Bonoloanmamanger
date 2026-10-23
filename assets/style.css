@@ -117,3 +117,11 @@ details.card > summary { cursor: pointer; font-weight: 650; } details[open].card
   .doc { border: 0; margin: 0; max-width: none; padding: 0; } .tbl-wrap { border: 0; } .tbl th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @page { margin: 12mm; }
 }
+
+.count { background: #e0a100; color: #1b1300; border-radius: 999px; padding: 0 .45rem; font-size: .72rem; font-weight: 700; margin-left: .3rem; }
+.sr { position: absolute; left: -9999px; }
+.branch-switch select { width: auto; padding: .2rem .5rem; border-radius: 999px; background: var(--bg); font-weight: 600; }
+.mono { font-family: ui-monospace, Consolas, monospace; letter-spacing: .05em; }
+.secret { font-size: 1.15rem; background: var(--bg); border: 1px dashed var(--line); padding: .6rem .8rem; border-radius: 8px; word-break: break-all; }
+.matrix td, .matrix th { text-align: center; } .matrix td:first-child, .matrix th:first-child { text-align: left; }
+.dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; background: var(--line); } .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); } .dot.warn { background: #e0a100; }

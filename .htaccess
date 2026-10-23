@@ -1,0 +1,17 @@
+# Bono Loan Manager - web server rules (Apache)
+Options -Indexes
+DirectoryIndex index.php
+
+# never serve data, config, deployment or VCS files
+<FilesMatch "(\.(sqlite|sqlite-wal|sqlite-shm|sql|md|log|bat|ps1|json|yml|yaml|dump|tar|bak)$|^(Dockerfile|\.env.*|\.gitignore|\.dockerignore|\.gitattributes)$)">
+    Require all denied
+</FilesMatch>
+<IfModule mod_alias.c>
+    RedirectMatch 404 /\.git
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "same-origin"
+</IfModule>

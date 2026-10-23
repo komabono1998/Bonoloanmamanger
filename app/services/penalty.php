@@ -27,10 +27,10 @@ final class Penalty
     }
 
     /** Post any missing daily penalties up to and including $date. Idempotent. Returns number of rows posted. */
-    public static function accrue(string $date): int
+    public static function accrue(string $date, ?int $branch = null): int
     {
         $posted = 0;
-        foreach (rows("SELECT * FROM loans WHERE status IN ('Active','Overdue')") as $loan) {
+        foreach (rows("SELECT * FROM loans WHERE status IN ('Active','Overdue')" . ($branch ? ' AND branch_id = ' . (int)$branch : '')) as $loan) {
             $terms = self::termsFor($loan);
             if (empty($terms['enabled']) || (int)$terms['rate_bp'] <= 0) continue;
             $info = Loans::overdueInfo($loan, $date);
@@ -57,7 +57,7 @@ final class Penalty
                 $posted++;
             }
         }
-        if ($posted) audit('Penalties accrued', 'Penalties', 'business_day', $date, null, $posted . ' daily penalty entries');
+        if ($posted) audit('Penalties accrued', 'Penalties', 'business_day', $date, null, $posted . ' daily penalty entries', '', '', null, null, $branch);
         return $posted;
     }
 
