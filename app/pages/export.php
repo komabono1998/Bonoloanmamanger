@@ -18,7 +18,8 @@ if ($kind === 'report') {
     insert('export_history', ['at' => now(), 'user_id' => uid(), 'kind' => 'report:' . $key, 'format' => $fmt, 'rows_total' => $run['shown']]);
     audit('Data exported', 'Export', 'export', 'report:' . $key, null, $run['shown'] . ' rows (' . $fmt . ')');
     while (ob_get_level() > 0) ob_end_clean();
-    $file = $key . '_' . ($p['from'] === $p['to'] ? $p['from'] : $p['from'] . '_to_' . $p['to']) . '_' . date('His');
+    $period = str_contains($def['filters'], 'f') ? '_' . ($p['from'] === $p['to'] ? $p['from'] : $p['from'] . '_to_' . $p['to']) : '_as_at_' . reporting_date();
+    $file = trim(preg_replace('/[^A-Za-z0-9]+/', '_', $def['title']), '_') . '_' . $key . $period . '_' . date('Hi');
     header('X-Content-Type-Options: nosniff');
     switch ($fmt) {
         case 'pdf': header('Content-Type: application/pdf'); header('Content-Disposition: attachment; filename="' . $file . '.pdf"'); echo ReportRun::pdf($def, $run, $lines); break;
