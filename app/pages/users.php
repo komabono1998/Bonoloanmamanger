@@ -164,7 +164,7 @@ if ($a === 'roleperms') post_action(function () {
     return ['Permissions for ' . $role . ' saved.', url('users', ['tab' => 'roles', 'role' => $role])];
 });
 
-page_head('Users & access', $tab === 'users' && $a !== 'new' && $a !== 'edit' ? btn('New user', url('users', ['a' => 'new']), 'primary') : '', 'The System Administrator manages accounts and access, but cannot approve loans, post money or approve End-of-Day.');
+page_head('Users & access', $tab === 'users' && $a !== 'new' && $a !== 'edit' ? btn('New user', url('users', ['a' => 'new']), 'primary') : '', 'The System Administrator holds every user right, with access to all reports and configuration.');
 tabs(['users' => 'Users', 'roles' => 'Role permissions', 'matrix' => 'Access matrix'], $tab);
 
 function perm_grid(array $checked, array $roleDefault = [], bool $disabled = false): void
@@ -229,7 +229,7 @@ if ($tab === 'users' && $a === 'new') {
     }
     echo '</div></div>';
     if ($id !== uid()) {
-        echo '<div class="card"><h2>Individual permissions</h2><p class="muted">Starts from the <b>' . e($u['role']) . '</b> role. Changes must stay inside the security boundaries: administrators never receive financial authority; technical rights stay with the System Administrator role.</p>';
+        echo '<div class="card"><h2>Individual permissions</h2><p class="muted">Starts from the <b>' . e($u['role']) . '</b> role. Changes must stay inside the security boundaries: the System Administrator holds every right; technical rights stay with that role.</p>';
         $rolePerms = array_column(rows('SELECT permission FROM role_permissions WHERE role = ?', [$u['role']]), 'permission');
         form_open(url('users', ['a' => 'perms', 'id' => $id]));
         echo '<div class="full" style="grid-column:1/-1">'; perm_grid(user_permissions($id), $rolePerms); echo '</div>';

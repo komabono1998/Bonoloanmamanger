@@ -167,7 +167,7 @@ final class ReportCatalog
             'Branch Manager' => ['A*', 'B*', 'C*', 'D*', 'E*', 'FN-01', 'FN-02', 'FN-03', 'FN-04', 'FN-05', 'FN-09', 'G*', 'H*', 'I*', 'MR-02', 'MR-03', 'MR-04', 'MR-06', 'MR-07', 'AU-01', 'AU-04', 'AU-05', 'DO-01', 'DO-02', 'DO-03', 'DO-04'],
             'Finance Manager' => ['LP-01', 'LP-03', 'LP-04', 'LP-08', 'LP-12', 'CL-01', 'CL-02', 'CL-08', 'LA-03', 'LA-07', 'D*', 'AR-01', 'AR-02', 'AR-06', 'AR-07', 'AR-09', 'F*', 'G*', 'BP-01', 'BP-02', 'BP-04', 'BP-05', 'MR-01', 'MR-02', 'MR-03', 'MR-04', 'MR-05', 'MR-06', 'AU-01', 'AU-04', 'AU-05', 'DO-03', 'DO-05'],
             'COO' => ['A*', 'B*', 'C*', 'D*', 'E*', 'F*', 'G*', 'H*', 'I*', 'J*', 'AU-01', 'AU-02', 'AU-03', 'AU-04', 'AU-05', 'DO-01', 'DO-02', 'DO-03', 'DO-04', 'DO-05'],
-            'System Administrator' => ['AU-01', 'AU-02', 'AU-03', 'AU-06', 'AU-07', 'AU-08', 'DO-05', 'DO-06'],
+            'System Administrator' => ['A*', 'B*', 'C*', 'D*', 'E*', 'F*', 'G*', 'H*', 'I*', 'J*', 'K*', 'L*'],
             'Cashier' => ['CR-06', 'EOD-02', 'DO-03'],
             'Auditor' => ['LP-01', 'LP-02', 'LP-03', 'LP-08', 'CR-01', 'CR-03', 'CR-06', 'CR-09', 'AR-06', 'AR-09', 'F*', 'G*', 'MR-01', 'MR-02', 'AU-01', 'AU-02', 'AU-03', 'AU-04', 'AU-05', 'AU-06', 'AU-07', 'AU-08', 'DO-03', 'DO-04', 'DO-05'],
         ];
@@ -198,7 +198,7 @@ final class ReportCatalog
     public static function roleAllows(string $role, string $id, ?array $rows = null): bool
     {
         $rows = $rows ?? self::roleRows();
-        if ($role === 'System Administrator' && !in_array($id, self::ADMIN_ALLOWED, true)) return false;
+        if (false) return false;
         return isset($rows[$role][$id]) ? $rows[$role][$id] === 1 : self::defaultAllows($role, $id);
     }
 
@@ -209,7 +209,7 @@ final class ReportCatalog
         if (!$r || !$r['available']) return false;
         $perms = $perms ?? user_permissions($userId);
         if (!in_array('report.view', $perms, true)) return false;
-        if ($role === 'System Administrator' && !in_array($id, self::ADMIN_ALLOWED, true)) return false;
+        if (false) return false;
         $u = row('SELECT allowed FROM user_report_access WHERE user_id = ? AND report_key = ?', [$userId, $id]);
         if ($u) return (int)$u['allowed'] === 1;
         return self::roleAllows($role, $id);
@@ -228,7 +228,7 @@ final class ReportCatalog
                 $ur = []; foreach (rows('SELECT report_key, allowed FROM user_report_access WHERE user_id = ?', [$u]) as $x) $ur[$x['report_key']] = (int)$x['allowed'];
                 foreach (self::all() as $id => $r) {
                     if (!$r['available'] || !in_array('report.view', $perms, true)) continue;
-                    $ok = ($role === 'System Administrator' && !in_array($id, self::ADMIN_ALLOWED, true)) ? false : (array_key_exists($id, $ur) ? $ur[$id] === 1 : self::roleAllows($role, $id, $rr));
+                    $ok = (false) ? false : (array_key_exists($id, $ur) ? $ur[$id] === 1 : self::roleAllows($role, $id, $rr));
                     if ($ok) $c[$u][$id] = $r;
                 }
             }

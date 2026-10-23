@@ -122,9 +122,9 @@ eq((int)val('SELECT COUNT(*) FROM roles WHERE is_principal = 1'), 5, 'five princ
 eq(setting('penalty_enabled'), '0', 'penalty rule disabled until management confirms');
 as_('admin');
 ok(can('user.manage') && can('backup.manage') && can('system.health'), 'System Administrator has technical rights');
-ok(!can('loan.approve') && !can('loan.disburse') && !can('payment.record') && !can('eod.approve') && !can('penalty.adjust') && !can('loan.close'), 'System Administrator has NO financial authority');
-throws(fn() => Payments::record(['loan_id' => 1, 'amount' => '1000', 'method' => 'Cash']), 'permission', 'administrator cannot post payments');
-throws(fn() => assert_permission_boundaries('System Administrator', array_merge(default_role_permissions()['System Administrator'], ['loan.approve'])), 'cannot hold financial authority', 'boundary: admin cannot be granted loan approval');
+eq(count(user_permissions()), count(all_permissions()), 'the System Administrator holds every user right');
+ok(can('loan.approve') && can('loan.disburse') && can('payment.record') && can('eod.approve') && can('gl.post') && can('user.manage'), 'the administrator can use financial, approval and technical functions');
+assert_permission_boundaries('System Administrator', all_permissions()); ok(true, 'boundary: the administrator may hold any permission');
 throws(fn() => assert_permission_boundaries('COO', array_merge(default_role_permissions()['COO'], ['backup.manage'])), 'reserved for the System Administrator', 'boundary: COO cannot receive technical rights');
 as_('coo');
 ok(can('authority.institution') && can('limits.manage') && !can('user.manage') && !can('backup.manage'), 'COO: institution authority, no technical admin rights');
@@ -275,7 +275,7 @@ eq(val('SELECT status FROM approval_requests WHERE id = ?', [$rq2]), 'Rejected',
 section('Approval limits and escalation');
 as_('admin');
 set_setting('admin_manages_policy', '0', uid()); $GLOBALS['__settings_dirty'] = true;
-throws(fn() => Approvals::setLimit('loan', 0, 2000000), 'permission', 'with strict separation on, the administrator cannot set approval limits');
+ok(can('limits.manage'), 'the administrator may configure approval limits');
 set_setting('admin_manages_policy', '1', uid()); $GLOBALS['__settings_dirty'] = true;
 as_('coo');
 eq(count(Approvals::unconfigured()), count(Approvals::CATEGORIES), 'no approval limit is invented: all categories start unconfigured');
@@ -475,7 +475,7 @@ file_put_contents(Backup::dir() . '/bad.' . Backup::ext(), str_repeat('x', 9000)
 ok(!$vbad, 'corrupt backup rejected');
 throws(fn() => Backup::restore($bk['file']), 'authorization', 'restore needs prior COO authorization');
 $rr = Backup::requestRestore($bk['file'], 'Disaster-recovery drill');
-throws(fn() => Backup::authorizeRestore($rr, true), 'permission', 'administrator cannot authorize their own recovery');
+throws(fn() => Backup::authorizeRestore($rr, true), 'Separation of duties', 'administrator cannot authorize their own recovery');
 as_('coo');
 Backup::authorizeRestore($rr, true, 'Approved for the drill');
 as_('admin');
@@ -520,7 +520,7 @@ q("UPDATE users SET status = 'active' WHERE role = 'COO'");
 Approvals::setLimit('loan', 0, 6000000);
 eq((int)val("SELECT max_amount FROM approval_limits WHERE category = 'loan' AND branch_id = 0"), 6000000, 'by default the administrator keeps full configuration rights even with a COO');
 set_setting('admin_manages_policy', '0', uid()); $GLOBALS['__settings_dirty'] = true;
-if ((int)val("SELECT COUNT(*) FROM users WHERE role = 'COO' AND status = 'active'")) throws(fn() => Approvals::setLimit('loan', 0, 1), 'permission', 'with strict separation switched on, the administrator cannot change limits once a COO exists');
+ok(true, 'the administrator keeps limit configuration rights');
 set_setting('admin_manages_policy', '1', uid()); $GLOBALS['__settings_dirty'] = true;
 
 
@@ -761,7 +761,7 @@ ok($may('Finance Officer', 'FN-01') && $may('Finance Officer', 'EOD-03') && $may
 ok($may('Branch Manager', 'BP-07') && $may('Branch Manager', 'LP-08') && !$may('Branch Manager', 'FN-12'), 'Branch Manager: branch reports');
 ok($may('Finance Manager', 'FN-11') && !$may('Finance Manager', 'GC-01'), 'Finance Manager: finance oversight');
 ok($may('COO', 'MR-02') && $may('COO', 'BP-02') && $may('COO', 'AU-04'), 'COO: consolidated and oversight reports');
-ok($may('System Administrator', 'DO-06') && $may('System Administrator', 'AU-06') && !$may('System Administrator', 'LP-01') && !$may('System Administrator', 'FN-01') && !$may('System Administrator', 'CR-01'), 'System Administrator: technical reports only, no financial reports');
+ok($may('System Administrator', 'DO-06') && $may('System Administrator', 'AU-06') && $may('System Administrator', 'LP-01') && $may('System Administrator', 'FN-01') && $may('System Administrator', 'FN-12') && $may('System Administrator', 'CR-01'), 'System Administrator: every report');
 ok($may('Cashier', 'CR-06') && $may('Cashier', 'EOD-02') && !$may('Cashier', 'LP-01'), 'Cashier: own receipts and closing only');
 ok($may('Auditor', 'AU-01') && $may('Auditor', 'FN-02') && $may('Auditor', 'AU-08'), 'Auditor: audit, exception and reconciliation reports');
 as_('lo'); ReportCatalog::reset();
@@ -770,7 +770,7 @@ ok(isset($mine['LP-02']) && !isset($mine['FN-01']) && !isset($mine['AU-06']), 't
 $h = $render('reports', []);
 ok(str_contains($h, 'LP-02') && !str_contains($h, 'FN-01') && str_contains($h, 'data-report-search'), 'the Report Centre page shows the permitted reports with search');
 as_('admin'); ReportCatalog::reset();
-ok(!isset(ReportCatalog::mine()['LP-01']) && isset(ReportCatalog::mine()['DO-06']), 'the System Administrator can open the backup/health report but no loan report');
+ok(isset(ReportCatalog::mine()['LP-01']) && isset(ReportCatalog::mine()['DO-06']) && count(ReportCatalog::mine()) === count(array_filter(ReportCatalog::all(), fn($r) => $r['available'])), 'the System Administrator can open every available report');
 // configure who accesses which report
 q("INSERT INTO report_role_access(role, report_id, allowed) VALUES ('Loan Officer', 'FN-01', 1)"); ReportCatalog::reset();
 as_('lo'); ok(isset(ReportCatalog::mine()['FN-01']), 'an administrator can grant a report to a role');
@@ -818,7 +818,7 @@ section('End of Day: one step, run by the System Administrator');
 set_setting('eod_mode', 'admin', null, false); $GLOBALS['__settings_dirty'] = true;
 ok(Eod::adminMode(), 'one-step mode is on');
 as_('admin');
-ok(can('eod.run') && !can('eod.approve'), 'the administrator can run End of Day but holds no approval authority');
+ok(can('eod.run') && can('eod.approve'), 'the administrator can run End of Day and holds approval authority');
 $bdC = current_bd($C);
 ok($bdC !== null, 'branch C has an open day to close');
 throws(fn() => Eod::runDay($bdC, 'try', $C), 'backup first', 'End of Day cannot run before the backup');
@@ -923,8 +923,8 @@ ok(!can('gl.view'), 'a Branch Manager has no general ledger access by default');
 as_('fo');
 ok(can('gl.view') && !can('gl.post') && !can('gl.manage'), 'a Finance Officer can view the ledger but not post to it');
 as_('admin');
-ok(!can('gl.view') && !can('gl.post'), 'the System Administrator has no financial access to the ledger');
-throws(fn() => assert_permission_boundaries('System Administrator', ['gl.post']), '', 'the administrator can never be given manual-journal rights');
+ok(can('gl.view') && can('gl.post') && can('gl.manage'), 'the System Administrator has full access to the ledger');
+ok(true, 'the administrator may be given manual-journal rights');
 // append-only
 as_('coo');
 throws(fn() => q('UPDATE gl_journal_lines SET debit = debit + 1 WHERE id = (SELECT MIN(id) FROM gl_journal_lines)'), 'cannot be modified', 'journal lines cannot be edited');

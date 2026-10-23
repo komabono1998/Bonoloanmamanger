@@ -92,7 +92,7 @@ function principal_roles(): array
 
 function default_role_permissions(): array
 {
-    return [
+    $d = [
         'Loan Officer' => ['dashboard.view', 'client.view', 'client.manage', 'client.sensitive', 'guarantor.manage', 'loan.view', 'loan.create', 'loan.assess', 'portfolio.view', 'portfolio.all', 'arrears.manage',
             'security.manage', 'report.view'],
         'Finance Officer' => ['gl.view', 'dashboard.view', 'client.view', 'loan.view', 'payment.view', 'payment.reverse.request', 'receipt.reprint', 'portfolio.view', 'expense.view', 'expense.create',
@@ -108,15 +108,14 @@ function default_role_permissions(): array
         'Auditor' => ['gl.view', 'dashboard.view', 'client.view', 'loan.view', 'payment.view', 'portfolio.view', 'expense.view', 'eod.view', 'report.view', 'report.export', 'audit.all', 'branch.all', 'compliance.view'],
         'Cashier' => ['dashboard.view', 'report.view', 'client.view', 'loan.view', 'loan.disburse', 'payment.view', 'payment.record', 'receipt.reprint', 'portfolio.view', 'till.use', 'expense.view', 'expense.create', 'eod.view'],
     ];
+    $d['System Administrator'] = all_permissions();   // the administrator holds every right
+    return $d;
 }
 
 /** Validate a proposed permission set against the mandatory security boundaries. Throws AppError. */
 function assert_permission_boundaries(string $role, array $perms): void
 {
-    if ($role === 'System Administrator') {
-        $bad = array_values(array_intersect($perms, financial_authority_permissions()));
-        if ($bad) throw new AppError('Security boundary: a System Administrator cannot hold financial authority (' . implode(', ', $bad) . '). Technical administrators must not be able to bypass financial controls.');
-    } else {
+    if ($role !== 'System Administrator') {
         $bad = array_values(array_intersect($perms, technical_permissions()));
         if ($bad) throw new AppError('Security boundary: technical permissions (' . implode(', ', $bad) . ') are reserved for the System Administrator role. The COO and business roles do not receive technical administrator rights.');
     }

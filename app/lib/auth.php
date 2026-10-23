@@ -206,6 +206,11 @@ function user_permissions(?int $userId = null): array
     if ($userId === uid() && isset($GLOBALS['__perms'])) return $GLOBALS['__perms'];
     $u = row('SELECT role FROM users WHERE id = ?', [$userId]);
     if (!$u) return [];
+    if ($u['role'] === 'System Administrator') {   // the administrator holds every right, and so reaches every report and setting
+        $all = all_permissions();
+        if ($userId === uid()) $GLOBALS['__perms'] = $all;
+        return $all;
+    }
     $set = array_flip(array_column(rows('SELECT permission FROM role_permissions WHERE role = ?', [$u['role']]), 'permission'));
     foreach (rows('SELECT permission, granted FROM user_permissions WHERE user_id = ?', [$userId]) as $o) {
         if ($o['granted']) $set[$o['permission']] = true; else unset($set[$o['permission']]);

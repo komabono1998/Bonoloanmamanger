@@ -4,7 +4,7 @@ $business = can_any('client.view|loan.view|payment.view|portfolio.view');
 
 // ------------------------------------------------------------------ System Administrator: technical dashboard only
 if (!$business) {
-    page_head('System dashboard', '', 'Technical health and security. The System Administrator has no access to client or financial records by default.');
+    page_head('System dashboard', '', 'Technical health and security. ');
     $h = System::health();
     echo quick_tiles([['settings', ['tab' => 'business'], 'Institution profile & logo', 'building', 'settings.manage'], ['users', ['a' => 'new'], 'Add a user', 'user-plus', 'user.manage'], ['users', [], 'Users & Staff IDs', 'users', 'user.manage'],
         ['eodsys', [], 'End of Day', 'calendar', 'backup.manage|system.health'], ['branches', [], 'Branches', 'building', 'branch.manage'], ['settings', [], 'All settings', 'settings', 'settings.manage|limits.manage'], ['backup', [], 'Backups', 'database', 'backup.manage|backup.request'],
