@@ -805,6 +805,14 @@ ok(str_contains($h, 'LP-01') && str_contains($h, 'Scope:') && str_contains($h, '
 as_('admin');
 $h = $render('reportaccess', []);
 ok(str_contains($h, 'LP-01') && str_contains($h, 'Loan Officer') && str_contains($h, 'name="g['), 'the report access matrix renders for the administrator');
+section('Regressions found by the end-to-end checks');
+eq(parse_money('', 'Optional amount', true), 0, 'an optional amount left empty is zero (loan application form)');
+throws(fn() => parse_money('', 'Required amount'), 'valid amount', 'a required amount still cannot be empty');
+$d = setting_defaults();
+ok(isset($d['penalty_cap_pct'], $d['password_max_age_days']), 'every number shown on the settings tabs has a default, so a tab can always be saved as it stands');
+as_('lo');
+$h = $render('search', ['q' => 'Akello']);
+ok(str_contains($h, 'Akello') && !str_contains($h, 'Something went wrong'), 'global search runs on both database engines (ESCAPE clause)');
 echo "\n----------------------------------------\n";
 echo "Passed: $pass   Failed: $fail   (" . db_driver() . ")\n";
 db_close();

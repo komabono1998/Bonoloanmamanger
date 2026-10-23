@@ -21,6 +21,7 @@ function ugx($n): string
 function parse_money($s, string $label = 'Amount', bool $allowZero = false): int
 {
     $s = trim(str_replace([',', ' ', 'UGX', 'ugx'], '', (string)$s));
+    if ($s === '' && $allowZero) return 0;     // an optional amount left empty is zero
     if ($s === '' || !preg_match('/^\d+(\.0+)?$/', $s)) {
         throw new AppError("$label must be a valid amount in whole UGX.");
     }

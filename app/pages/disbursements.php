@@ -28,6 +28,7 @@ if ($id) {
         . '<p class="muted" style="margin-top:.6rem">Matures ' . e(fmt_date(Loans::maturityDate($l, reporting_date()))) . ' if disbursed on business date ' . e(fmt_date(reporting_date())) . '.</p>'
         . ($mine ? '<p>Your till (' . e($mine['session_no']) . ') currently holds <b>' . ugx(Cash::expected((int)$mine['id'])) . '</b>.</p>' : '<p class="ico-warn">You have no open till — required for cash disbursements.</p>')
         . '</div><div class="card"><h2>Release funds</h2>';
+    if (!can('loan.disburse')) { echo '<p class="muted">Funds are released by a cashier with disbursement rights, after authorization by a manager.</p></div></div>'; return; }
     form_open(null, ['attrs' => 'style="grid-template-columns:1fr 1fr"']);
     field('method', 'Payment method', ['type' => 'select', 'options' => ['Cash' => 'Cash (from my till)', 'Bank Transfer' => 'Bank transfer', 'Mobile Money' => 'Mobile money', 'Other' => 'Other']]);
     field('reference', 'Transaction reference', ['help' => 'Required for non-cash methods.']);

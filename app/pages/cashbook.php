@@ -23,6 +23,7 @@ if ($a === 'category') post_action(function () {
 
 page_head('Expenses & cashbook', '', 'Loan principal is never treated as an expense, and repayments are split into principal, interest, fees and penalties.');
 $tabs = ['expenses' => 'Expenses', 'new' => 'Record expense', 'cashbook' => 'Cashbook'];
+if (!can('expense.create')) unset($tabs['new']);
 if (can('settings.manage')) $tabs['categories'] = 'Categories';
 tabs($tabs, $tab);
 

@@ -71,7 +71,7 @@ function load_session_user(): void
         $uname = $_SESSION['uname'] ?? '';
         audit('Session locked (inactivity)', 'Security', 'user', (string)$_SESSION['uid'], null, null, '', '', (int)$_SESSION['uid'], $uname);
         $_SESSION = [];
-        session_regenerate_id(true);
+        if (session_status() === PHP_SESSION_ACTIVE) session_regenerate_id(true);
         flash('warn', 'You were signed out after a period of inactivity. Please sign in again.');
         return;
     }

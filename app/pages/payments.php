@@ -59,6 +59,7 @@ if ($tab === 'receive') {
                 . '<p class="muted" style="margin-top:.6rem">Due date ' . e(fmt_date($l['due_date'])) . ' · allocation order: ' . e(implode(' → ', Payments::allocationOrder())) . '</p>'
                 . '<p>' . btn('Loan file', url('loan', ['id' => $loanId]), 'sm') . ' ' . btn('Statement', url('print', ['doc' => 'statement', 'id' => $loanId]), 'sm') . '</p></div>';
             echo '<div class="card"><h2>Record payment</h2>';
+            if (!can('payment.record')) { echo '<p class="muted">Payments are recorded by cashiers with collection rights. You can view the balances and history of this loan here.</p></div></div>'; } else {
             form_open(url('payments', ['a' => 'pay', 'loan_id' => $loanId]), ['attrs' => 'style="grid-template-columns:1fr 1fr"']);
             echo token_field();
             field('loan_id', '', ['type' => 'hidden', 'value' => $loanId]);
@@ -71,6 +72,7 @@ if ($tab === 'receive') {
             echo '<div class="form-actions">'; submit_btn('Post payment & issue receipt', 'primary', 'data-confirm="Post this payment? A receipt will be issued."'); echo '</div>';
             form_close();
             echo '</div></div>';
+            }
             // customer credit available
             $cr = Payments::creditsFor((int)$l['client_id']);
             if ($cr && can('credit.manage')) {

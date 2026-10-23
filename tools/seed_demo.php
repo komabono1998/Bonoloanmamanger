@@ -35,6 +35,7 @@ if (!is_installed()) {
 $A = (int)val("SELECT id FROM branches WHERE code = 'KLA'") ?: (int)val('SELECT MIN(id) FROM branches');   // an existing installation keeps its own first branch
 $B = (int)val("SELECT id FROM branches WHERE code = 'GLU'") ?: create_branch('GLU', 'Gulu Branch', 'Gulu City');
 set_setting('mfa_required_roles', '', null, false);   // demo only
+set_setting('eod_auto_open_next', '0', null, false);   // the seeder opens each business day itself
 as_('admin');
 foreach ([['coo', 'Dr. Agnes Tumusiime', 'COO', []], ['bm', 'Grace Namukasa', 'Branch Manager', [$A]], ['fo', 'Ruth Achieng', 'Finance Officer', [$A]], ['lo', 'Peter Okello', 'Loan Officer', [$A]],
           ['cashier', 'Sarah Nakato', 'Cashier', [$A]], ['bmg', 'Samuel Opio', 'Branch Manager', [$B]], ['fog', 'Mercy Akena', 'Finance Officer', [$B]], ['log', 'Daniel Okello', 'Loan Officer', [$B]],
@@ -183,6 +184,8 @@ Loans::refreshStatuses();
 as_('admin');
 Backup::create('Manual');
 
+set_setting('eod_auto_open_next', '1', null, false);
+backfill_staff_numbers();   // every demo account gets its Staff ID
 echo "\nDemo data created.\n";
 echo "Kampala business date open: $D3 · Gulu business date open: $D3\n";
 echo "Accounts (password in this file): admin, coo, bm, fo, lo, cashier (Kampala) · bmg, fog, log, cashierg (Gulu)\n";

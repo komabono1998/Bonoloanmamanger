@@ -101,7 +101,7 @@ if (!$bd) {
     foreach ($ss as &$r) if ($r['status'] === 'Open') $r['expected_cash'] = Cash::expected((int)$r['id']);
     unset($r);
     data_table(['session_no' => 'Session', 'cashier' => 'Cashier', 'expected_cash' => ['Expected', 'money'], 'counted_cash' => ['Counted', 'money'], 'variance' => ['Variance', 'money'], 'status' => ['Status', 'badge']], $ss,
-        ['link' => fn($r) => url('till', ['tab' => 'sessions', 'session' => $r['id']]), 'class' => 'nofilter', 'empty' => 'No tills opened yet.']);
+        (can_any('till.use|till.reconcile') ? ['link' => fn($r) => url('till', ['tab' => 'sessions', 'session' => $r['id']])] : []) + ['class' => 'nofilter', 'empty' => 'No tills opened yet.']);
     echo '</div></div>';
 
     if ($status === 'Awaiting Manager Review' && $rec) {

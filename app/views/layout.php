@@ -12,6 +12,7 @@ if (is_installed() && user()) {
 $pageTitle = ($title ? $title . ' · ' : '') . business_name();
 $curBranch = (is_installed() && user()) ? branch_id() : 0;
 $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
+$locked = is_installed() && user() && !empty(user()['must_change_password']);   // password must be changed before anything else
 ?><!doctype html>
 <html lang="en">
 <head>
@@ -76,6 +77,7 @@ $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
           <div class="nav-group"><?= e($g) ?></div>
           <?php foreach ($items as [$key, $label]):
               $on = $page === $key || ($page === 'loan' && $key === 'loans') ? ' on' : ''; ?>
+            <?php if ($locked): ?><span class="nav-link disabled" title="Choose a new password first"><?= icon(route_icon($key), 18) ?><span><?= e($label) ?></span></span><?php continue; endif; ?>
             <a class="nav-link<?= $on ?>" href="<?= e(url($key)) ?>"><?= icon(route_icon($key), 18) ?><span><?= e($label) ?></span><?php if ($key === 'inbox' && $inboxN): ?> <span class="count"><?= (int)$inboxN ?></span><?php endif; ?></a>
           <?php endforeach; ?>
         <?php endforeach; ?>

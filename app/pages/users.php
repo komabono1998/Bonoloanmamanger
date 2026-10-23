@@ -53,10 +53,15 @@ if ($a === 'update') post_action(function () use ($id, $roles) {
     must((bool)$u, 'User not found.');
     $role = post('role'); $status = post('status');
     $un = strtolower(trim(post('username'))); $sn = strtoupper(trim(post('staff_no')));
-    must(preg_match('/^[a-z0-9_.-]{3,30}$/', $un) === 1, 'Username must be 3-30 lowercase letters, numbers, dots, dashes or underscores.');
-    must(!val('SELECT COUNT(*) FROM users WHERE lower(username) = ? AND id <> ?', [$un, $id]), 'That username is already taken.');
-    must(preg_match('/^[A-Z0-9-]{3,24}$/', $sn) === 1, 'Staff ID must be 3-24 letters, numbers or dashes.');
-    must(!val('SELECT COUNT(*) FROM users WHERE staff_no = ? AND id <> ?', [$sn, $id]), 'That Staff ID belongs to someone else.');
+    if ($un !== strtolower((string)$u['username'])) {
+        must(preg_match('/^[a-z0-9_.-]{3,30}$/', $un) === 1, 'Username must be 3-30 lowercase letters, numbers, dots, dashes or underscores.');
+        must(!val('SELECT COUNT(*) FROM users WHERE lower(username) = ? AND id <> ?', [$un, $id]), 'That username is already taken.');
+    }
+    if ($sn === '') $sn = (string)($u['staff_no'] ?: assign_staff_no($id));     // an account without a Staff ID gets one now
+    if ($sn !== (string)$u['staff_no']) {
+        must(preg_match('/^[A-Z0-9-]{3,24}$/', $sn) === 1, 'Staff ID must be 3-24 letters, numbers or dashes.');
+        must(!val('SELECT COUNT(*) FROM users WHERE staff_no = ? AND id <> ?', [$sn, $id]), 'That Staff ID belongs to someone else.');
+    }
     $em = clean(post('email'));
     must($em === '' || filter_var($em, FILTER_VALIDATE_EMAIL) !== false, 'Enter a valid email address.');
     must(in_array($role, $roles, true) && in_array($status, ['active', 'inactive'], true), 'Invalid role or status.');

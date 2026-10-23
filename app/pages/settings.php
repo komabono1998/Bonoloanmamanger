@@ -98,6 +98,7 @@ if ($a === 'save') post_action(function () use ($GROUPS, $tab) {
                 $v = implode(',', $sel);
             } else {
                 $v = trim((string)($_POST[$key] ?? ''));
+                if ($v === '' && (str_ends_with($key, '_pct') || ($type === 'number' && !in_array($key, ['rto_hours', 'rpo_hours'], true)))) $v = '0';   // an empty optional number means zero
                 if ($type === 'money') $v = (string)parse_money($v, $def[0], true);
                 elseif ($type === 'number') { must(ctype_digit($v) || ($v === '' && in_array($key, ['rto_hours', 'rpo_hours'], true)), $def[0] . ' must be a whole number.'); }
                 elseif (str_ends_with($key, '_pct')) { must(is_numeric($v) && (float)$v >= 0 && (float)$v <= 1000, $def[0] . ' must be a percentage.'); }

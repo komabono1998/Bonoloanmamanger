@@ -294,3 +294,6 @@ table.matrix th.c, table.matrix td.c { text-align: center; } table.matrix td.cus
 table.matrix .cat-row { background: var(--brand-soft); font-weight: 700; color: var(--brand); }
 table.matrix thead th { position: sticky; top: 66px; background: var(--card); z-index: 2; }
 @media print { .rep-foot { position: fixed; bottom: 0; left: 0; right: 0; } @page { @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 9pt; } } }
+
+.nav-link.disabled { opacity: .45; cursor: not-allowed; }
+.nav-link.disabled:hover { background: transparent; color: var(--side-ink); }

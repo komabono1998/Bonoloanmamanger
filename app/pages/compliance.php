@@ -26,7 +26,7 @@ echo '</div>';
 echo '<div class="grid g2"><div class="card"><h2>Portfolio quality by branch</h2>';
 $rep = Reports::run('branch_comparison', ['from' => date('Y-m-01', strtotime(today())), 'to' => today()]);
 data_table(['branch' => 'Branch', 'principal_out' => ['Principal out', 'money'], 'overdue' => ['Overdue', 'num'], 'par' => 'PAR'], $rep['rows'], ['class' => 'nofilter']);
-echo '<p>' . btn('Full branch comparison report', url('reports', ['r' => 'branch_comparison']), 'sm') . '</p></div><div class="card"><h2>Approval limits</h2>';
+echo (report_allowed('BP-02') ? '<p>' . btn('Full branch comparison report', url('reports', ['r' => 'BP-02']), 'sm') . '</p>' : '') . '</div><div class="card"><h2>Approval limits</h2>';
 $un = Approvals::unconfigured();
 if ($un) echo '<div class="notice">Not configured: ' . e(implode(' · ', $un)) . '. The institution must set these; the system does not invent them.</div>';
 $lim = [];

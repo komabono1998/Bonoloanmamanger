@@ -158,8 +158,9 @@ if ($tab === 'import') {
         }
         echo btn('Start over', url('importexport')) . '</div></div>';
     } else {
+        if (!can('import.run')) echo '<div class="notice">You can export data but you have not been given the right to import it.</div>';
         echo '<div class="grid g2">';
-        foreach (['clients' => 'Client register', 'loans' => 'Historical loans & opening balances'] as $k => $label) {
+        foreach ((can('import.run') ? ['clients' => 'Client register', 'loans' => 'Historical loans & opening balances'] : []) as $k => $label) {
             echo '<div class="card"><h2>' . e($label) . '</h2><p class="muted">' . ($k === 'clients' ? 'Columns: ' . implode(', ', IMPORT_CLIENT_COLS) . '. Duplicate NINs are rejected; shared phones are flagged.' : 'One-month flat-interest loans already running. Columns: ' . implode(', ', IMPORT_LOAN_COLS) . '. Recorded as imported (not new system transactions); paid amounts become an opening payment with no cash movement. Requires an open business day.') . '</p>';
             form_open(url('importexport', ['a' => 'preview']), ['upload' => true, 'attrs' => 'style="grid-template-columns:1fr"']);
             field('kind', '', ['type' => 'hidden', 'value' => $k]); field('csv', 'CSV file (UTF-8)', ['type' => 'file', 'accept' => 'accept=".csv"']);

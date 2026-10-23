@@ -234,7 +234,7 @@ if ($tab === 'payments') {
                 LEFT JOIN receipts r ON r.payment_id = p.id JOIN users u ON u.id = p.cashier_id WHERE p.loan_id = ? ORDER BY p.id DESC", [$id]);
     echo '<div class="card"><h2>Payments received</h2>';
     data_table(['receipt_no' => 'Receipt', 'business_date' => ['Business date', 'date'], 'amount' => ['Amount', 'money'], 'method' => 'Method', 'reference' => 'Reference', 'cashier' => 'Cashier', 'status' => ['Status', 'badge']], $ps,
-        ['link' => fn($r) => url('receipts', ['a' => 'view', 'id' => $r['id']]), 'empty' => 'No payments yet.']);
+        (can('payment.view') ? ['link' => fn($r) => url('receipts', ['a' => 'view', 'id' => $r['id']])] : []) + ['empty' => 'No payments yet.']);
     echo '</div>';
 }
 

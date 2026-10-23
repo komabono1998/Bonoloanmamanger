@@ -253,7 +253,7 @@ if ($pendingInbox) echo '<div class="notice info">You have <b>' . $pendingInbox 
 </div>
 <?php endif; ?>
 <?php if (can('compliance.view') || count(accessible_branch_ids()) > 1): ?>
-<div class="card"><div class="card-h"><h2>Branches — EOD status</h2><a class="btn sm" href="<?= e(url('compliance')) ?>">Compliance →</a></div>
+<div class="card"><div class="card-h"><h2>Branches — EOD status</h2><?php if (can('compliance.view')): ?><a class="btn sm" href="<?= e(url('compliance')) ?>">Compliance →</a><?php endif; ?></div>
 <?php
 $ov = Eod::overview();
 data_table(['name' => 'Branch', 'business_date' => ['Business date', 'date'], 'eod_status' => ['EOD status', 'badge'], 'open_tills' => ['Open tills', 'num'], 'unreconciled' => ['Unreconciled', 'num'], 'variance' => ['Variance', 'money'], 'last_closed' => ['Last closed', 'date']],

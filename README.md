@@ -82,3 +82,11 @@ All are **configurable** — nothing is hard-coded.
 * Offline posting is deliberately not supported: if connectivity is lost the user sees an error and nothing is reported as saved.
 * Mobile-money / bank / SMS integrations are future optional modules (the services layer is ready for them).
 * Legal enforcement of guarantees, penalties and collateral follows the signed agreements and Ugandan law — outside the software.
+
+## Automated checks
+
+* `php tests/run.php` — unit and rule tests (SQLite; set `BONO_TEST_DRIVER=pgsql` and the `DB_*` variables for PostgreSQL).
+* `php tests/crawl.php <base-url> accounts.json [--post=1]` — signs in as each account and follows every menu, tab and link (and, with `--post`, sends every form with its default values), reporting pages that error or that the interface offers but the user is not allowed to open.
+* `php tests/flows.php <base-url>` — end-to-end flows over HTTP: an administrator creates new profiles, the new people sign in (forced password change) and carry out loan, cash, End-of-Day, reporting and administration work through the real screens.
+
+Run the last two only against a throw-away database (for example `php -S 127.0.0.1:8097` with `BONO_DB` pointing to a copy seeded with `php tools/seed_demo.php`).
