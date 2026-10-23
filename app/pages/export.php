@@ -9,6 +9,7 @@ if ($kind === 'report') {
     $cat = Reports::catalogue();
     $key = get('r');
     must(isset($cat[$key]), 'Unknown report.');
+    must(report_allowed($key), 'You have not been given access to this report.');
     $asOf = reporting_date();
     $days = max(1, setting_int('report_default_days'));
     $f = ['from' => is_date(get('from')) ? get('from') : date('Y-m-d', strtotime("-$days days", strtotime($asOf))), 'to' => is_date(get('to')) ? get('to') : $asOf,

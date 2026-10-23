@@ -118,3 +118,17 @@ function assert_permission_boundaries(string $role, array $perms): void
     // Combinations such as creating AND approving a loan are allowed in small branches, but the services still
     // refuse self-approval, self-reconciliation and self-authorization at transaction time.
 }
+
+/** Reports a user may open: everything their role allows, minus any reports the administrator has switched off for that person. */
+function report_denied_keys(?int $userId = null): array
+{
+    static $cache = [];
+    $userId = $userId ?? (int)(uid() ?? 0);
+    if (!isset($cache[$userId])) $cache[$userId] = array_column(rows('SELECT report_key FROM user_report_access WHERE user_id = ? AND allowed = 0', [$userId]), 'report_key');
+    return $cache[$userId];
+}
+
+function report_allowed(string $key): bool
+{
+    return can('report.view') && !in_array($key, report_denied_keys(), true);
+}

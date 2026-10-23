@@ -1,10 +1,11 @@
 <?php
 $title = 'Reports';
-$cat = Reports::catalogue();
+$cat = array_filter(Reports::catalogue(), fn($k) => report_allowed($k), ARRAY_FILTER_USE_KEY);
 $key = get('r');
 $days = max(1, setting_int('report_default_days'));
 $asOf = reporting_date();
 
+if ($key && !isset($cat[$key]) && isset(Reports::catalogue()[$key])) { http_response_code(403); throw new AppError('You have not been given access to this report.'); }
 if (!$key || !isset($cat[$key])) {
     page_head('Reports', '', 'Every report states its reporting period and business date. Accrued, collected, gross and net amounts are never mixed.');
     $groups = [];

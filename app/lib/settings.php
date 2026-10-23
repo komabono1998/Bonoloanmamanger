@@ -22,6 +22,7 @@ function setting_defaults(): array
         'staff_prefix' => 'S',
         'setup_lending_confirmed' => '0',
         'admin_manages_policy' => '1',
+        'smtp_host' => '', 'smtp_port' => '587', 'smtp_security' => 'tls', 'smtp_user' => '', 'smtp_pass' => '', 'mail_from_email' => '', 'mail_from_name' => '',
         'currency' => 'UGX',
         // numbering
         'loan_prefix' => 'BLM',

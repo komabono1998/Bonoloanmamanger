@@ -30,6 +30,14 @@ records by default — it cannot approve loans, post payments, approve End-of-Da
 * The **+ New** menu in the top bar offers role-aware shortcuts (client, loan application, payment, user, branch...).
 * One deployment serves one institution. Each institution runs its own installation and creates its own account through the Setup page.
 
+## 2b. Users: profiles, rights, reports and password resets
+
+Open **Users & Access**, then a user:
+* Edit every profile field: name, username, **Staff ID**, email, phone, role, status and branches.
+* **Individual permissions** and **Reports this user can open** (untick a report to hide it from that person; branch scoping still applies). All changes need a reason and are audited.
+* **Password resets are by email**: *Email password reset link* sends a one-time link (2 hours). New users can be created without a password: with an email address they receive an invitation link (72 hours). Staff can also use *Forgot your password?* on the sign-in page.
+* Configure outgoing mail under **Settings -> Email** (SMTP host, port, user, password stored encrypted) and send a test message. Set `APP_URL` in `.env` so links point at your public address. Until SMTP is set, messages are written to `storage/logs/mail.log`.
+
 ## 3. Daily / periodic duties
 
 * **System health** (also on your dashboard): database, storage, backup age, pending migrations, MFA coverage, production-readiness notes.

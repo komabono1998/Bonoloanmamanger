@@ -23,24 +23,41 @@ if ($a === 'create') post_action(function () use ($roles) {
     must(!val('SELECT COUNT(*) FROM users WHERE lower(username) = ?', [$un]), 'That username is already taken.');
     must(clean(post('full_name')) !== '', 'Full name is required.');
     must(in_array(post('role'), $roles, true), 'Choose a role.');
+    $email = clean(post('email'));
+    must($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) !== false, 'Enter a valid email address.');
+    $invite = $pw === '' && $email !== '';
+    must($invite || $pw !== '', 'Give a temporary password, or enter an email address so the user can choose their own through an invitation link.');
+    if ($invite) $pw = bin2hex(random_bytes(12)) . 'Aa1';
     password_policy_check($pw);
     $branches = (array)($_POST['branches'] ?? []);
     if (post('role') !== 'System Administrator' && post('role') !== 'COO') must(count($branches) > 0, 'Assign at least one branch to this user.');
-    $nid = tx(function () use ($un, $pw, $branches) {
+    $nid = tx(function () use ($un, $pw, $branches, $invite) {
         $nid = insert('users', ['full_name' => clean(post('full_name')), 'username' => $un, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT), 'role' => post('role'), 'phone' => clean(post('phone')) ?: null,
-            'email' => clean(post('email')) ?: null, 'status' => 'active', 'created_at' => now(), 'created_by' => uid(), 'password_changed_at' => now(), 'must_change_password' => post('must_change') ? 1 : 0]);
+            'email' => clean(post('email')) ?: null, 'status' => 'active', 'created_at' => now(), 'created_by' => uid(), 'password_changed_at' => now(), 'must_change_password' => ($invite || post('must_change')) ? 1 : 0]);
         save_user_branches($nid, $branches, (int)post('primary_branch'));
         $staffNo = assign_staff_no($nid);
         audit('User created', 'Users', 'user', $nid, null, $staffNo . ' ' . $un . ' (' . post('role') . ')');
         return $nid;
     });
-    return ['User created.', url('users', ['a' => 'edit', 'id' => $nid])];
+    $note = '';
+    if ($invite) {
+        try { [$sent, $link] = PasswordReset::send($nid, 'invite', uid()); $note = $sent ? ' An invitation email was sent.' : ' Email is not configured, so no email was sent' . (!is_production() ? ' (the link is in storage/logs/mail.log).' : '.'); }
+        catch (AppError $e) { $note = ' The invitation email could not be sent: ' . $e->getMessage(); }
+    }
+    return ['User created.' . $note, url('users', ['a' => 'edit', 'id' => $nid])];
 });
 if ($a === 'update') post_action(function () use ($id, $roles) {
     require_perm('user.manage');
     $u = row('SELECT * FROM users WHERE id = ?', [$id]);
     must((bool)$u, 'User not found.');
     $role = post('role'); $status = post('status');
+    $un = strtolower(trim(post('username'))); $sn = strtoupper(trim(post('staff_no')));
+    must(preg_match('/^[a-z0-9_.-]{3,30}$/', $un) === 1, 'Username must be 3-30 lowercase letters, numbers, dots, dashes or underscores.');
+    must(!val('SELECT COUNT(*) FROM users WHERE lower(username) = ? AND id <> ?', [$un, $id]), 'That username is already taken.');
+    must(preg_match('/^[A-Z0-9-]{3,24}$/', $sn) === 1, 'Staff ID must be 3-24 letters, numbers or dashes.');
+    must(!val('SELECT COUNT(*) FROM users WHERE staff_no = ? AND id <> ?', [$sn, $id]), 'That Staff ID belongs to someone else.');
+    $em = clean(post('email'));
+    must($em === '' || filter_var($em, FILTER_VALIDATE_EMAIL) !== false, 'Enter a valid email address.');
     must(in_array($role, $roles, true) && in_array($status, ['active', 'inactive'], true), 'Invalid role or status.');
     if ($id === uid()) must($status === 'active' && $role === $u['role'], 'You cannot deactivate or change the role of your own account.');
     if ($u['role'] === 'System Administrator' && ($role !== 'System Administrator' || $status !== 'active')) must(active_admins() > 1, 'At least one active System Administrator is required.');
@@ -50,23 +67,35 @@ if ($a === 'update') post_action(function () use ($id, $roles) {
     foreach (rows('SELECT permission, granted FROM user_permissions WHERE user_id = ?', [$id]) as $o) { if ($o['granted']) $eff[$o['permission']] = true; else unset($eff[$o['permission']]); }
     assert_permission_boundaries($role, array_keys($eff));
     $branches = (array)($_POST['branches'] ?? []);
-    tx(function () use ($id, $u, $role, $status, $branches) {
-        update('users', ['full_name' => clean(post('full_name')), 'phone' => clean(post('phone')) ?: null, 'email' => clean(post('email')) ?: null, 'role' => $role, 'status' => $status], 'id = :id', ['id' => $id]);
+    tx(function () use ($id, $u, $role, $status, $branches, $un, $sn, $em) {
+        update('users', ['full_name' => clean(post('full_name')), 'username' => $un, 'staff_no' => $sn, 'phone' => clean(post('phone')) ?: null, 'email' => $em ?: null, 'role' => $role, 'status' => $status], 'id = :id', ['id' => $id]);
         $before = array_column(rows('SELECT branch_id FROM user_branches WHERE user_id = ? ORDER BY branch_id', [$id]), 'branch_id');
         save_user_branches($id, $branches, (int)post('primary_branch'));
         $after = array_column(rows('SELECT branch_id FROM user_branches WHERE user_id = ? ORDER BY branch_id', [$id]), 'branch_id');
-        audit('User updated', 'Users', 'user', $id, ['role' => $u['role'], 'status' => $u['status'], 'branches' => $before], ['role' => $role, 'status' => $status, 'branches' => $after]);
+        audit('User updated', 'Users', 'user', $id, ['username' => $u['username'], 'staff_no' => $u['staff_no'], 'email' => $u['email'], 'role' => $u['role'], 'status' => $u['status'], 'branches' => $before], ['username' => $un, 'staff_no' => $sn, 'email' => $em, 'role' => $role, 'status' => $status, 'branches' => $after]);
     });
     return 'User updated.';
 });
 if ($a === 'reset') post_action(function () use ($id) {
     require_perm('user.manage');
-    $pw = $_POST['password'] ?? '';
-    password_policy_check($pw);
-    must((bool)val('SELECT COUNT(*) FROM users WHERE id = ?', [$id]), 'User not found.');
-    update('users', ['password_hash' => password_hash($pw, PASSWORD_DEFAULT), 'password_changed_at' => now(), 'must_change_password' => 1, 'failed_attempts' => 0, 'locked_until' => null], 'id = :id', ['id' => $id]);
-    audit('Password reset by administrator', 'Users', 'user', $id);
-    return 'Password reset. The user must choose a new password at next sign-in.';
+    [$sent, $link] = PasswordReset::send($id, 'reset', uid());
+    if ($sent) return 'A password reset link was emailed to the user. It works once and expires in 2 hours.';
+    return 'Email is not configured (Settings > Email), so nothing was sent.' . (!is_production() ? ' Local testing: the message is in storage/logs/mail.log.' : '');
+});
+if ($a === 'reports') post_action(function () use ($id) {
+    require_perm('user.manage');
+    $u = row('SELECT * FROM users WHERE id = ?', [$id]);
+    must((bool)$u, 'User not found.');
+    $allowed = array_keys((array)($_POST['rep'] ?? []));
+    $all = array_keys(Reports::catalogue());
+    tx(function () use ($id, $allowed, $all) {
+        $before = array_column(rows('SELECT report_key FROM user_report_access WHERE user_id = ? AND allowed = 0', [$id]), 'report_key');
+        q('DELETE FROM user_report_access WHERE user_id = ?', [$id]);
+        $denied = [];
+        foreach ($all as $k) if (!in_array($k, $allowed, true)) { q('INSERT INTO user_report_access(user_id, report_key, allowed) VALUES (?,?,0)', [$id, $k]); $denied[] = $k; }
+        audit('User report access changed', 'Users', 'user', $id, ['blocked' => $before], ['blocked' => $denied], clean(post('reason')));
+    });
+    return 'Report access saved.';
 });
 if ($a === 'resetmfa') post_action(function () use ($id) {
     require_perm('user.manage');
@@ -133,7 +162,7 @@ if ($tab === 'users' && $a === 'new') {
     field('full_name', 'Full name', ['required' => true, 'span' => 2]); field('username', 'Username (lowercase)', ['required' => true]); field('phone', 'Phone', ['type' => 'tel']);
     field('email', 'Email', ['type' => 'email', 'span' => 2]);
     field('role', 'Role', ['type' => 'select', 'options' => array_combine($roles, $roles)]);
-    field('password', 'Temporary password', ['type' => 'password', 'required' => true, 'help' => 'At least ' . max(8, setting_int('password_min_length')) . ' characters, letters and numbers.', 'attrs' => 'autocomplete="new-password"']);
+    field('password', 'Temporary password (optional)', ['type' => 'password', 'help' => 'Leave blank and enter an email address: the user receives a link to choose their own password.', 'attrs' => 'autocomplete="new-password"']);
     echo '<h3 class="full">Branch access</h3><div class="full" style="grid-column:1/-1"><div class="perm-grid">';
     foreach (all_branch_options() as $bid => $bn) echo '<label><input type="checkbox" name="branches[]" value="' . (int)$bid . '"> ' . e($bn) . '</label>';
     echo '</div><small class="muted">The COO sees all branches automatically; the System Administrator needs none. Everyone else sees only the branches ticked here.</small></div>';
@@ -148,7 +177,8 @@ if ($tab === 'users' && $a === 'new') {
     echo '<div class="grid g2"><div class="card"><h2>' . e($u['full_name']) . ' <span class="muted">@' . e($u['username']) . '</span></h2>';
     form_open(url('users', ['a' => 'update', 'id' => $id]), ['attrs' => 'style="grid-template-columns:1fr 1fr"']);
     field('full_name', 'Full name', ['value' => $u['full_name'], 'required' => true]); field('phone', 'Phone', ['value' => $u['phone']]);
-    field('email', 'Email', ['value' => $u['email'], 'span' => 2]);
+    field('username', 'Username', ['value' => $u['username'], 'required' => true]); field('staff_no', 'Staff ID', ['value' => $u['staff_no'], 'required' => true, 'help' => 'Unique. Can be used to sign in.']);
+    field('email', 'Email (used for password reset)', ['value' => $u['email'], 'span' => 2]);
     field('role', 'Role', ['type' => 'select', 'options' => array_combine($roles, $roles), 'value' => $u['role']]);
     field('status', 'Account status', ['type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive'], 'value' => $u['status']]);
     echo '<h3 class="full">Branch access</h3><div class="full" style="grid-column:1/-1"><div class="perm-grid">';
@@ -156,12 +186,14 @@ if ($tab === 'users' && $a === 'new') {
     echo '</div></div>';
     field('primary_branch', 'Primary branch', ['type' => 'select', 'options' => all_branch_options(false), 'blank' => '—', 'value' => $prim ?: '', 'span' => 2]);
     echo '<div class="form-actions">'; submit_btn('Save'); echo btn('Back', url('users')); echo '</div>'; form_close();
-    desc_list(['Staff ID' => '<b>' . e($u['staff_no']) . '</b>', 'Created' => e(fmt_dt($u['created_at'])), 'Last login' => e(fmt_dt($u['last_login'])), 'Last IP' => e($u['last_ip']), 'Password changed' => e(fmt_dt($u['password_changed_at'])),
+    desc_list(['Created' => e(fmt_dt($u['created_at'])), 'Last login' => e(fmt_dt($u['last_login'])), 'Last IP' => e($u['last_ip']), 'Password changed' => e(fmt_dt($u['password_changed_at'])),
         'Failed attempts' => e($u['failed_attempts']), 'MFA' => $u['mfa_enabled'] ? badge('Active') : (mfa_required_for($u) ? badge('Pending') . ' required' : 'off')], 2);
-    echo '</div><div class="card"><h2>Reset password</h2>';
-    form_open(url('users', ['a' => 'reset', 'id' => $id]), ['attrs' => 'style="grid-template-columns:1fr" data-confirm="Reset this user\'s password?"']);
-    field('password', 'New temporary password', ['type' => 'password', 'required' => true, 'attrs' => 'autocomplete="new-password"']);
-    echo '<div class="form-actions">'; submit_btn('Reset password', 'danger'); echo '</div>'; form_close();
+    echo '</div><div class="card"><h2>Password</h2><p class="muted">Password resets are done by email: the user receives a one-time link (valid 2 hours) and chooses their own password. Nobody else ever sees it.</p>';
+    if (empty($u['email'])) echo '<div class="notice">Add an email address for this user (and save) to enable password reset.</div>';
+    elseif (!mail_configured()) echo '<div class="notice info">Outgoing email is not configured yet (Settings &rarr; Email). Messages are written to a log file until it is.</div>';
+    echo '<p><b>' . e($u['email'] ?: 'no email on file') . '</b></p>';
+    form_open(url('users', ['a' => 'reset', 'id' => $id]), ['attrs' => 'style="grid-template-columns:1fr" data-confirm="Email a password reset link to this user?"']);
+    echo '<div class="form-actions">'; submit_btn('Email password reset link', empty($u['email']) ? 'default' : 'primary'); echo '</div>'; form_close();
     if ($u['mfa_enabled'] && $id !== uid()) {
         echo '<h3>Reset multi-factor authentication</h3><p class="muted">For a lost phone. The user enrols again at next sign-in. Audited.</p>';
         form_open(url('users', ['a' => 'resetmfa', 'id' => $id]), ['attrs' => 'style="grid-template-columns:1fr" data-confirm="Reset this user\'s MFA?"']);
@@ -176,6 +208,20 @@ if ($tab === 'users' && $a === 'new') {
         echo '<div class="full" style="grid-column:1/-1">'; perm_grid(user_permissions($id), $rolePerms); echo '</div>';
         field('reason', 'Reason for the change (audited)', ['span' => 4, 'required' => true]);
         echo '<div class="form-actions">'; submit_btn('Save permissions'); echo '</div>'; form_close(); echo '</div>';
+    }
+    if ($id !== uid()) {
+        $denied = report_denied_keys($id);
+        echo '<div class="card"><h2>Reports this user can open</h2>';
+        if (!in_array('report.view', user_permissions($id), true)) echo '<div class="notice">This user does not have the View reports permission, so no report is available regardless of the ticks below.</div>';
+        echo '<p class="muted">Untick a report to hide it from this person. Reports they may open still show only their own branches.</p>';
+        form_open(url('users', ['a' => 'reports', 'id' => $id]));
+        $groups = [];
+        foreach (Reports::catalogue() as $k => [$g, $t]) $groups[$g][$k] = $t;
+        echo '<div class="full" style="grid-column:1/-1">';
+        foreach ($groups as $g => $items) { echo '<h3>' . e($g) . '</h3><div class="perm-grid">'; foreach ($items as $k => $t) echo '<label><input type="checkbox" name="rep[' . e($k) . ']" value="1"' . (in_array($k, $denied, true) ? '' : ' checked') . '> ' . e($t) . '</label>'; echo '</div>'; }
+        echo '</div>';
+        field('reason', 'Reason for the change (audited)', ['span' => 4]);
+        echo '<div class="form-actions">'; submit_btn('Save report access'); echo '</div>'; form_close(); echo '</div>';
     }
 } elseif ($tab === 'users') {
     $us = rows('SELECT * FROM users ORDER BY status, full_name');

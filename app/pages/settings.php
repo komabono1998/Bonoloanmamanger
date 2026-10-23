@@ -52,6 +52,12 @@ $GROUPS = [
         'require_reconciliation' => ['Every till must be reconciled before EOD', 'checkbox'], 'expense_approval_limit' => ['Routine expense limit (UGX): above this needs approval', 'money'],
         'reopen_authority' => ['Reopening a closed business date is authorized by', 'select', ['branch_manager' => 'Branch Manager', 'coo' => 'COO']],
     ]],
+    'email' => ['Email', 'settings.manage', [
+        'smtp_host' => ['Mail server (SMTP host)', 'text', 'e.g. smtp.gmail.com or your provider. Leave empty to keep emails in a log file only.'], 'smtp_port' => ['Port', 'number', '587 (STARTTLS) or 465 (SSL).'],
+        'smtp_security' => ['Connection security', 'select', ['tls' => 'STARTTLS (port 587)', 'ssl' => 'SSL/TLS (port 465)', 'none' => 'None (not recommended)']],
+        'smtp_user' => ['SMTP username', 'text'], 'smtp_pass' => ['SMTP password', 'password', 'Stored encrypted. Leave blank to keep the current one. For Gmail use an app password.'],
+        'mail_from_email' => ['Send emails from', 'text', 'Defaults to the institution email.'], 'mail_from_name' => ['Sender name', 'text', 'Defaults to the institution name.'],
+    ]],
     'security' => ['Security & recovery', 'settings.manage', [
         'session_timeout_min' => ['Session timeout (minutes of inactivity)', 'number'], 'password_min_length' => ['Minimum password length', 'number'], 'password_max_age_days' => ['Passwords expire after (days, 0 = never)', 'number'],
         'mfa_required_roles' => ['Roles that must use multi-factor authentication', 'roles', 'System Administrator is always included.'],
@@ -79,6 +85,11 @@ if ($a === 'save') post_action(function () use ($GROUPS, $tab) {
     tx(function () use ($g) {
         foreach ($g[2] as $key => $def) {
             $type = $def[1];
+            if ($key === 'smtp_pass') {
+                $pw = (string)($_POST[$key] ?? '');
+                if ($pw !== '') set_setting($key, encrypt_secret($pw), uid(), false);
+                continue;
+            }
             if ($type === 'checkbox') $v = !empty($_POST[$key]) ? '1' : '0';
             elseif ($type === 'roles') {
                 $sel = array_values(array_intersect((array)($_POST[$key] ?? []), array_column(rows('SELECT role FROM roles'), 'role')));
@@ -106,6 +117,13 @@ if ($a === 'save') post_action(function () use ($GROUPS, $tab) {
     });
     if ($tab === 'lending') set_setting('setup_lending_confirmed', '1', uid());
     return 'Settings saved. Existing approved loans keep their original terms.';
+});
+if ($a === 'testmail') post_action(function () {
+    require_perm('settings.manage');
+    $to = clean(post('to')) ?: (string)(user()['email'] ?? '');
+    must($to !== '', 'Enter an address to send the test to.');
+    $sent = send_mail($to, 'Test email from ' . business_name(), mail_template('Email is working', '<p>This is a test message sent from the settings page.</p>'));
+    return $sent ? 'Test email sent to ' . $to . '.' : 'No mail server is configured, so the message was only written to storage/logs/mail.log.';
 });
 if ($a === 'limits') post_action(function () {
     must(can('limits.manage') || policy_bootstrap_open(), 'You do not have permission to perform this action.');
@@ -171,6 +189,7 @@ if ($tab === 'hub') {
         'penalty' => ['alert', 'Penalties', 'Overdue penalty rate, basis, grace days and cap.'],
         'payments' => ['card', 'Payments & clients', 'Payment allocation order, reversal approval, duplicate phone policy.'],
         'eod' => ['clock', 'Cash & End of Day', 'Working days, closing rules, expense limit, reopening authority.'],
+        'email' => ['mail', 'Email', 'Mail server used for password reset and invitation emails; send a test message.'],
         'security' => ['lock', 'Security & recovery', 'Sessions, passwords, MFA roles, backups, RTO / RPO.'],
         'limits' => ['check', 'Approval limits', 'Who can approve how much; anything above goes to the COO.'],
         'calendar' => ['calendar', 'Business calendar', 'Holidays and special working days.'],
@@ -270,16 +289,24 @@ foreach ($g[2] as $key => $def) {
         echo '</div><small>' . e($help) . '</small></div>';
         continue;
     }
-    $opts = ['value' => setting($key), 'help' => $help, 'span' => in_array($key, ['business_address', 'receipt_footer', 'backup_dir', 'working_days'], true) ? 2 : 1];
+    $opts = ['value' => $key === 'smtp_pass' ? '' : setting($key), 'help' => $help, 'span' => in_array($key, ['business_address', 'receipt_footer', 'backup_dir', 'working_days'], true) ? 2 : 1];
     if ($type === 'select') { $opts['type'] = 'select'; $opts['options'] = $def[2]; }
     elseif ($type === 'checkbox') $opts['type'] = 'checkbox';
     elseif ($type === 'money') $opts['type'] = 'money';
     elseif ($type === 'number') { $opts['type'] = 'number'; $opts['attrs'] = 'min="0"'; }
     elseif ($type === 'time') $opts['type'] = 'time';
+    elseif ($type === 'password') { $opts['type'] = 'password'; $opts['attrs'] = 'autocomplete="new-password" placeholder="' . (setting('smtp_pass') !== '' ? 'unchanged' : '') . '"'; }
     elseif ($type === 'color') { $opts['type'] = 'text'; $opts['attrs'] = 'maxlength="7" placeholder="#0B5C4D"'; }
     field($key, $label, $opts);
 }
 echo '<div class="form-actions">'; submit_btn('Save settings'); echo '</div>'; form_close();
+if ($tab === 'email') {
+    echo '<h3>Send a test email</h3>';
+    form_open(url('settings', ['a' => 'testmail', 'tab' => 'email']), ['attrs' => 'style="grid-template-columns:1fr auto;align-items:end"']);
+    field('to', 'Send to', ['value' => user()['email'] ?? '', 'type' => 'email']);
+    echo '<div class="fld"><label>&nbsp;</label>'; submit_btn('Send test', 'default'); echo '</div>'; form_close();
+    echo '<p class="muted">' . (mail_configured() ? 'Mail server configured.' : 'No mail server yet: emails are written to storage/logs/mail.log instead of being sent.') . ' Save your settings first, then test.</p>';
+}
 if ($tab === 'business') {
     echo '<h3>Logo</h3><div class="logo-row">';
     echo logo_url() ? '<img class="logo-prev" src="' . e(logo_url()) . '" alt="Current logo">' : '<div class="logo-prev ph">No logo yet</div>';
