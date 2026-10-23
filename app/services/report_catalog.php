@@ -87,7 +87,7 @@ final class ReportCatalog
             'FN-09' => ['Cashier Transaction Summary', 'Financial transactions by cashier', 'cashier_summary', 'fcb', ''],
             'FN-10' => ['Payment Channel Reconciliation', 'Recorded payments compared with available external settlement records', 'channel_recon', 'fb', 'Internal reconciliation of payments to cash/channel movements. External settlement statements are not imported.'],
             'FN-11' => ['Financial Control Summary', 'Configured financial control balances and exceptions', 'control_summary', 'b', ''],
-            'FN-12' => ['Trial Balance / Financial Statements', 'Only if a general ledger and accounting rules are implemented', null, '', 'Not available: Bono does not maintain a general ledger with account mappings, so no trial balance, profit-and-loss statement or balance sheet is produced.'],
+            'FN-12' => ['Trial Balance / Financial Statements', 'Trial balance, income statement, balance sheet, general ledger and journal register', 'gl_statements', 'fbv', 'Built from the General Ledger. Interest, fees and penalties are income when received (cash basis); amounts still owed are held as receivables against unearned income.'],
             'EOD-01' => ['Daily Operations Summary', 'Applications, disbursements, collections and expenses', 'daily_ops_summary', 'fb', ''],
             'EOD-02' => ['Cashier Closing Report', 'Opening float, cash receipts, payments and counted cash', 'cashier_closing', 'fcb', ''],
             'EOD-03' => ['Cash Variance Report', 'Expected versus actual closing cash and explanations', 'cashier_variances', 'fcb', ''],

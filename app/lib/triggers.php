@@ -4,7 +4,7 @@
  * Even a database administrator running a stray UPDATE/DELETE gets an error (superusers can still drop triggers,
  * which is why production should use a limited application role - see docs/CLOUD_DEPLOYMENT.md).
  */
-const TRIGGERS_VERSION = 'v3.1';
+const TRIGGERS_VERSION = 'v3.2';
 
 /** [table, event (UPDATE|DELETE), columns|null, message] */
 function protection_rules(): array
@@ -30,6 +30,12 @@ function protection_rules(): array
         ['users', 'DELETE', null, 'Users cannot be deleted. Deactivate the account instead.'],
         ['branches', 'DELETE', null, 'Branches cannot be deleted. Deactivate the branch instead.'],
         ['approval_requests', 'DELETE', null, 'Approval requests cannot be deleted.'],
+        ['gl_journals', 'UPDATE', null, 'Journals cannot be modified. Post a reversing journal instead.'],
+        ['gl_journals', 'DELETE', null, 'Journals cannot be deleted. Post a reversing journal instead.'],
+        ['gl_journal_lines', 'UPDATE', null, 'Journal lines cannot be modified. Post a reversing journal instead.'],
+        ['gl_journal_lines', 'DELETE', null, 'Journal lines cannot be deleted. Post a reversing journal instead.'],
+        ['gl_accounts', 'DELETE', null, 'Accounts cannot be deleted. Deactivate the account instead.'],
+        ['gl_accounts', 'UPDATE', 'code, type', 'An account code and type cannot be changed once created. Deactivate it and create a new one.'],
     ];
 }
 
@@ -51,7 +57,7 @@ function install_triggers(): void
     }
     if (db_is_pg()) {   // TRUNCATE would bypass row triggers
         $pdo->exec("CREATE OR REPLACE FUNCTION fn_no_truncate() RETURNS trigger AS \$\$ BEGIN RAISE EXCEPTION 'Financial history cannot be truncated.'; END; \$\$ LANGUAGE plpgsql");
-        foreach (['audit_logs', 'loan_ledger', 'cash_movements', 'payments', 'login_events'] as $t) {
+        foreach (['audit_logs', 'loan_ledger', 'cash_movements', 'payments', 'login_events', 'gl_journals', 'gl_journal_lines'] as $t) {
             $pdo->exec("DROP TRIGGER IF EXISTS trg_{$t}_truncate ON $t");
             $pdo->exec("CREATE TRIGGER trg_{$t}_truncate BEFORE TRUNCATE ON $t FOR EACH STATEMENT EXECUTE FUNCTION fn_no_truncate()");
         }

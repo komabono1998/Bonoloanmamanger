@@ -91,7 +91,7 @@ final class ReportEngines
             $out[] = $r + ['calc' => $calc, 'diff' => (int)$r['principal_out'] - $calc, 'ok' => (int)$r['principal_out'] === $calc ? 'Reconciled' : 'DIFFERENCE'];
         }
         return self::R($x['brCol'] + ['loan_no' => 'Loan', 'full_name' => 'Client', 'disbursed' => ['Disbursed', 'money'], 'repaid_principal' => ['Principal repaid', 'money'], 'calc' => ['Recomputed principal', 'money'], 'principal_out' => ['Ledger principal', 'money'], 'diff' => ['Difference', 'money'], 'ok' => ['Result', 'badge']],
-            $out, ['disbursed', 'repaid_principal', 'calc', 'principal_out', 'diff'], 'Difference = ledger principal − (disbursed − principal repaid + principal waived). Any non-zero line needs investigation.');
+            $out, ['disbursed', 'repaid_principal', 'calc', 'principal_out', 'diff'], 'Difference = ledger principal âˆ’ (disbursed âˆ’ principal repaid + principal waived). Any non-zero line needs investigation.');
     }
 
     private static function loan_renewals(array $f): array
@@ -140,7 +140,7 @@ final class ReportEngines
         $close = $openBal + $disb + $rep + $adj;
         return self::R(['label' => 'Movement', 'amount' => ['Principal (UGX)', 'money']], [
             ['label' => 'Opening portfolio (principal outstanding at ' . fmt_date($x['from']) . ')', 'amount' => $openBal], ['label' => '+ Additions: loans disbursed', 'amount' => $disb],
-            ['label' => '− Repayments of principal (net of reversals)', 'amount' => $rep], ['label' => '± Adjustments and waivers', 'amount' => $adj], ['label' => 'Closing portfolio (at ' . fmt_date($x['to']) . ')', 'amount' => $close]], [], 'Repayments are shown as negative amounts. Opening + additions + repayments + adjustments = closing.');
+            ['label' => 'âˆ’ Repayments of principal (net of reversals)', 'amount' => $rep], ['label' => 'Â± Adjustments and waivers', 'amount' => $adj], ['label' => 'Closing portfolio (at ' . fmt_date($x['to']) . ')', 'amount' => $close]], [], 'Repayments are shown as negative amounts. Opening + additions + repayments + adjustments = closing.');
     }
 
     // ================================================================= B. clients
@@ -198,7 +198,7 @@ final class ReportEngines
         $rs = rows("SELECT g.business_date, l.loan_no, g.type, g.component, g.amount, g.description FROM loan_ledger g JOIN loans l ON l.id = g.loan_id WHERE l.client_id = ? AND g.business_date BETWEEN ? AND ? AND {$x['LB']} ORDER BY g.business_date, g.id", [$cid, $x['from'], $x['to']]);
         $bal = (int)val("SELECT COALESCE(SUM(g.amount),0) FROM loan_ledger g JOIN loans l ON l.id = g.loan_id WHERE l.client_id = ? AND g.business_date < ? AND {$x['LB']}", [$cid, $x['from']]);
         $out = [['business_date' => '', 'loan_no' => '', 'what' => 'Balance brought forward', 'debit' => 0, 'credit' => 0, 'balance' => $bal]];
-        foreach ($rs as $r) { $a = (int)$r['amount']; $bal += $a; $out[] = ['business_date' => $r['business_date'], 'loan_no' => $r['loan_no'], 'what' => ucfirst(str_replace('_', ' ', $r['type'])) . ' — ' . $r['component'] . ($r['description'] ? ' (' . $r['description'] . ')' : ''), 'debit' => $a > 0 ? $a : 0, 'credit' => $a < 0 ? -$a : 0, 'balance' => $bal]; }
+        foreach ($rs as $r) { $a = (int)$r['amount']; $bal += $a; $out[] = ['business_date' => $r['business_date'], 'loan_no' => $r['loan_no'], 'what' => ucfirst(str_replace('_', ' ', $r['type'])) . ' â€” ' . $r['component'] . ($r['description'] ? ' (' . $r['description'] . ')' : ''), 'debit' => $a > 0 ? $a : 0, 'credit' => $a < 0 ? -$a : 0, 'balance' => $bal]; }
         return self::R(['business_date' => ['Date', 'date'], 'loan_no' => 'Loan', 'what' => 'Transaction', 'debit' => ['Charged / disbursed', 'money'], 'credit' => ['Paid / waived', 'money'], 'balance' => ['Balance owed', 'money']], $out, ['debit', 'credit'], 'Statement for ' . $c['full_name'] . ' (' . $c['client_no'] . '). Balance = amounts owed to the institution after each entry.');
     }
 
@@ -226,7 +226,7 @@ final class ReportEngines
     private static function officer_recommendations(array $f): array
     {
         $x = self::x($f);
-        return self::R($x['brCol'] + ['loan_no' => 'Loan', 'full_name' => 'Client', 'officer' => 'Recommended by', 'recommendation' => 'Recommendation', 'recommended_amount' => ['Recommended', 'money'], 'approved_principal' => ['Approved', 'money'], 'diff' => ['Approved − recommended', 'money'], 'status' => ['Status', 'badge']],
+        return self::R($x['brCol'] + ['loan_no' => 'Loan', 'full_name' => 'Client', 'officer' => 'Recommended by', 'recommendation' => 'Recommendation', 'recommended_amount' => ['Recommended', 'money'], 'approved_principal' => ['Approved', 'money'], 'diff' => ['Approved âˆ’ recommended', 'money'], 'status' => ['Status', 'badge']],
             rows("SELECT br.name AS branch, l.loan_no, c.full_name, u.full_name AS officer, a.recommendation, a.recommended_amount, COALESCE(l.approved_principal, 0) AS approved_principal,
                   CASE WHEN l.approved_principal IS NULL THEN NULL ELSE l.approved_principal - a.recommended_amount END AS diff, l.status
                   FROM credit_assessments a JOIN loans l ON l.id = a.loan_id JOIN clients c ON c.id = l.client_id JOIN users u ON u.id = a.assessed_by JOIN branches br ON br.id = l.branch_id
@@ -259,9 +259,9 @@ final class ReportEngines
             $a = $m . '-01'; $b = date('Y-m-t', strtotime($a));
             $e = (int)val("SELECT COALESCE(SUM(s.total_due),0) FROM repayment_schedules s JOIN loans l ON l.id = s.loan_id WHERE s.status = 'Current' AND s.due_date BETWEEN ? AND ? AND {$x['LB']}", [$a, $b]);
             $p = (int)val("SELECT COALESCE(SUM(p.amount),0) FROM payments p JOIN loans l ON l.id = p.loan_id WHERE p.status = 'Posted' AND p.business_date BETWEEN ? AND ? AND {$x['LB']}", [$a, $b]);
-            $out[] = ['m' => date('M Y', strtotime($a)), 'expected' => $e, 'actual' => $p, 'gap' => $p - $e, 'rate' => $e > 0 ? round($p / $e * 100, 1) . '%' : '–'];
+            $out[] = ['m' => date('M Y', strtotime($a)), 'expected' => $e, 'actual' => $p, 'gap' => $p - $e, 'rate' => $e > 0 ? round($p / $e * 100, 1) . '%' : 'â€“'];
         }
-        return self::R(['m' => 'Month', 'expected' => ['Expected (scheduled)', 'money'], 'actual' => ['Actual (received)', 'money'], 'gap' => ['Actual − expected', 'money'], 'rate' => ['Repayment rate', 'pct']], $out, ['expected', 'actual', 'gap']);
+        return self::R(['m' => 'Month', 'expected' => ['Expected (scheduled)', 'money'], 'actual' => ['Actual (received)', 'money'], 'gap' => ['Actual âˆ’ expected', 'money'], 'rate' => ['Repayment rate', 'pct']], $out, ['expected', 'actual', 'gap']);
     }
 
     private static function repayment_schedule(array $f): array
@@ -275,7 +275,7 @@ final class ReportEngines
         foreach ($rs as &$r) { $r['state'] = (int)$r['paid_total'] >= (int)$r['cum_due'] ? 'Paid' : ($r['due_date'] < $x['asOf'] ? 'Missed' : 'Upcoming'); $r['balance'] = max(0, (int)$r['cum_due'] - (int)$r['paid_total']); }
         unset($r);
         return self::R($x['brCol'] + ['loan_no' => 'Loan', 'full_name' => 'Client', 'installment_no' => ['#', 'num'], 'due_date' => ['Due', 'date'], 'principal_due' => ['Principal', 'money'], 'interest_due' => ['Interest', 'money'], 'total_due' => ['Instalment', 'money'], 'balance' => ['Unpaid to date', 'money'], 'state' => ['State', 'badge']], $rs, ['principal_due', 'interest_due', 'total_due'],
-            'Payments are applied to the schedule in order; "Unpaid to date" = scheduled up to this instalment − paid to date.');
+            'Payments are applied to the schedule in order; "Unpaid to date" = scheduled up to this instalment âˆ’ paid to date.');
     }
 
     private static function missed_installments(array $f): array
@@ -324,7 +324,7 @@ final class ReportEngines
     private static function arrears_aging(array $f): array
     {
         $x = self::x($f); $out = [];
-        foreach (['1–7 days' => [1, 7], '8–30 days' => [8, 30], '31–60 days' => [31, 60], '61–90 days' => [61, 90], 'Over 90 days' => [91, 99999]] as $label => [$lo, $hi]) {
+        foreach (['1â€“7 days' => [1, 7], '8â€“30 days' => [8, 30], '31â€“60 days' => [31, 60], '61â€“90 days' => [61, 90], 'Over 90 days' => [91, 99999]] as $label => [$lo, $hi]) {
             $r = row("SELECT COUNT(*) AS n, COALESCE(SUM(b.principal_out),0) AS pr, COALESCE(SUM(b.interest_out),0) AS it, COALESCE(SUM(b.penalty_out + b.fee_out),0) AS pf, COALESCE(SUM(b.total_out),0) AS tot
                       FROM loans l JOIN v_loan_balances b ON b.loan_id = l.id WHERE l.status = 'Overdue' AND l.overdue_since IS NOT NULL AND {$x['LB']} AND " . sql_daydiff('?', 'l.overdue_since') . ' BETWEEN ? AND ?', [$x['asOf'], $lo, $hi]);
             $out[] = ['bucket' => $label, 'n' => (int)$r['n'], 'pr' => (int)$r['pr'], 'it' => (int)$r['it'], 'pf' => (int)$r['pf'], 'tot' => (int)$r['tot']];
@@ -365,10 +365,10 @@ final class ReportEngines
                     COALESCE(SUM(p.amount),0) AS recovered
                     FROM payments p JOIN loans l ON l.id = p.loan_id JOIN users u ON u.id = l.officer_id JOIN branches br ON br.id = l.branch_id
                     WHERE p.status = 'Posted' AND p.business_date BETWEEN ? AND ? AND (l.status = 'Overdue' OR l.overdue_since IS NOT NULL) AND {$x['LB']}{$x['offW']} GROUP BY br.id, br.name, u.id, u.full_name ORDER BY recovered DESC", [$x['from'], $x['to']]);
-        foreach ($rs as &$r) $r['rate'] = ((int)$r['overdue_bal'] + (int)$r['recovered']) > 0 ? round($r['recovered'] / ((int)$r['overdue_bal'] + (int)$r['recovered']) * 100, 1) . '%' : '–';
+        foreach ($rs as &$r) $r['rate'] = ((int)$r['overdue_bal'] + (int)$r['recovered']) > 0 ? round($r['recovered'] / ((int)$r['overdue_bal'] + (int)$r['recovered']) * 100, 1) . '%' : 'â€“';
         unset($r);
         return self::R($x['brCol'] + ['officer' => 'Loan officer', 'loans' => ['Loans recovered on', 'num'], 'recovered' => ['Recovered (period)', 'money'], 'overdue_bal' => ['Still overdue', 'money'], 'rate' => ['Recovery rate', 'pct']], $rs, ['loans', 'recovered', 'overdue_bal'],
-            'Recovery rate = recovered ÷ (recovered + still overdue).');
+            'Recovery rate = recovered Ã· (recovered + still overdue).');
     }
 
     private static function adjustments_like(array $f, string $like, string $what): array
@@ -441,7 +441,7 @@ final class ReportEngines
         return self::R(['label' => 'Interest', 'amount' => ['UGX', 'money'], 'treatment' => 'Accounting treatment'], [
             ['label' => 'Charged: contractual interest on loans disbursed in the period', 'amount' => $charged, 'treatment' => 'Contractual (accrual basis)'],
             ['label' => 'Collected: interest received in the period', 'amount' => $coll, 'treatment' => 'Cash received'],
-            ['label' => 'Outstanding: interest receivable on open loans (today)', 'amount' => $out, 'treatment' => 'Receivable — NOT cash']]);
+            ['label' => 'Outstanding: interest receivable on open loans (today)', 'amount' => $out, 'treatment' => 'Receivable â€” NOT cash']]);
     }
 
     private static function disbursement_recon(array $f): array
@@ -492,7 +492,7 @@ final class ReportEngines
         $x = self::x($f); $B = $x['B']('branch_id');
         $rows = [];
         foreach (rows("SELECT a.name, a.type, COALESCE(SUM(m.direction * m.amount),0) AS bal FROM cash_accounts a LEFT JOIN cash_movements m ON m.account_id = a.id WHERE a.active = 1 AND " . $x['B']('a.branch_id') . ' GROUP BY a.id, a.name, a.type ORDER BY a.name') as $r)
-            $rows[] = ['control' => 'Account balance — ' . $r['name'], 'value' => (int)$r['bal'], 'status' => 'Info'];
+            $rows[] = ['control' => 'Account balance â€” ' . $r['name'], 'value' => (int)$r['bal'], 'status' => 'Info'];
         $um = (int)val("SELECT COUNT(*) FROM cashier_sessions WHERE status IN ('Open','Submitted','Investigation') AND $B");
         $rows[] = ['control' => 'Cashier sessions not yet reconciled', 'value' => $um, 'status' => $um ? 'Attention' : 'OK'];
         $var = (int)val("SELECT COALESCE(SUM(ABS(variance)),0) FROM cashier_sessions WHERE variance IS NOT NULL AND business_date BETWEEN ? AND ? AND $B", [$x['from'], $x['to']]);
@@ -502,6 +502,76 @@ final class ReportEngines
         $ints = Backup::integrityReport();
         $rows[] = ['control' => 'Ledger integrity exceptions', 'value' => count($ints), 'status' => $ints ? 'DIFFERENCE' : 'OK'];
         return self::R(['control' => 'Control', 'value' => ['Value', 'num'], 'status' => ['Status', 'badge']], $rows, [], 'Account balances are in UGX; other lines are counts or UGX as labelled.');
+    }
+
+    private static function gl_statements(array $f): array
+    {
+        must(can('gl.view'), 'You do not have access to the general ledger.');
+        Gl::seedChart();
+        $only = ($f['branch'] ?? 0) ? (int)$f['branch'] : null;
+        if ($only && !in_array($only, accessible_branch_ids(), true)) $only = null;
+        $from = $f['from']; $to = $f['to'];
+        $view = isset(Gl::VIEWS[$f['view'] ?? '']) ? $f['view'] : 'tb';
+        $unposted = Gl::pendingCount($only);
+        $warn = $unposted ? ' ' . $unposted . ' business event(s) are not yet posted to the ledger (they post at End of Day), so figures may be incomplete.' : '';
+        $dc = fn(int $v) => $v >= 0 ? [$v, 0] : [0, -$v];
+        if ($view === 'tb') {
+            $rows = [];
+            foreach (Gl::trialBalance($from, $to, $only) as $r) {
+                [$cd, $cc] = $dc($r['closing']);
+                $rows[] = ['code' => $r['code'], 'name' => $r['name'], 'type' => Gl::TYPES[$r['type']], 'opening' => $r['opening'], 'debit' => $r['debit'], 'credit' => $r['credit'], 'dr' => $cd, 'cr' => $cc];
+            }
+            $diff = array_sum(array_column($rows, 'dr')) - array_sum(array_column($rows, 'cr'));
+            return self::R(['code' => 'Code', 'name' => 'Account', 'type' => 'Type', 'opening' => ['Opening (Dr+/Cr-)', 'money'], 'debit' => ['Period debits', 'money'], 'credit' => ['Period credits', 'money'], 'dr' => ['Closing debit', 'money'], 'cr' => ['Closing credit', 'money']],
+                $rows, ['opening', 'debit', 'credit', 'dr', 'cr'], ($diff === 0 ? 'The trial balance agrees: total debits equal total credits.' : 'DIFFERENCE of ' . ugx($diff) . ' between closing debits and credits - investigate.') . $warn);
+        }
+        if ($view === 'is') {
+            $rows = []; $sum = ['income' => 0, 'expense' => 0];
+            $tb = Gl::trialBalance($from, $to, $only);
+            foreach (['income' => 'Income', 'expense' => 'Expenses'] as $type => $label) {
+                $rows[] = ['label' => $label, 'amount' => ''];
+                foreach ($tb as $r) {
+                    if ($r['type'] !== $type) continue;
+                    $amt = $type === 'income' ? $r['credit'] - $r['debit'] : $r['debit'] - $r['credit'];
+                    if ($amt === 0) continue;
+                    $rows[] = ['label' => '   ' . $r['code'] . ' · ' . $r['name'], 'amount' => $amt]; $sum[$type] += $amt;
+                }
+                $rows[] = ['label' => 'Total ' . strtolower($label), 'amount' => $sum[$type]];
+            }
+            $rows[] = ['label' => $sum['income'] - $sum['expense'] >= 0 ? 'Net profit for the period' : 'Net loss for the period', 'amount' => $sum['income'] - $sum['expense']];
+            return self::R(['label' => 'Line', 'amount' => ['UGX', 'money']], $rows, [], 'Cash basis: interest, fees and penalties are income when received. Unpaid amounts are in the balance sheet as receivables and unearned income.' . $warn);
+        }
+        if ($view === 'bs') {
+            $bal = Gl::trialBalance(null, $to, $only);
+            $rows = []; $tot = ['asset' => 0, 'liability' => 0, 'equity' => 0]; $profit = 0;
+            foreach ($bal as $r) { if ($r['type'] === 'income') $profit += -$r['closing']; elseif ($r['type'] === 'expense') $profit -= $r['closing']; }
+            foreach (['asset' => 'Assets', 'liability' => 'Liabilities', 'equity' => 'Equity'] as $type => $label) {
+                $rows[] = ['label' => $label, 'amount' => ''];
+                foreach ($bal as $r) {
+                    if ($r['type'] !== $type) continue;
+                    $amt = $type === 'asset' ? $r['closing'] : -$r['closing'];
+                    if ($amt === 0) continue;
+                    $rows[] = ['label' => '   ' . $r['code'] . ' · ' . $r['name'], 'amount' => $amt]; $tot[$type] += $amt;
+                }
+                if ($type === 'equity') { $rows[] = ['label' => '   Profit / (loss) not yet closed to retained earnings', 'amount' => $profit]; $tot['equity'] += $profit; }
+                $rows[] = ['label' => 'Total ' . strtolower($label), 'amount' => $tot[$type]];
+            }
+            $d = $tot['asset'] - $tot['liability'] - $tot['equity'];
+            return self::R(['label' => 'Line', 'amount' => ['UGX', 'money']], $rows, [], ($d === 0 ? 'The balance sheet balances: assets equal liabilities plus equity.' : 'DIFFERENCE of ' . ugx($d) . ' between assets and liabilities plus equity - investigate.') . ' As at ' . fmt_date($to) . '.' . $warn);
+        }
+        $sc = Gl::lineScope($only);
+        if ($view === 'gl') {
+            $rows = rows("SELECT a.code, a.name AS account, j.journal_date, j.journal_no, COALESCE(l.description, j.memo) AS memo, l.debit, l.credit FROM gl_journal_lines l
+                          JOIN gl_journals j ON j.id = l.journal_id JOIN gl_accounts a ON a.id = l.account_id
+                          WHERE j.journal_date BETWEEN ? AND ? AND $sc ORDER BY a.code, j.journal_date, j.id, l.id LIMIT 5000", [$from, $to]);
+            return self::R(['code' => 'Code', 'account' => 'Account', 'journal_date' => ['Date', 'date'], 'journal_no' => 'Journal', 'memo' => 'Description', 'debit' => ['Debit', 'money'], 'credit' => ['Credit', 'money']], $rows, ['debit', 'credit'],
+                'Every posting in the period, grouped by account.' . (count($rows) >= 5000 ? ' Showing the first 5,000 lines; narrow the dates.' : '') . $warn);
+        }
+        $rows = rows("SELECT j.journal_date, j.journal_no, COALESCE(b.name, 'Head office') AS branch, a.code, a.name AS account, COALESCE(l.description, j.memo) AS memo, l.debit, l.credit
+                      FROM gl_journal_lines l JOIN gl_journals j ON j.id = l.journal_id JOIN gl_accounts a ON a.id = l.account_id LEFT JOIN branches b ON b.id = l.branch_id
+                      WHERE j.journal_date BETWEEN ? AND ? AND $sc ORDER BY j.journal_date, j.id, l.id LIMIT 5000", [$from, $to]);
+        return self::R(['journal_date' => ['Date', 'date'], 'journal_no' => 'Journal', 'branch' => 'Branch', 'code' => 'Code', 'account' => 'Account', 'memo' => 'Description', 'debit' => ['Debit', 'money'], 'credit' => ['Credit', 'money']], $rows, ['debit', 'credit'],
+            'All journals posted in the period.' . (count($rows) >= 5000 ? ' Showing the first 5,000 lines; narrow the dates.' : '') . $warn);
     }
 
     // ================================================================= G. end of day
@@ -586,7 +656,7 @@ final class ReportEngines
             $t = (int)$u['t'] * $months;
             $out[] = ['level' => 'Loan officer', 'name' => $u['full_name'], 'target' => $t, 'actual' => $a, 'ach' => round($a / $t * 100, 1) . '%'];
         }
-        return self::R(['level' => 'Level', 'name' => 'Name', 'target' => ['Target', 'money'], 'actual' => ['Actual collections', 'money'], 'ach' => ['Achievement', 'pct']], $out, ['target', 'actual'], 'Target for the period = monthly target × ' . $months . ' month(s). Officers are credited with collections on loans assigned to them.');
+        return self::R(['level' => 'Level', 'name' => 'Name', 'target' => ['Target', 'money'], 'actual' => ['Actual collections', 'money'], 'ach' => ['Achievement', 'pct']], $out, ['target', 'actual'], 'Target for the period = monthly target Ã— ' . $months . ' month(s). Officers are credited with collections on loans assigned to them.');
     }
 
     private static function staff_activity(array $f): array
@@ -620,7 +690,7 @@ final class ReportEngines
             $late = (int)val("SELECT COUNT(*) FROM business_days WHERE branch_id = ? AND status = 'Closed' AND business_date BETWEEN ? AND ? AND substr(closed_at,1,10) > business_date", [$bid, $x['from'], $x['to']]);
             $reopen = (int)val("SELECT COUNT(*) FROM eod_reopen_requests WHERE branch_id = ? AND business_date BETWEEN ? AND ?", [$bid, $x['from'], $x['to']]);
             $unrec = (int)val("SELECT COUNT(*) FROM cashier_sessions WHERE branch_id = ? AND status <> 'Reconciled' AND business_date BETWEEN ? AND ?", [$bid, $x['from'], $x['to']]);
-            $out[] = ['branch' => branch_name($bid), 'days' => $days, 'closed' => $closed, 'late' => $late, 'reopen' => $reopen, 'unrec' => $unrec, 'rate' => $days ? round($closed / $days * 100) . '%' : '–'];
+            $out[] = ['branch' => branch_name($bid), 'days' => $days, 'closed' => $closed, 'late' => $late, 'reopen' => $reopen, 'unrec' => $unrec, 'rate' => $days ? round($closed / $days * 100) . '%' : 'â€“'];
         }
         return self::R(['branch' => 'Branch', 'days' => ['Business days', 'num'], 'closed' => ['Closed', 'num'], 'late' => ['Closed after the day', 'num'], 'reopen' => ['Reopen requests', 'num'], 'unrec' => ['Tills not reconciled', 'num'], 'rate' => ['Completion', 'pct']], $out, ['days', 'closed', 'late', 'reopen', 'unrec']);
     }
@@ -672,7 +742,7 @@ final class ReportEngines
         $par30 = self::parPct($x, 30);
         $rows = [['kpi' => 'Clients', 'value' => num($s['clients']), 'basis' => 'Registered clients'], ['kpi' => 'Open loans', 'value' => num($s['active']), 'basis' => 'Active + overdue'], ['kpi' => 'Overdue loans', 'value' => num($s['overdue']), 'basis' => 'Past maturity'],
             ['kpi' => 'Total disbursed (cumulative)', 'value' => ugx($s['disbursed_total']), 'basis' => 'All disbursements to date, gross'], ['kpi' => 'Principal outstanding', 'value' => ugx($s['principal_out']), 'basis' => 'Open loans, ledger'],
-            ['kpi' => 'Overdue balance', 'value' => ugx($s['overdue_balance']), 'basis' => 'Total owed on overdue loans'], ['kpi' => 'PAR30', 'value' => $par30 . '%', 'basis' => 'Principal >30 days past maturity ÷ gross principal outstanding'],
+            ['kpi' => 'Overdue balance', 'value' => ugx($s['overdue_balance']), 'basis' => 'Total owed on overdue loans'], ['kpi' => 'PAR30', 'value' => $par30 . '%', 'basis' => 'Principal >30 days past maturity Ã· gross principal outstanding'],
             ['kpi' => 'Pending applications', 'value' => num($s['pending_apps']), 'basis' => 'Submitted + under review']];
         if (isset($s['coll_today'])) $rows[] = ['kpi' => 'Collections today', 'value' => ugx($s['coll_today']), 'basis' => 'Posted ' . fmt_date($x['asOf'])];
         return self::R(['kpi' => 'Indicator', 'value' => 'Value', 'basis' => 'Calculation basis'], $rows);
@@ -692,7 +762,7 @@ final class ReportEngines
             $r = row("SELECT COUNT(*) AS n, COALESCE(SUM(b.principal_out),0) AS pr FROM loans l JOIN v_loan_balances b ON b.loan_id = l.id WHERE l.status = 'Overdue' AND l.overdue_since IS NOT NULL AND {$x['LB']} AND " . sql_daydiff('?', 'l.overdue_since') . ' > ?', [$x['asOf'], $n]);
             $out[] = ['measure' => 'PAR' . $n . ' (more than ' . $n . ' days past maturity)', 'n' => (int)$r['n'], 'pr' => (int)$r['pr'], 'gross' => $tot, 'pct' => $tot > 0 ? round($r['pr'] / $tot * 100, 2) . '%' : '0%'];
         }
-        return self::R(['measure' => 'Measure', 'n' => ['Loans at risk', 'num'], 'pr' => ['Principal at risk', 'money'], 'gross' => ['Gross principal outstanding', 'money'], 'pct' => ['PAR %', 'pct']], $out, [], 'PARn = outstanding principal of loans more than n days past maturity ÷ gross outstanding principal of all open loans.');
+        return self::R(['measure' => 'Measure', 'n' => ['Loans at risk', 'num'], 'pr' => ['Principal at risk', 'money'], 'gross' => ['Gross principal outstanding', 'money'], 'pct' => ['PAR %', 'pct']], $out, [], 'PARn = outstanding principal of loans more than n days past maturity Ã· gross outstanding principal of all open loans.');
     }
 
     private static function concentration(array $f): array
@@ -712,7 +782,7 @@ final class ReportEngines
         $x = self::x($f);
         $r = self::expected_vs_actual($f);
         $r['cols']['rate'] = ['Collection efficiency', 'pct'];
-        $r['note'] = 'Efficiency = payments received ÷ scheduled amounts falling due in the same month. Payments may include arrears collected from earlier months.';
+        $r['note'] = 'Efficiency = payments received Ã· scheduled amounts falling due in the same month. Payments may include arrears collected from earlier months.';
         return $r;
     }
 
@@ -723,7 +793,7 @@ final class ReportEngines
             $end = date('Y-m-t', strtotime($m . '-01'));
             $bal = (int)val("SELECT COALESCE(SUM(g.amount),0) FROM loan_ledger g JOIN loans l ON l.id = g.loan_id WHERE g.component = 'principal' AND g.business_date <= ? AND {$x['LB']}", [$end]);
             $disb = (int)val("SELECT COALESCE(SUM(d.approved_principal),0) FROM disbursements d JOIN loans l ON l.id = d.loan_id WHERE d.business_date BETWEEN ? AND ? AND {$x['LB']}", [$m . '-01', $end]);
-            $out[] = ['m' => date('M Y', strtotime($m . '-01')), 'disb' => $disb, 'bal' => $bal, 'chg' => $prev === null ? null : $bal - $prev, 'pct' => $prev ? round(($bal - $prev) / $prev * 100, 1) . '%' : '–'];
+            $out[] = ['m' => date('M Y', strtotime($m . '-01')), 'disb' => $disb, 'bal' => $bal, 'chg' => $prev === null ? null : $bal - $prev, 'pct' => $prev ? round(($bal - $prev) / $prev * 100, 1) . '%' : 'â€“'];
             $prev = $bal;
         }
         return self::R(['m' => 'Month', 'disb' => ['Disbursed', 'money'], 'bal' => ['Principal outstanding (month end)', 'money'], 'chg' => ['Change', 'money'], 'pct' => ['Growth', 'pct']], $out, ['disb']);
@@ -749,9 +819,9 @@ final class ReportEngines
             $apps = (int)val("SELECT COUNT(*) FROM loans l WHERE l.application_date BETWEEN ? AND ? AND l.status <> 'Draft' AND {$x['LB']}", [$a, $b]);
             $d = fn(string $dec) => (int)val("SELECT COUNT(*) FROM loan_approvals a JOIN loans l ON l.id = a.loan_id WHERE a.decision = ? AND substr(a.decided_at,1,10) BETWEEN ? AND ? AND {$x['LB']}", [$dec, $a, $b]);
             $ap = $d('Approved'); $rj = $d('Rejected'); $rt = $d('Returned');
-            $out[] = ['m' => date('M Y', strtotime($a)), 'apps' => $apps, 'ap' => $ap, 'rj' => $rj, 'rt' => $rt, 'rate' => ($ap + $rj) > 0 ? round($ap / ($ap + $rj) * 100, 1) . '%' : '–'];
+            $out[] = ['m' => date('M Y', strtotime($a)), 'apps' => $apps, 'ap' => $ap, 'rj' => $rj, 'rt' => $rt, 'rate' => ($ap + $rj) > 0 ? round($ap / ($ap + $rj) * 100, 1) . '%' : 'â€“'];
         }
-        return self::R(['m' => 'Month', 'apps' => ['Applications received', 'num'], 'ap' => ['Approved', 'num'], 'rj' => ['Rejected', 'num'], 'rt' => ['Returned', 'num'], 'rate' => ['Approval rate', 'pct']], $out, ['apps', 'ap', 'rj', 'rt'], 'Approval rate = approved ÷ (approved + rejected) decisions in the month.');
+        return self::R(['m' => 'Month', 'apps' => ['Applications received', 'num'], 'ap' => ['Approved', 'num'], 'rj' => ['Rejected', 'num'], 'rt' => ['Returned', 'num'], 'rate' => ['Approval rate', 'pct']], $out, ['apps', 'ap', 'rj', 'rt'], 'Approval rate = approved Ã· (approved + rejected) decisions in the month.');
     }
 
     private static function branch_risk_ranking(array $f): array
@@ -869,7 +939,7 @@ final class ReportEngines
     {
         $h = System::health(); $last = Backup::lastSuccess();
         $rows = [['item' => 'Last verified backup', 'value' => $last ? fmt_dt($last['at']) . ' (' . $last['type'] . ')' : 'never', 'status' => $h['backup']['ok'] ? 'OK' : 'Attention'],
-            ['item' => 'Hours since last verified backup', 'value' => $h['backup']['age_hours'] === null ? '—' : (string)$h['backup']['age_hours'], 'status' => $h['backup']['ok'] ? 'OK' : 'Attention'],
+            ['item' => 'Hours since last verified backup', 'value' => $h['backup']['age_hours'] === null ? 'â€”' : (string)$h['backup']['age_hours'], 'status' => $h['backup']['ok'] ? 'OK' : 'Attention'],
             ['item' => 'Failed backups (7 days)', 'value' => (string)$h['backup']['failed_recent'], 'status' => $h['backup']['failed_recent'] ? 'Attention' : 'OK'],
             ['item' => 'Database', 'value' => $h['db']['engine'], 'status' => $h['db']['ok'] ? 'OK' : 'DOWN'], ['item' => 'File storage', 'value' => $h['storage']['driver'], 'status' => $h['storage']['ok'] ? 'OK' : 'PROBLEM'],
             ['item' => 'Pending migrations', 'value' => (string)$h['migrations_pending'], 'status' => $h['migrations_pending'] ? 'Attention' : 'OK'], ['item' => 'Failed sign-ins (24 h)', 'value' => (string)$h['security']['failed_24h'], 'status' => $h['security']['failed_24h'] > 20 ? 'Attention' : 'OK']];

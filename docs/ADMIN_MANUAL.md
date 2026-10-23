@@ -106,3 +106,11 @@ End of Day is a single process in a single place: **Administration → End of Da
 ## 2f. Filtering and downloading reports
 
 Every report page has a filter panel: **period presets** (today, yesterday, this week, last 7 days, this month, last month, last 30 days, this quarter, last 90 days, this year) or a custom From/To range; and, where the report has the data, **branch, loan officer, cashier, payment channel, client, loan number, status, amount range and a text search**. The active filters appear as removable chips, with "Showing X of Y rows". **Download** gives the same rows as the screen as **PDF** (paginated, with page numbers), **Excel (.xlsx)**, **CSV**, **Word** or **JSON**; every file starts with the report code, scope, filters, who generated it and when. Downloads need the *Export reports* permission and are logged (DO-05). Filters never widen what a user may see: branch and portfolio scope still apply.
+
+## General Ledger (chart of accounts, journals, trial balance)
+
+* **Where:** Cash > General Ledger (Finance Manager, Finance Officer, COO, Auditor can view; only the Finance Manager can post or change the chart; the System Administrator has no access).
+* **Automatic posting:** loan disbursements, interest, fees and penalties charged, repayments and their reversals, waivers, customer credits, cash/bank/mobile-money movements, expenses, transfers, floats and cash variances are posted to double-entry journals when End of Day runs. "Post pending now" posts anything outstanding. Every business event is posted exactly once.
+* **Basis:** interest, fees and penalties are income when received (cash basis); amounts still owed are shown as receivables against "unearned" liability accounts. Loan receivable accounts always equal the loan sub-ledger; the clearing accounts (1900, 1950, 1960) should be nil.
+* **Manual journals:** for capital, opening balances and bank charges. They must balance, cannot be dated in the future, can never be edited or deleted, and are corrected by a reversing journal.
+* **Reports:** Report FN-12 offers the Trial Balance, Income Statement, Balance Sheet, General Ledger and Journal Register, with period, branch and download options like any other report.

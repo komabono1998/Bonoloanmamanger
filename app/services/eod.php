@@ -109,6 +109,7 @@ final class Eod
             audit('End of Day run and business date locked', 'End of Day', 'eod_record', $id, null, ['date' => $date, 'cash variance (absolute)' => $var], $notes, 'run by the System Administrator', null, null, $branch);
             return $id;
         });
+        Gl::postPendingSafe($branch, $date);
         $b = Backup::create('EOD', $date);
         update('eod_records', ['backup_status' => $b['ok'] ? 'Verified' : 'FAILED: ' . $b['message'], 'backup_file' => $b['file'] ?? null], 'id = :id', ['id' => $rid]);
         if (setting('eod_auto_open_next') === '1') {
@@ -368,6 +369,7 @@ final class Eod
             bd_changed();
             audit('EOD approved and business date locked', 'End of Day', 'eod_record', $rec['id'], $rec['status'], 'Closed', $notes, 'submitted by #' . $rec['submitted_by'], null, null, $branch);
         });
+        Gl::postPendingSafe($branch, $date);
         $b = Backup::create('EOD', $date);
         update('eod_records', ['backup_status' => $b['ok'] ? 'Verified' : 'FAILED: ' . $b['message'], 'backup_file' => $b['file'] ?? null], 'id = :id', ['id' => $rec['id']]);
         // the system date moves on: the next working day opens automatically

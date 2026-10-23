@@ -38,6 +38,7 @@ $ROUTES = [
     'till'          => ['till', 'till.use|till.reconcile', 'Cash', 'Cashier & Till'],
     'cashbook'      => ['cashbook', 'expense.view', 'Cash', 'Expenses & Cashbook'],
     'eod'           => ['eod', 'eod.view', 'Cash', 'End of Day'],
+    'ledger'        => ['ledger', 'gl.view', 'Cash', 'General Ledger'],
     'reports'       => ['reports', 'report.view', 'Reports', 'Report Centre'],
     'reportaccess'  => ['reportaccess', 'user.manage', 'Administration', 'Report Access'],
     'importexport'  => ['importexport', 'import.run|export.run', 'Reports', 'Import / Export'],

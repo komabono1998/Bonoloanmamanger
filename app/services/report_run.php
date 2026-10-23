@@ -37,7 +37,7 @@ final class ReportRun
         $days = max(1, setting_int('report_default_days'));
         $p = ['from' => date('Y-m-d', strtotime("-$days days", strtotime($asOf))), 'to' => $asOf, 'preset' => '',
             'branch' => (int)$g('branch'), 'officer' => (int)$g('officer'), 'cashier' => (int)$g('cashier'), 'method' => $g('method'), 'client' => (int)$g('client'),
-            'loan' => $g('loan'), 'days' => (int)$g('days'), 'status' => $g('status'), 'q' => $g('q'), 'min' => $g('min'), 'max' => $g('max')];
+            'loan' => $g('loan'), 'days' => (int)$g('days'), 'status' => $g('status'), 'view' => $g('view'), 'q' => $g('q'), 'min' => $g('min'), 'max' => $g('max')];
         if (is_date($g('from'))) $p['from'] = $g('from');
         if (is_date($g('to'))) $p['to'] = $g('to');
         if (isset(self::PRESETS[$g('preset')]) && ($r = self::presetRange($g('preset'), $asOf))) { [$p['from'], $p['to']] = $r; $p['preset'] = $g('preset'); }
@@ -49,7 +49,7 @@ final class ReportRun
     public static function query(array $p, bool $periodic = true): array
     {
         $o = [];
-        foreach (['branch', 'officer', 'cashier', 'method', 'client', 'loan', 'days', 'status', 'q', 'min', 'max'] as $k) if ($p[$k] !== '' && $p[$k] !== 0) $o[$k] = $p[$k];
+        foreach (['branch', 'officer', 'cashier', 'method', 'client', 'loan', 'days', 'status', 'view', 'q', 'min', 'max'] as $k) if ($p[$k] !== '' && $p[$k] !== 0) $o[$k] = $p[$k];
         if ($periodic) { $o['from'] = $p['from']; $o['to'] = $p['to']; if ($p['preset']) $o['preset'] = $p['preset']; }
         return $o;
     }
@@ -58,7 +58,7 @@ final class ReportRun
     public static function execute(array $def, array $p): array
     {
         $rep = ReportEngines::run($def['engine'], ['from' => $p['from'], 'to' => $p['to'], 'officer' => $p['officer'], 'cashier' => $p['cashier'], 'method' => $p['method'],
-            'client' => $p['client'], 'branch' => $p['branch'], 'loan' => $p['loan'], 'days' => $p['days']]);
+            'client' => $p['client'], 'branch' => $p['branch'], 'loan' => $p['loan'], 'days' => $p['days'], 'view' => $p['view']]);
         $cols = $rep['cols']; $rows = $rep['rows']; $total = count($rows);
         $fmt = fn(string $k) => is_array($cols[$k] ?? null) ? ($cols[$k][1] ?? 'text') : 'text';
         $amountCol = null; foreach (self::AMOUNT_COLS as $k) if (isset($cols[$k]) && in_array($fmt($k), ['money', 'num'], true)) { $amountCol = $k; break; }
@@ -112,6 +112,7 @@ final class ReportRun
         if ($p['loan'] !== '') $o['Loan'] = $p['loan'];
         if ($p['days']) $o['Days'] = (string)$p['days'];
         if ($p['status'] !== '') $o['Status'] = $p['status'];
+        if ($p['view'] !== '' && isset(Gl::VIEWS[$p['view']])) $o['Statement'] = Gl::VIEWS[$p['view']];
         if ($p['min'] !== '') $o['Amount from'] = $p['min'];
         if ($p['max'] !== '') $o['Amount to'] = $p['max'];
         if ($p['q'] !== '') $o['Text'] = '"' . $p['q'] . '"';

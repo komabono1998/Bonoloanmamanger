@@ -173,6 +173,17 @@ step('the branch manager sees the new system date and no approval step', $bm->co
 $bm->get($bm->url('dashboard'));
 step('the system date is shown under the profile', str_contains($bm->body, 'System date'), info($bm));
 
+// the General Ledger was posted by End of Day
+$fo = $W['ffo' . $sfx];
+$fo->get($fo->url('ledger'));
+step('the Finance Officer opens the General Ledger and sees the chart of accounts', $fo->code === 200 && str_contains($fo->body, 'Loans Receivable'), info($fo));
+$fo->get($fo->url('ledger', ['a' => 'journals', 'from' => '2000-01-01', 'to' => '2099-12-31']));
+step('End of Day posted journals to the ledger', $fo->code === 200 && str_contains($fo->body, 'GL-0000'), info($fo));
+$fo->get($fo->url('reports', ['r' => 'FN-12']));
+step('FN-12 shows the trial balance and it agrees', $fo->code === 200 && str_contains($fo->body, 'trial balance agrees'), info($fo));
+$bm->get($bm->url('ledger'));
+step('a Branch Manager has no General Ledger access', $bm->code === 403 || !str_contains($bm->body, 'Chart of accounts'), info($bm));
+
 // ================================================================= E. day-to-day screens for every profile
 echo "\n== Every profile: the screens in their menu open and their filters work\n";
 foreach ($W as $u => $web) {

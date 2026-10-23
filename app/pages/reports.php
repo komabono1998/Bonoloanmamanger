@@ -89,6 +89,7 @@ if ((str_contains($uses, 'c') || $app['cashier']) && !ReportEngines::ownCashierO
 if (str_contains($uses, 'm') || $app['method']) $sel('method', 'Payment channel', array_combine(Payments::METHODS, Payments::METHODS), $p['method']);
 if (str_contains($uses, 'k') || $app['client']) $sel('client', 'Client', client_select_options(), $p['client'] ?: '');
 if (str_contains($uses, 'l') || $app['loan']) echo '<div class="fld"><label>Loan number</label><input type="text" name="loan" value="' . e($p['loan']) . '" placeholder="e.g. BLM-2026-000001"></div>';
+if (str_contains($uses, 'v')) $sel('view', 'Statement', Gl::VIEWS, $p['view'] ?: 'tb', 'Trial balance');
 if ($app['status']) $sel('status', 'Status', array_combine($app['status'], $app['status']), $p['status']);
 if (str_contains($uses, 'd')) echo '<div class="fld"><label>Days</label><input type="number" min="0" name="days" value="' . e($p['days'] ?: '') . '" placeholder="threshold"></div>';
 if ($app['amount']) echo '<div class="fld"><label>Amount from</label><input type="text" name="min" value="' . e($p['min']) . '" placeholder="0"></div><div class="fld"><label>Amount to</label><input type="text" name="max" value="' . e($p['max']) . '" placeholder="any"></div>';
@@ -96,7 +97,7 @@ echo '<div class="fld wide"><label>Search in results</label><input type="search"
 echo '<div class="fld actions-col"><label>&nbsp;</label><div class="fbtns"><button class="btn primary" type="submit">' . icon('search', 14) . ' Apply filters</button><a class="btn" href="' . e(url('reports', ['r' => $id])) . '">Reset</a></div></div></div></form>';
 
 // ---- what is applied
-$labels = ['Period' => ['from', 'to', 'preset'], 'Branch' => ['branch'], 'Loan officer' => ['officer'], 'Cashier' => ['cashier'], 'Channel' => ['method'], 'Client' => ['client'], 'Loan' => ['loan'], 'Days' => ['days'], 'Status' => ['status'], 'Amount from' => ['min'], 'Amount to' => ['max'], 'Text' => ['q']];
+$labels = ['Period' => ['from', 'to', 'preset'], 'Branch' => ['branch'], 'Loan officer' => ['officer'], 'Cashier' => ['cashier'], 'Channel' => ['method'], 'Client' => ['client'], 'Loan' => ['loan'], 'Days' => ['days'], 'Status' => ['status'], 'Statement' => ['view'], 'Amount from' => ['min'], 'Amount to' => ['max'], 'Text' => ['q']];
 $chips = '';
 $dflt = ReportRun::params([]);
 foreach (ReportRun::filterText($def, $p) as $lab => $val) {
