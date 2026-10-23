@@ -145,6 +145,7 @@ if ($a === 'view') {
     must((bool)$c, 'Client ID does not exist.');
     assert_branch((int)$c['branch_id']);
     assert_portfolio_client($c);
+    if (can('client.sensitive')) audit('Sensitive client record viewed', 'Clients', 'client', $id);
     $photo = val("SELECT id FROM attachments WHERE entity_type = 'client' AND entity_id = ? AND kind = 'photo' ORDER BY id DESC LIMIT 1", [$id]);
     $tab = get('tab', 'overview');
     $act = '';

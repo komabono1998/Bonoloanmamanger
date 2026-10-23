@@ -546,12 +546,12 @@ throws(fn() => PasswordReset::send($s2, 'reset', uid()), 'no email', 'no reset w
 $before = (int)val('SELECT COUNT(*) FROM password_resets');
 PasswordReset::requestFor('nobody-here'); PasswordReset::requestFor('staffb');
 eq((int)val('SELECT COUNT(*) FROM password_resets'), $before, 'forgot-password gives nothing away for unknown users / users without email');
-$cat = array_keys(Reports::catalogue()); $one = $cat[0];
+$one = 'CL-01';
 as_('staffa'); q("INSERT INTO user_permissions(user_id, permission, granted) VALUES (?, 'report.view', 1)", [$s1]); reset_user_caches();
-ok(report_allowed($one), 'report open by default for someone with View reports');
-q('INSERT INTO user_report_access(user_id, report_key, allowed) VALUES (?,?,0)', [$s1, $one]);
-q('INSERT INTO user_report_access(user_id, report_key, allowed) VALUES (?,?,0)', [$s2, $one]);
-ok(in_array($one, report_denied_keys($s2), true), 'per-user report block is recorded');
+ReportCatalog::reset(); ok(report_allowed($one), 'report open by default for a Loan Officer with View reports');
+q('INSERT INTO user_report_access(user_id, report_key, allowed) VALUES (?,?,0)', [$s1, $one]); ReportCatalog::reset();
+ok(!report_allowed($one), 'a per-user block removes the report even though the role allows it');
+q('DELETE FROM user_report_access WHERE user_id = ?', [$s1]);
 as_('admin');
 $h = $render('users', ['a' => 'edit', 'id' => $s1]);
 ok(str_contains($h, 'Email password reset link') && str_contains($h, 'Reports this user can open') && str_contains($h, 'name="staff_no"') && str_contains($h, 'name="username"'), 'user edit page: email reset, profile fields and report access render');
@@ -584,7 +584,7 @@ $menuFor = function () use ($mm) {
 $routePerm = function (string $key) use ($mm) { foreach ($mm as [, $k, $perm]) if ($k === $key) return $perm === 'null' ? null : trim($perm, "'"); return 'missing'; };
 as_('lo');
 $menu = $menuFor();
-$expected = ['Dashboard', 'Clients', 'Guarantors', 'Loan Applications', 'Credit Assessment', 'Securities', 'Repayment Schedules', 'Loan Portfolio', 'Arrears & Defaulters', 'Reports'];
+$expected = ['Dashboard', 'Clients', 'Guarantors', 'Loan Applications', 'Credit Assessment', 'Securities', 'Repayment Schedules', 'Loan Portfolio', 'Arrears & Defaulters', 'Report Centre'];
 eq(array_values(array_diff($menu, $expected)), [], 'Loan Officer menu contains only the seven authorized modules (' . implode(', ', $menu) . ')');
 ok(count(array_diff($expected, $menu)) === 0, 'every authorized module is available');
 foreach (['payments', 'receipts', 'till', 'cashbook', 'eod', 'users', 'settings', 'backup', 'audit', 'branches', 'importexport', 'disbursements', 'approvals', 'inbox'] as $k) {
@@ -610,8 +610,8 @@ throws(fn() => Payments::reverse($pm, 'attempt'), 'permission', 'cannot reverse 
 throws(fn() => Payments::requestReversal($pm, 'attempt'), 'permission', 'cannot even request a reversal');
 throws(fn() => Loans::waive($lid, 'penalty', 1000, 'attempt'), '', 'cannot waive penalties');
 throws(fn() => Loans::manualClose($lid, 'attempt'), '', 'cannot close a loan directly');
-q('INSERT INTO user_report_access(user_id, report_key, allowed) VALUES (?,?,0)', [$U['lo'], 'client_register']);
-ok(in_array('client_register', array_column(rows('SELECT report_key FROM user_report_access WHERE user_id = ? AND allowed = 0', [$U['lo']]), 'report_key'), true), 'an unauthorized report is blocked for this user');
+q('INSERT INTO user_report_access(user_id, report_key, allowed) VALUES (?,?,0)', [$U['lo'], 'CL-01']);
+ReportCatalog::reset(); as_('lo'); ok(!report_allowed('CL-01') && report_allowed('CL-02'), 'an unauthorized report is blocked for this user while the others stay open');
 q('DELETE FROM user_report_access WHERE user_id = ?', [$U['lo']]);
 ok(val('SELECT COUNT(*) FROM audit_logs WHERE record_id = ?', [(string)$subm]) > 0, 'sensitive actions on the application are audited');
 // revoking a permission takes effect on the next request
@@ -730,6 +730,81 @@ as_('admin');
 $h = $render('eodsys', []);
 ok(str_contains($h, 'System date by branch') && str_contains($h, 'Back up now') && str_contains($h, 'Kampala Main'), 'the administrator sees the system date of each branch and a backup-before-EOD button');
 ok(!str_contains($h, 'Cash in tills') && !str_contains($h, 'UGX'), 'the administrator page shows no financial figures');
+section('Report Centre: 104 reports, access by role, scoped data');
+$cat = ReportCatalog::all();
+eq(count($cat), 104, 'the catalogue holds the 104 specified reports');
+eq(count(ReportCatalog::CATEGORIES), 12, 'the reports are organised in 12 categories');
+$counts = array_map('count', ReportCatalog::byCategory());
+eq(array_values($counts), [12, 8, 8, 10, 10, 12, 8, 8, 6, 8, 8, 6], 'category sizes match the specification (A-L)');
+ok(!$cat['FN-12']['available'], 'the trial balance is not offered because Bono has no general ledger');
+// every report runs on the live schema (both database engines), for every kind of user
+$f0 = ['from' => '2026-01-01', 'to' => '2026-12-31', 'officer' => 0, 'cashier' => 0, 'method' => '', 'client' => 0, 'branch' => 0, 'loan' => '', 'days' => 0];
+$badRuns = [];
+foreach (['coo', 'bm', 'bmb', 'lo', 'cash', 'fo', 'admin'] as $who) {
+    as_($who); $ownLoan = (string)val('SELECT loan_no FROM loans LIMIT 1');
+    foreach ($cat as $id => $d) {
+        if (!$d['available']) continue;
+        $f = $f0; if ($id === 'CL-08') $f['client'] = (int)val('SELECT id FROM clients LIMIT 1'); if (in_array($id, ['CR-04', 'CR-10'], true)) $f['loan'] = $ownLoan;
+        try {
+            $r = ReportEngines::run($d['engine'], $f);
+            if (!isset($r['cols'], $r['rows']) || !is_array($r['rows'])) $badRuns[] = "$who:$id (bad shape)";
+        } catch (AppError $e) { /* a refused scope (for example a client outside the branch) is a valid answer */ }
+        catch (Throwable $e) { $badRuns[] = "$who:$id " . substr($e->getMessage(), 0, 90); }
+    }
+}
+eq($badRuns, [], 'every report runs without error for every kind of user');
+// access defaults (specification section 5)
+$may = function (string $role, string $id) { return ReportCatalog::defaultAllows($role, $id); };
+ok($may('Loan Officer', 'LP-02') && $may('Loan Officer', 'AR-04') && !$may('Loan Officer', 'FN-01') && !$may('Loan Officer', 'EOD-02') && !$may('Loan Officer', 'MR-01'), 'Loan Officer: portfolio, clients, arrears; no finance, EOD or management analytics');
+ok($may('Finance Officer', 'FN-01') && $may('Finance Officer', 'EOD-03') && $may('Finance Officer', 'CR-06') && !$may('Finance Officer', 'AU-03'), 'Finance Officer: collections, finance and EOD reports');
+ok($may('Branch Manager', 'BP-07') && $may('Branch Manager', 'LP-08') && !$may('Branch Manager', 'FN-12'), 'Branch Manager: branch reports');
+ok($may('Finance Manager', 'FN-11') && !$may('Finance Manager', 'GC-01'), 'Finance Manager: finance oversight');
+ok($may('COO', 'MR-02') && $may('COO', 'BP-02') && $may('COO', 'AU-04'), 'COO: consolidated and oversight reports');
+ok($may('System Administrator', 'DO-06') && $may('System Administrator', 'AU-06') && !$may('System Administrator', 'LP-01') && !$may('System Administrator', 'FN-01') && !$may('System Administrator', 'CR-01'), 'System Administrator: technical reports only, no financial reports');
+ok($may('Cashier', 'CR-06') && $may('Cashier', 'EOD-02') && !$may('Cashier', 'LP-01'), 'Cashier: own receipts and closing only');
+ok($may('Auditor', 'AU-01') && $may('Auditor', 'FN-02') && $may('Auditor', 'AU-08'), 'Auditor: audit, exception and reconciliation reports');
+as_('lo'); ReportCatalog::reset();
+$mine = ReportCatalog::mine();
+ok(isset($mine['LP-02']) && !isset($mine['FN-01']) && !isset($mine['AU-06']), 'the Report Centre lists only the reports a Loan Officer may open');
+$h = $render('reports', []);
+ok(str_contains($h, 'LP-02') && !str_contains($h, 'FN-01') && str_contains($h, 'data-report-search'), 'the Report Centre page shows the permitted reports with search');
+as_('admin'); ReportCatalog::reset();
+ok(!isset(ReportCatalog::mine()['LP-01']) && isset(ReportCatalog::mine()['DO-06']), 'the System Administrator can open the backup/health report but no loan report');
+// configure who accesses which report
+q("INSERT INTO report_role_access(role, report_id, allowed) VALUES ('Loan Officer', 'FN-01', 1)"); ReportCatalog::reset();
+as_('lo'); ok(isset(ReportCatalog::mine()['FN-01']), 'an administrator can grant a report to a role');
+q("INSERT INTO report_role_access(role, report_id, allowed) VALUES ('Loan Officer', 'LP-02', 0)"); ReportCatalog::reset();
+ok(!isset(ReportCatalog::mine()['LP-02']), 'an administrator can withdraw a report from a role');
+q("DELETE FROM report_role_access WHERE role = 'Loan Officer'"); ReportCatalog::reset();
+q("INSERT INTO user_report_access(user_id, report_key, allowed) VALUES (?, 'AR-09', 1)", [$U['lo']]); ReportCatalog::reset();
+ok(isset(ReportCatalog::mine()['AR-09']), 'a single person can be given an extra report');
+q('DELETE FROM user_report_access WHERE user_id = ?', [$U['lo']]); ReportCatalog::reset();
+// data scope is independent of access
+as_('bmb'); ReportCatalog::reset();
+$r = ReportEngines::run('active_loans', $f0);
+ok(!array_filter($r['rows'], fn($x) => str_contains(json_encode($x), 'Akello')), 'a branch user\'s report never contains another branch\'s records');
+as_('lob'); $own = ReportEngines::run('client_register', $f0);
+ok(!array_filter($own['rows'], fn($x) => ($x['full_name'] ?? '') === 'Akello Grace'), 'client reports are branch-scoped');
+as_('lo2');
+$cr = ReportEngines::run('active_loans', $f0);
+ok(portfolio_restricted() && !array_filter($cr['rows'], fn($x) => ($x['officer'] ?? '') !== 'Lo2'), 'with portfolio scope on, loan reports only list the officer\'s own loans');
+as_('cash'); eq(ReportEngines::ownCashierOnly(), true, 'a cashier is limited to their own transactions in reports');
+// calculation checks
+as_('coo');
+$pm = ReportEngines::run('portfolio_movement', $f0);
+$v = array_column($pm['rows'], 'amount');
+eq($v[0] + $v[1] + $v[2] + $v[3], $v[4], 'portfolio movement: opening + additions + repayments + adjustments = closing');
+$par = ReportEngines::run('par', $f0);
+ok(count($par['rows']) === 4 && str_contains($par['note'], 'PARn'), 'PAR is reported at 1, 30, 60 and 90 days with its documented formula');
+$ag = ReportEngines::run('arrears_aging', $f0);
+eq(array_sum(array_column($ag['rows'], 'tot')), (int)val("SELECT COALESCE(SUM(b.total_out),0) FROM loans l JOIN v_loan_balances b ON b.loan_id = l.id WHERE l.status = 'Overdue' AND l.overdue_since IS NOT NULL"), 'arrears aging reconciles to the overdue balances');
+$rc = ReportEngines::run('loan_balance_recon', $f0);
+ok(!array_filter($rc['rows'], fn($x) => $x['ok'] !== 'Reconciled'), 'loan balances reconcile to disbursements, repayments and waivers');
+$h = $render('reports', ['r' => 'LP-01']);
+ok(str_contains($h, 'LP-01') && str_contains($h, 'Scope:') && str_contains($h, 'Generated') && str_contains($h, 'Currency'), 'a report states its code, scope, currency and who generated it');
+as_('admin');
+$h = $render('reportaccess', []);
+ok(str_contains($h, 'LP-01') && str_contains($h, 'Loan Officer') && str_contains($h, 'name="g['), 'the report access matrix renders for the administrator');
 echo "\n----------------------------------------\n";
 echo "Passed: $pass   Failed: $fail   (" . db_driver() . ")\n";
 db_close();

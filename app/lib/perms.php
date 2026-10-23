@@ -78,6 +78,8 @@ function role_descriptions(): array
         'Branch Manager' => 'Branch operations, delegated loan approval, financial oversight and End-of-Day authorization.',
         'COO' => 'Institution-wide oversight, escalated approvals and consolidated reporting.',
         'System Administrator' => 'User administration, technical configuration, security, backup and system health — no financial approval rights.',
+        'Finance Manager' => 'Financial oversight across assigned branches: cash, collections, reconciliation, finance approvals and consolidated financial reporting.',
+        'Auditor' => 'Read-only institution-wide view of financial activity, exceptions, audit records and reconciliation reports.',
         'Cashier' => 'Optional teller profile: receives payments, releases approved disbursements, runs a cash till.',
     ];
 }
@@ -100,8 +102,10 @@ function default_role_permissions(): array
         'COO' => ['dashboard.view', 'client.view', 'client.sensitive', 'loan.view', 'loan.approve', 'loan.disburse.authorize', 'loan.close', 'loan.adjust', 'payment.view', 'payment.reverse',
             'portfolio.view', 'arrears.manage', 'penalty.adjust', 'expense.view', 'expense.approve', 'till.reconcile', 'eod.view', 'eod.approve', 'eod.reopen', 'report.view', 'report.export',
             'export.run', 'authority.institution', 'branch.all', 'compliance.view', 'limits.manage', 'settings.policy', 'backup.authorize', 'audit.all'],
-        'System Administrator' => ['dashboard.view', 'user.manage', 'settings.manage', 'branch.manage', 'backup.manage', 'system.health', 'security.monitor', 'audit.technical'],
-        'Cashier' => ['dashboard.view', 'client.view', 'loan.view', 'loan.disburse', 'payment.view', 'payment.record', 'receipt.reprint', 'portfolio.view', 'till.use', 'expense.view', 'expense.create', 'eod.view'],
+        'System Administrator' => ['dashboard.view', 'report.view', 'user.manage', 'settings.manage', 'branch.manage', 'backup.manage', 'system.health', 'security.monitor', 'audit.technical'],
+        'Finance Manager' => ['dashboard.view', 'client.view', 'loan.view', 'payment.view', 'payment.reverse.request', 'receipt.reprint', 'portfolio.view', 'expense.view', 'expense.approve', 'till.reconcile', 'eod.view', 'eod.manage', 'eod.reopen', 'report.view', 'report.export', 'audit.financial'],
+        'Auditor' => ['dashboard.view', 'client.view', 'loan.view', 'payment.view', 'portfolio.view', 'expense.view', 'eod.view', 'report.view', 'report.export', 'audit.all', 'branch.all', 'compliance.view'],
+        'Cashier' => ['dashboard.view', 'report.view', 'client.view', 'loan.view', 'loan.disburse', 'payment.view', 'payment.record', 'receipt.reprint', 'portfolio.view', 'till.use', 'expense.view', 'expense.create', 'eod.view'],
     ];
 }
 
@@ -119,16 +123,8 @@ function assert_permission_boundaries(string $role, array $perms): void
     // refuse self-approval, self-reconciliation and self-authorization at transaction time.
 }
 
-/** Reports a user may open: everything their role allows, minus any reports the administrator has switched off for that person. */
-function report_denied_keys(?int $userId = null): array
+/** May the signed-in user open this report? (module permission + role grant / user grant, see ReportCatalog) */
+function report_allowed(string $id): bool
 {
-    static $cache = [];
-    $userId = $userId ?? (int)(uid() ?? 0);
-    if (!isset($cache[$userId])) $cache[$userId] = array_column(rows('SELECT report_key FROM user_report_access WHERE user_id = ? AND allowed = 0', [$userId]), 'report_key');
-    return $cache[$userId];
-}
-
-function report_allowed(string $key): bool
-{
-    return can('report.view') && !in_array($key, report_denied_keys(), true);
+    return isset(ReportCatalog::mine()[strtoupper($id)]);
 }

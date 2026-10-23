@@ -88,3 +88,13 @@ The sign-in page has **Set up a new organisation**. Each organisation gets its o
 * SQLite: each organisation is a file in `storage/db/tenants/`. PostgreSQL: each organisation is a database named `bono_t_<code>` (the database user needs `CREATEDB`).
 * Self-registration is **on locally and off in production** unless `SELF_REGISTRATION=1`. It is limited to 3 new organisations per IP address per hour; the code cannot be a reserved word.
 * Files and backups are stored per organisation (`.../t_<code>/`). Run backups from each organisation's own Backup page.
+
+## 2d. Report Centre and report access
+
+* **Report Centre** (sidebar) is available to every profile that holds the *View reports* permission. Each person sees only the reports their profile has been given, grouped in the 12 categories (A Loan Portfolio … L Documents & Operational) of the reporting specification — 104 reports with stable IDs (LP-01, CR-03, AR-02, EOD-03, MR-02, AU-01 …). Use the search box to find a report by name, ID or content.
+* **Who can open which report** — *Administration → Report Access* is a matrix of reports by role. Defaults follow the specification's role table (for example a Loan Officer: portfolio, client, application, collections and arrears for assigned records; no finance or EOD reports; the System Administrator: technical and security reports only). Tick or untick and save; each change is audited, and a role can be reset to the recommended defaults. Add or remove reports for one person on their user page.
+* **Data scope is separate from access.** Whatever a user is allowed to open, the report only contains records in their own branches (and, without the *portfolio.all* permission, their own portfolio); a cashier sees only their own transactions. Every report prints its scope, period, currency, who generated it and when, and the basis of any financial indicator (PAR, arrears aging, expected vs actual, …).
+* Print/PDF, CSV and Excel need the *Export reports* permission and are recorded in the export history (DO-05). Denied report requests are logged (AU-08).
+* Not available: FN-12 Trial Balance / Financial Statements (Bono keeps no general ledger). AR-08 and AR-09 list restructuring / write-off adjustments once those workflows are used. Scheduled reports and a custom report builder (specification phase 3) are not built yet.
+* Monthly collection targets (BP-05) are entered on the branch and on loan-officer user records.
+* New built-in roles: **Finance Manager** and **Auditor** (read-only, institution-wide).

@@ -277,3 +277,20 @@ body.bare { background: linear-gradient(160deg, var(--side), var(--brand)); }
 .org-cta { display: flex; align-items: center; justify-content: space-between; gap: .8rem; border-top: 1px solid var(--line); margin-top: 1rem; padding-top: 1rem; color: var(--muted); } .org-cta .btn svg { vertical-align: -3px; }
 .bare .card.wide { max-width: 860px; margin: 0 auto; } .bare-main:has(.card.wide) { max-width: 880px; } .bare .card.wide .form { grid-template-columns: repeat(4, 1fr); } .bare .card.wide .form .fld.span2 { grid-column: span 2; } .bare .card.wide .form .fld.span4 { grid-column: 1 / -1; }
 @media (max-width: 700px) { .bare .card.wide .form { grid-template-columns: 1fr; } }
+
+/* Report Centre */
+.rep-top { margin-bottom: .8rem; } .rep-search { max-width: 560px; }
+.rep-cats { display: flex; gap: .45rem; flex-wrap: wrap; margin-bottom: 1rem; } .rep-cats .chip { text-decoration: none; color: var(--ink); } .rep-cats .chip:hover { border-color: var(--brand); }
+.rep-letter { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--brand); color: #fff; font-size: .85rem; margin-right: .35rem; }
+.rep-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: .55rem; }
+.rep-item { display: flex; align-items: center; gap: .7rem; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); } .rep-item:hover { text-decoration: none; border-color: var(--brand); background: var(--brand-soft); }
+.rep-item[hidden], .rep-cat[hidden] { display: none; }
+.rep-id { font-size: .72rem; font-weight: 700; letter-spacing: .03em; background: var(--brand-soft); color: var(--brand); border-radius: 6px; padding: .1rem .4rem; white-space: nowrap; }
+.rep-body { flex: 1; min-width: 0; } .rep-body b { display: block; } .rep-body small { display: block; color: var(--muted); }
+.rep-go { color: var(--muted); }
+.rep-meta { font-size: .85rem; margin: .6rem 0; display: grid; gap: .15rem; } .rep-meta > div:first-child { font-size: 1rem; }
+.rep-foot { font-size: .75rem; margin-top: .8rem; border-top: 1px solid var(--line); padding-top: .4rem; }
+table.matrix th.c, table.matrix td.c { text-align: center; } table.matrix td.custom { background: var(--warn-bg); }
+table.matrix .cat-row { background: var(--brand-soft); font-weight: 700; color: var(--brand); }
+table.matrix thead th { position: sticky; top: 66px; background: var(--card); z-index: 2; }
+@media print { .rep-foot { position: fixed; bottom: 0; left: 0; right: 0; } @page { @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 9pt; } } }

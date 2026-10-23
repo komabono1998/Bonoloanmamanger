@@ -6,15 +6,15 @@ $format = get('format', 'csv') === 'xls' ? 'xls' : 'csv';
 $data = null; $name = 'export';
 if ($kind === 'report') {
     require_perm('report.export');
-    $cat = Reports::catalogue();
-    $key = get('r');
-    must(isset($cat[$key]), 'Unknown report.');
-    must(report_allowed($key), 'You have not been given access to this report.');
+    $key = strtoupper((string)get('r'));
+    $def = ReportCatalog::get($key);
+    must($def && $def['available'], 'Unknown report.');
+    if (!report_allowed($key)) { try { audit('Access denied', 'Security', 'report', $key, null, 'export refused: report not granted'); } catch (Throwable $e) {} must(false, 'You have not been given access to this report.'); }
     $asOf = reporting_date();
     $days = max(1, setting_int('report_default_days'));
     $f = ['from' => is_date(get('from')) ? get('from') : date('Y-m-d', strtotime("-$days days", strtotime($asOf))), 'to' => is_date(get('to')) ? get('to') : $asOf,
-        'officer' => (int)get('officer'), 'cashier' => (int)get('cashier'), 'method' => get('method'), 'client' => (int)get('client'), 'branch' => (int)get('branch')];
-    $rep = Reports::run($key, $f);
+        'officer' => (int)get('officer'), 'cashier' => (int)get('cashier'), 'method' => get('method'), 'client' => (int)get('client'), 'branch' => (int)get('branch'), 'loan' => trim((string)get('loan')), 'days' => (int)get('days')];
+    $rep = ReportEngines::run($def['engine'], $f);
     $data = Reports::plain($rep);
     $name = $key . '_' . $f['from'] . '_' . $f['to'];
 } elseif ($kind === 'audit') {

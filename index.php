@@ -38,7 +38,8 @@ $ROUTES = [
     'till'          => ['till', 'till.use|till.reconcile', 'Cash', 'Cashier & Till'],
     'cashbook'      => ['cashbook', 'expense.view', 'Cash', 'Expenses & Cashbook'],
     'eod'           => ['eod', 'eod.view', 'Cash', 'End of Day'],
-    'reports'       => ['reports', 'report.view', 'Reports', 'Reports'],
+    'reports'       => ['reports', 'report.view', 'Reports', 'Report Centre'],
+    'reportaccess'  => ['reportaccess', 'user.manage', 'Administration', 'Report Access'],
     'importexport'  => ['importexport', 'import.run|export.run', 'Reports', 'Import / Export'],
     'audit'         => ['audit', 'audit.own|audit.financial|audit.branch|audit.all|audit.technical', 'Administration', 'Audit Trail'],
     'users'         => ['users', 'user.manage', 'Administration', 'Users & Access'],
@@ -105,7 +106,10 @@ try {
     if (!in_array($page, ['login', 'setup', 'reset', 'forgot', 'register'], true)) {
         if (!isset($ROUTES[$page])) { http_response_code(404); throw new AppError('That page does not exist.'); }
         [$file, $perm] = $ROUTES[$page];
-        if ($perm && !can_any($perm)) { http_response_code(403); throw new AppError('You do not have permission to perform this action.'); }
+        if ($perm && !can_any($perm)) {
+            try { audit('Access denied', 'Security', 'page', $page, null, 'requires ' . $perm); } catch (Throwable $e) {}
+            http_response_code(403); throw new AppError('You do not have permission to perform this action.');
+        }
         $pageFile = BASE_PATH . '/app/pages/' . $file . '.php';
         if (user() && !empty(user()['must_change_password']) && $page !== 'account') redirect(url('account'));
         if (user() && !empty($_SESSION['mfa_enroll']) && !in_array($page, ['mfa', 'logout'], true)) {

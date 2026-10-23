@@ -9,7 +9,8 @@ function branch_input(): array
     $time = post('close_time');
     must($time === '' || preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time) === 1, 'Closing time must look like 18:00.');
     return ['name' => clean(post('name')), 'location' => clean(post('location')) ?: null, 'phone' => clean(post('phone')) ?: null,
-        'manager_id' => (int)post('manager_id') ?: null, 'working_days' => $days ?: null, 'close_time' => $time ?: null];
+        'manager_id' => (int)post('manager_id') ?: null, 'working_days' => $days ?: null, 'close_time' => $time ?: null,
+        'collection_target' => post('collection_target') !== '' ? parse_money(post('collection_target'), 'Collection target', true) : null];
 }
 
 if ($a === 'create') post_action(function () {
@@ -18,7 +19,7 @@ if ($a === 'create') post_action(function () {
     must($d['name'] !== '', 'Branch name is required.');
     must(!val('SELECT COUNT(*) FROM branches WHERE lower(name) = lower(?) OR code = ?', [$d['name'], strtoupper(preg_replace('/[^A-Za-z0-9]/', '', post('code')))]), 'A branch with that name or code already exists.');
     $nid = create_branch(post('code'), $d['name'], (string)$d['location'], (string)$d['phone']);
-    update('branches', ['manager_id' => $d['manager_id'], 'working_days' => $d['working_days'], 'close_time' => $d['close_time']], 'id = :id', ['id' => $nid]);
+    update('branches', ['manager_id' => $d['manager_id'], 'working_days' => $d['working_days'], 'close_time' => $d['close_time'], 'collection_target' => $d['collection_target']], 'id = :id', ['id' => $nid]);
     audit('Branch created', 'Branches', 'branch', $nid, null, $d['name'], '', '', null, null, $nid);
     branches_changed();
     return ['Branch created with its cash accounts. Assign staff to it under Users & Access.', url('branches')];
@@ -65,6 +66,7 @@ if ($a === 'new' || $a === 'edit') {
     field('manager_id', 'Branch Manager', ['type' => 'select', 'options' => $mgrs, 'blank' => '—', 'value' => $b['manager_id'] ?? '']);
     field('working_days', 'Working days (1=Mon … 7=Sun)', ['value' => $b['working_days'] ?? '', 'help' => 'Leave empty to use the institution default (' . setting('working_days') . ').']);
     field('close_time', 'Normal closing time', ['type' => 'time', 'value' => $b['close_time'] ?? '', 'help' => 'Branches close their day independently.']);
+    field('collection_target', 'Monthly collection target (UGX)', ['type' => 'money', 'value' => $b['collection_target'] ?? '', 'help' => 'Used by the Collection Target report.']);
     echo '<div class="form-actions">'; submit_btn('Save branch'); echo '</div>'; form_close(); echo '</div>';
     return;
 }

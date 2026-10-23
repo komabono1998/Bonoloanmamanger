@@ -15,6 +15,7 @@ if (!can($need)) { http_response_code(403); throw new AppError('You do not have 
 $key = basename($att['stored_name']);
 if (!Storage::exists($key)) { http_response_code(404); throw new AppError('File not found in storage.'); }
 while (ob_get_level() > 0) ob_end_clean();
+if (in_array($att['entity_type'], ['client', 'guarantor', 'security', 'loan'], true) && ($att['kind'] ?? '') !== 'photo') audit('Document viewed', 'Documents', $att['entity_type'], $att['entity_id'], null, $att['original_name']);
 header('Content-Type: ' . $att['mime']);
 if (($sz = Storage::size($key)) !== null) header('Content-Length: ' . $sz);
 header('X-Content-Type-Options: nosniff');

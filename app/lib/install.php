@@ -86,3 +86,24 @@ function install_system(string $businessName, string $fullName, string $username
         return $id;
     });
 }
+
+/** Make sure every built-in role exists (roles added in later versions are created with their default permissions; existing roles are never altered). */
+function ensure_default_roles(): void
+{
+    $have = array_column(rows('SELECT role FROM roles'), 'role');
+    if (!$have) return;     // fresh system: seed_reference_data() does this
+    $i = (int)val('SELECT COALESCE(MAX(sort_order),0) FROM roles');
+    foreach (role_descriptions() as $role => $desc) {
+        if (in_array($role, $have, true)) continue;
+        q('INSERT INTO roles(role, description, sort_order, is_principal) VALUES (?,?,?,?) ON CONFLICT (role) DO NOTHING', [$role, $desc, ++$i, in_array($role, principal_roles(), true) ? 1 : 0]);
+        foreach (default_role_permissions()[$role] ?? [] as $p) q('INSERT INTO role_permissions(role, permission) VALUES (?,?) ON CONFLICT (role, permission) DO NOTHING', [$role, $p]);
+    }
+    // role templates that gained access to the Report Centre (applied once to existing systems)
+    foreach (['Cashier', 'System Administrator'] as $r) {
+        $mk = 'report_view_' . strtolower(str_replace(' ', '_', $r));
+        if (in_array($r, $have, true) && !val('SELECT COUNT(*) FROM schema_migrations WHERE name = ?', [$mk])) {
+            q('INSERT INTO role_permissions(role, permission) VALUES (?, ?) ON CONFLICT (role, permission) DO NOTHING', [$r, 'report.view']);
+            q('INSERT INTO schema_migrations(name, applied_at) VALUES (?, ?) ON CONFLICT (name) DO NOTHING', [$mk, date('Y-m-d H:i:s')]);
+        }
+    }
+}

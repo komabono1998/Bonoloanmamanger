@@ -85,7 +85,7 @@ final class Reports
         if ($meth !== '') { $pay[] = 'p.method = ?'; $pp[] = $meth; }
         $PW = implode(' AND ', $pay);
         $alloc = fn(string $c) => "COALESCE(SUM(CASE WHEN a.component = '$c' THEN a.amount END),0)";
-        $LB = $B('l.branch_id');
+        $LB = $B('l.branch_id') . loan_scope('l');
 
         switch ($key) {
             case 'client_register':

@@ -70,7 +70,7 @@ if ($a === 'update') post_action(function () use ($id, $roles) {
     $branches = (array)($_POST['branches'] ?? []);
     tx(function () use ($id, $u, $role, $status, $branches, $un, $sn, $em) {
         save_upload('photo', 'user', $id, 'photo');
-        update('users', ['full_name' => clean(post('full_name')), 'username' => $un, 'staff_no' => $sn, 'phone' => clean(post('phone')) ?: null, 'email' => $em ?: null, 'role' => $role, 'status' => $status], 'id = :id', ['id' => $id]);
+        update('users', ['collection_target' => post('collection_target') !== '' ? parse_money(post('collection_target'), 'Collection target', true) : null, 'full_name' => clean(post('full_name')), 'username' => $un, 'staff_no' => $sn, 'phone' => clean(post('phone')) ?: null, 'email' => $em ?: null, 'role' => $role, 'status' => $status], 'id = :id', ['id' => $id]);
         $before = array_column(rows('SELECT branch_id FROM user_branches WHERE user_id = ? ORDER BY branch_id', [$id]), 'branch_id');
         save_user_branches($id, $branches, (int)post('primary_branch'));
         $after = array_column(rows('SELECT branch_id FROM user_branches WHERE user_id = ? ORDER BY branch_id', [$id]), 'branch_id');
@@ -101,14 +101,18 @@ if ($a === 'reports') post_action(function () use ($id) {
     require_perm('user.manage');
     $u = row('SELECT * FROM users WHERE id = ?', [$id]);
     must((bool)$u, 'User not found.');
-    $allowed = array_keys((array)($_POST['rep'] ?? []));
-    $all = array_keys(Reports::catalogue());
-    tx(function () use ($id, $allowed, $all) {
-        $before = array_column(rows('SELECT report_key FROM user_report_access WHERE user_id = ? AND allowed = 0', [$id]), 'report_key');
+    $want = array_keys((array)($_POST['rep'] ?? []));
+    $rr = ReportCatalog::roleRows();
+    tx(function () use ($id, $u, $want, $rr) {
+        $before = array_column(rows('SELECT report_key, allowed FROM user_report_access WHERE user_id = ?', [$id]), 'allowed', 'report_key');
         q('DELETE FROM user_report_access WHERE user_id = ?', [$id]);
-        $denied = [];
-        foreach ($all as $k) if (!in_array($k, $allowed, true)) { q('INSERT INTO user_report_access(user_id, report_key, allowed) VALUES (?,?,0)', [$id, $k]); $denied[] = $k; }
-        audit('User report access changed', 'Users', 'user', $id, ['blocked' => $before], ['blocked' => $denied], clean(post('reason')));
+        $after = [];
+        foreach (ReportCatalog::all() as $rid => $r) {
+            if (!$r['available']) continue;
+            $has = in_array($rid, $want, true); $byRole = ReportCatalog::roleAllows($u['role'], $rid, $rr);
+            if ($has !== $byRole) { q('INSERT INTO user_report_access(user_id, report_key, allowed) VALUES (?,?,?)', [$id, $rid, $has ? 1 : 0]); $after[$rid] = $has ? 1 : 0; }
+        }
+        audit('User report access changed', 'Users', 'user', $id, $before, $after, clean(post('reason')));
     });
     return 'Report access saved.';
 });
@@ -196,6 +200,7 @@ if ($tab === 'users' && $a === 'new') {
     field('full_name', 'Full name', ['value' => $u['full_name'], 'required' => true]); field('phone', 'Phone', ['value' => $u['phone']]);
     field('username', 'Username', ['value' => $u['username'], 'required' => true]); field('staff_no', 'Staff ID', ['value' => $u['staff_no'], 'required' => true, 'help' => 'Unique. Can be used to sign in.']);
     field('email', 'Email (used for password reset)', ['value' => $u['email'], 'span' => 2]);
+    field('collection_target', 'Monthly collection target (UGX, loan officers)', ['type' => 'money', 'value' => $u['collection_target'] ?? '', 'span' => 2, 'help' => 'Used by the Collection Target report. Leave empty for none.']);
     field('role', 'Role', ['type' => 'select', 'options' => array_combine($roles, $roles), 'value' => $u['role']]);
     field('status', 'Account status', ['type' => 'select', 'options' => ['active' => 'Active', 'inactive' => 'Inactive'], 'value' => $u['status']]);
     echo '<h3 class="full">Branch access</h3><div class="full" style="grid-column:1/-1"><div class="perm-grid">';
@@ -227,15 +232,23 @@ if ($tab === 'users' && $a === 'new') {
         echo '<div class="form-actions">'; submit_btn('Save permissions'); echo '</div>'; form_close(); echo '</div>';
     }
     if ($id !== uid()) {
-        $denied = report_denied_keys($id);
+        $rr = ReportCatalog::roleRows(); $ur = array_column(rows('SELECT report_key, allowed FROM user_report_access WHERE user_id = ?', [$id]), 'allowed', 'report_key');
         echo '<div class="card"><h2>Reports this user can open</h2>';
-        if (!in_array('report.view', user_permissions($id), true)) echo '<div class="notice">This user does not have the View reports permission, so no report is available regardless of the ticks below.</div>';
-        echo '<p class="muted">Untick a report to hide it from this person. Reports they may open still show only their own branches.</p>';
+        if (!in_array('report.view', user_permissions($id), true)) echo '<div class="notice">This user does not have the “View reports” permission (Report Centre), so no report is available regardless of the ticks below.</div>';
+        echo '<p class="muted">Starts from what the <b>' . e($u['role']) . '</b> role may open (configured under Report Access). Tick to add a report for this person, untick to remove one. Reports still only show records inside their own branch and portfolio scope.</p>';
         form_open(url('users', ['a' => 'reports', 'id' => $id]));
-        $groups = [];
-        foreach (Reports::catalogue() as $k => [$g, $t]) $groups[$g][$k] = $t;
         echo '<div class="full" style="grid-column:1/-1">';
-        foreach ($groups as $g => $items) { echo '<h3>' . e($g) . '</h3><div class="perm-grid">'; foreach ($items as $k => $t) echo '<label><input type="checkbox" name="rep[' . e($k) . ']" value="1"' . (in_array($k, $denied, true) ? '' : ' checked') . '> ' . e($t) . '</label>'; echo '</div>'; }
+        foreach (ReportCatalog::byCategory() as $cat => $items) {
+            echo '<h3>' . e($cat . '. ' . ReportCatalog::CATEGORIES[$cat][0]) . '</h3><div class="perm-grid">';
+            foreach ($items as $r) {
+                if (!$r['available']) continue;
+                $byRole = ReportCatalog::roleAllows($u['role'], $r['id'], $rr);
+                $eff = isset($ur[$r['id']]) ? (int)$ur[$r['id']] === 1 : $byRole;
+                $ov = isset($ur[$r['id']]) ? ' <span class="badge b-warn">' . ($eff ? 'added' : 'removed') . '</span>' : '';
+                echo '<label><input type="checkbox" name="rep[' . e($r['id']) . ']" value="1"' . ($eff ? ' checked' : '') . '> <b>' . e($r['id']) . '</b> ' . e($r['title']) . $ov . '</label>';
+            }
+            echo '</div>';
+        }
         echo '</div>';
         field('reason', 'Reason for the change (audited)', ['span' => 4]);
         echo '<div class="form-actions">'; submit_btn('Save report access'); echo '</div>'; form_close(); echo '</div>';

@@ -101,6 +101,7 @@ switch ($doc) {
         require_perm('loan.view');
         $l = Loans::get($id);
         must((bool)$l['disbursed_at'], 'The loan has not been disbursed.');
+        audit('Statement generated', 'Documents', 'loan', $id, null, $doc . ' for ' . $l['loan_no']);
         $b = Loans::balances($id);
         $entries = rows('SELECT * FROM loan_ledger WHERE loan_id = ? ORDER BY entry_date, id', [$id]);
         doc_head(($doc === 'clearance' ? 'Clearance statement ' : 'Statement ') . $l['loan_no']);
