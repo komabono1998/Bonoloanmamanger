@@ -395,3 +395,17 @@ body.bare { background: #eef3f8; }
 .bare .org-cta { margin-top: 1.4rem; }
 .login-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 1.4rem; padding-top: .8rem; font-size: .78rem; color: var(--muted); } .login-foot .by { display: inline-flex; align-items: center; gap: .3rem; } .login-foot img { height: 18px; width: 18px; }
 @media (max-width: 520px) { .bare .card { padding: 1.5rem 1.2rem 1rem; } }
+
+/* report header: letterhead, banner in the institution colour, fact tiles */
+.report-doc { --bc: var(--accent, #e8631a); }
+.report-doc .rep-banner { display: flex; justify-content: space-between; align-items: center; gap: 1rem; background: var(--bc); color: #fff; border-radius: 8px; padding: .7rem 1rem; margin: .6rem 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.report-doc .rep-banner h2 { margin: .1rem 0 0; font-size: 1.2rem; color: #fff; border: 0; padding: 0; }
+.report-doc .rep-banner small { opacity: .85; }
+.report-doc .rep-banner .rep-id { display: inline-block; background: rgba(255,255,255,.22); color: #fff; border-radius: 4px; padding: 0 .5rem; font-size: .75rem; font-weight: 700; letter-spacing: .04em; }
+.report-doc .rep-stamp { text-align: right; font-size: .78rem; line-height: 1.35; opacity: .95; white-space: nowrap; }
+.report-doc .rep-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .4rem .9rem; margin: .4rem 0 .8rem; padding: .6rem .8rem; border: 1px solid var(--line); border-left: 4px solid var(--bc); border-radius: 6px; font-size: .82rem; }
+.report-doc .rep-facts span { display: block; color: var(--muted); font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; }
+.report-doc .rep-facts b { font-weight: 600; word-break: break-word; }
+.report-doc table thead th { background: var(--bc) !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.report-doc .rep-foot { border-top: 2px solid var(--bc); }
+@media (max-width: 640px) { .report-doc .rep-banner { flex-direction: column; align-items: flex-start; } .report-doc .rep-stamp { text-align: left; } }

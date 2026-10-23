@@ -35,6 +35,37 @@ function letterhead(string $title = '', string $sub = ''): string
     return $h;
 }
 
+
+/** Raw logo file [bytes, mime] for documents that embed it (PDF, Word, Excel); null when no logo is set or it cannot be read. */
+function brand_logo_file(): ?array
+{
+    static $memo = [];
+    $aid = (int)setting('business_logo');
+    if (isset($memo[$aid])) return $memo[$aid] ?: null;
+    $cache = null;
+    $att = $aid ? row('SELECT * FROM attachments WHERE id = ?', [$aid]) : null;
+    if ($att && Storage::exists(basename($att['stored_name']))) {
+        ob_start();
+        try { Storage::stream(basename($att['stored_name'])); $bytes = (string)ob_get_clean(); } catch (Throwable $e) { ob_end_clean(); $bytes = ''; }
+        if ($bytes !== '') $cache = [$bytes, (string)$att['mime']];
+    }
+    $memo[$aid] = $cache ?? 0;
+    return $cache;
+}
+
+/** Brand colour as [r, g, b]. */
+function brand_rgb(): array
+{
+    return array_map('hexdec', str_split(ltrim(brand()['color'], '#'), 2));
+}
+
+/** Organisation name, address, phones/e-mail/website and registration lines for the top of a downloaded report. */
+function org_lines(): array
+{
+    $b = brand();
+    return array_values(array_filter([$b['address'], $b['contact'], $b['ids']]));
+}
+
 /** Lines for the top of an exported sheet (Excel). */
 function letterhead_lines(): array
 {

@@ -123,9 +123,11 @@ final class ReportRun
     public static function headerLines(array $def, array $p, array $run): array
     {
         $f = self::filterText($def, $p);
-        $lines = [business_name(), $def['id'] . ' · ' . $def['title'], 'Scope: ' . self::scopeText($p) . ' · Currency: ' . setting('currency')];
+        $lines = [business_name(), $def['id'] . ' · ' . $def['title']];
+        $lines[] = ($def['filters'] !== '' && str_contains($def['filters'], 'f') ? 'Period: ' . fmt_date($p['from']) . ' to ' . fmt_date($p['to']) . ' (business dates)' : 'As at business date ' . fmt_date(reporting_date())) . ' · Currency: ' . setting('currency');
+        $lines[] = 'Scope: ' . self::scopeText($p);
         if ($f) $lines[] = 'Filters: ' . implode(' · ', array_map(fn($k, $v) => "$k: $v", array_keys($f), $f));
-        $lines[] = 'Rows: ' . $run['shown'] . ($run['shown'] !== $run['total'] ? ' of ' . $run['total'] : '') . ' · Generated ' . fmt_dt(now()) . ' by ' . user()['full_name'];
+        $lines[] = 'Rows: ' . $run['shown'] . ($run['shown'] !== $run['total'] ? ' of ' . $run['total'] : '') . ' · Generated on ' . fmt_dt(now()) . ' by ' . user()['full_name'] . ' (' . user()['role'] . ')';
         $note = $run['rep']['note'] !== '' ? $run['rep']['note'] : $def['note'];
         if ($note !== '') $lines[] = 'Basis: ' . $note;
         return $lines;
@@ -175,7 +177,10 @@ final class ReportRun
         $sum = array_sum($nat); $cw = $nat;
         if ($sum > $avail) { $f = $avail / $sum; foreach ($cw as $i => $w) $cw[$i] = max(36, $w * $f); $s2 = array_sum($cw); if ($s2 > $avail) foreach ($cw as $i => $w) $cw[$i] = $w * $avail / $s2; }
         elseif ($sum < $avail * 0.7) { /* narrow tables stay narrow */ }
-        $head1 = 36 + 12 + 20 + 12 * count($lines) - 12; $y1 = $pdf->h - $head1 - 14;     // first-page table top
+        $brand = brand(); $bc = brand_rgb(); $meta = array_slice($lines, 2); $orgL = org_lines();
+        $logo = null; if ($lf = brand_logo_file()) { $logo = $pdf->addImage($lf[0]); }
+        $brandH = 56;
+        $y1 = $pdf->h - (36 + $brandH + 28 + 10.5 * count($meta) + 6);                      // first-page table top
         $y2 = $pdf->h - 70;                                                                  // later pages
         $bottom = 44;
         $cap1 = max(1, (int)floor(($y1 - $thH - $bottom) / $rowH)); $cap2 = max(1, (int)floor(($y2 - $thH - $bottom) / $rowH));
@@ -185,15 +190,32 @@ final class ReportRun
         $hasTotals = (bool)$t['totals'];
         foreach ($pages as $pi => [$a, $b]) {
             $pdf->addPage();
-            $pdf->text($mx, $pdf->h - 40, $lines[0], 11, true, [19, 26, 43]);
-            $pdf->text($pdf->w - $mx, $pdf->h - 40, $def['id'], 9, true, [232, 99, 26], 'R');
             if ($pi === 0) {
-                $pdf->text($mx, $pdf->h - 60, $lines[1] ?? '', 14, true);
-                foreach (array_slice($lines, 2) as $li => $ln) $pdf->text($mx, $pdf->h - 76 - 11 * $li, $pdf->fit($ln, 7.5, $avail), 7.5, false, [90, 98, 115]);
+                // letterhead: logo, organisation, address and contacts, with the report reference on the right
+                $tx = $mx; $topY = $pdf->h - 30;
+                if ($logo) {
+                    [$iw, $ih] = $pdf->imageSize($logo); $sc = min(120 / $iw, 46 / $ih); $lw = $iw * $sc; $lh = $ih * $sc;
+                    $pdf->drawImage($logo, $mx, $topY - $lh, $lw, $lh); $tx = $mx + $lw + 12;
+                }
+                $pdf->text($tx, $topY - 12, $pdf->fit($brand['name'], 14, $avail * 0.62, true), 14, true, $bc);
+                if ($brand['tagline'] !== '') $pdf->text($tx, $topY - 23, $pdf->fit($brand['tagline'], 7.5, $avail * 0.6), 7.5, false, [110, 118, 135]);
+                foreach (array_slice($orgL, 0, 3) as $oi => $ol) $pdf->text($tx, $topY - 34 - 9.5 * $oi, $pdf->fit($ol, 7.5, $avail * 0.62), 7.5, false, [80, 88, 105]);
+                $pdf->text($pdf->w - $mx, $topY - 12, $def['id'], 12, true, $bc, 'R');
+                $pdf->text($pdf->w - $mx, $topY - 24, 'Generated ' . fmt_dt(now()), 7.5, false, [80, 88, 105], 'R');
+                $pdf->text($pdf->w - $mx, $topY - 34, 'by ' . user()['full_name'], 7.5, false, [80, 88, 105], 'R');
+                $ruleY = $pdf->h - 30 - $brandH + 4;
+                $pdf->rect($mx, $ruleY, $avail, 2.2, $bc);
+                $pdf->text($mx, $ruleY - 20, $lines[1] ?? '', 14, true);
+                foreach ($meta as $li => $ln) $pdf->text($mx, $ruleY - 34 - 10.5 * $li, $pdf->fit($ln, 7.5, $avail), 7.5, false, [90, 98, 115]);
                 $top = $y1;
-            } else { $pdf->text($mx, $pdf->h - 56, $def['title'] . ' (continued)', 9, false, [90, 98, 115]); $top = $y2; }
+            } else {
+                $pdf->text($mx, $pdf->h - 40, $pdf->fit($brand['name'], 10, $avail * 0.6, true), 10, true, $bc);
+                $pdf->text($pdf->w - $mx, $pdf->h - 40, $def['id'], 9, true, $bc, 'R');
+                $pdf->rect($mx, $pdf->h - 46, $avail, 1.2, $bc);
+                $pdf->text($mx, $pdf->h - 58, $def['title'] . ' (continued)', 9, false, [90, 98, 115]); $top = $y2;
+            }
             // table header
-            $pdf->rect($mx, $top - $thH + 4, $avail, $thH, [19, 26, 43]);
+            $pdf->rect($mx, $top - $thH + 4, $avail, $thH, $bc);
             $x = $mx;
             foreach ($t['head'] as $c => $h) {
                 $right = in_array($t['fmt'][$c], ['money', 'num'], true);
@@ -215,21 +237,30 @@ final class ReportRun
             }
             if (!$cells) $pdf->text($mx + $pad, $y - 10, 'No data for these filters.', 8, false, [90, 98, 115]);
             $pdf->line($mx, 34, $pdf->w - $mx, 34);
-            $pdf->text($mx, 22, 'Generated ' . fmt_dt(now()) . ' by ' . user()['full_name'] . ' · ' . business_name(), 7, false, [110, 118, 135]);
+            $pdf->rect($mx, 34, $avail, 1.2, $bc);
+            $pdf->text($mx, 22, 'Generated ' . fmt_dt(now()) . ' by ' . user()['full_name'] . ' (' . user()['role'] . ') · ' . business_name() . ' · ' . implode(' · ', array_slice($orgL, 1, 1)), 7, false, [110, 118, 135]);
             $pdf->text($pdf->w - $mx, 22, 'Page ' . ($pi + 1) . ' of ' . $totalPages, 7, false, [110, 118, 135], 'R');
         }
         return $pdf->output();
     }
 
+    /** Name and title first, then address / telephone / e-mail / registration lines, then the report details. */
+    private static function withOrg(array $lines): array
+    {
+        return array_merge(array_slice($lines, 0, 2), org_lines(), array_slice($lines, 2));
+    }
+
     public static function xlsx(array $def, array $run, array $lines): string
     {
+        $lines = self::withOrg($lines);
         $t = self::table($run['rep']);
         $numeric = []; foreach ($t['fmt'] as $i => $f) $numeric[$i] = in_array($f, ['money', 'num'], true);
-        return Xlsx::build($def['id'], $lines, $t['head'], $t['rows'], $numeric, $t['totals']);
+        return Xlsx::build($def['id'], $lines, $t['head'], $t['rows'], $numeric, $t['totals'], brand()['color'], brand_logo_file());
     }
 
     public static function csv(array $def, array $run, array $lines): string
     {
+        $lines = self::withOrg($lines);
         $t = self::table($run['rep']);
         $f = fopen('php://temp', 'w+');
         fwrite($f, "\xEF\xBB\xBF");
@@ -246,12 +277,18 @@ final class ReportRun
     public static function doc(array $def, array $run, array $lines): string
     {
         $t = self::table($run['rep']);
+        $b = brand(); $c = e($b['color']); $org = org_lines();
+        $logo = ''; if ($lf = brand_logo_file()) $logo = '<img src="data:' . e($lf[1]) . ';base64,' . base64_encode($lf[0]) . '" height="56" alt="">';
         $h = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>' . e($def['title']) . '</title>'
-            . '<style>body{font-family:Calibri,Arial,sans-serif;font-size:10pt}table{border-collapse:collapse;width:100%}th{background:#131a2b;color:#fff;text-align:left;padding:4px 6px;font-size:8pt;text-transform:uppercase}td{border-bottom:1px solid #ccc;padding:3px 6px}td.r{text-align:right}</style></head><body>'
-            . '<h2 style="margin:0">' . e($lines[0]) . '</h2><h3 style="margin:2px 0 6px">' . e($lines[1] ?? '') . '</h3>';
+            . '<style>body{font-family:Calibri,Arial,sans-serif;font-size:10pt}table{border-collapse:collapse;width:100%}th{background:' . $c . ';color:#fff;text-align:left;padding:4px 6px;font-size:8pt;text-transform:uppercase}td{border-bottom:1px solid #d5dae3;padding:3px 6px;font-size:9pt}td.r{text-align:right}.org td{border:0;padding:0 8px 0 0;font-size:9pt}</style></head><body>'
+            . '<table class="org" style="border-bottom:3px solid ' . $c . '"><tr>' . ($logo ? '<td width="1%">' . $logo . '</td>' : '') . '<td><div style="font-size:16pt;font-weight:bold;color:' . $c . '">' . e($b['name']) . '</div>'
+            . ($b['tagline'] !== '' ? '<div style="color:#666;font-style:italic">' . e($b['tagline']) . '</div>' : '');
+        foreach ($org as $l) $h .= '<div style="color:#444;font-size:9pt">' . e($l) . '</div>';
+        $h .= '</td><td style="text-align:right;vertical-align:top"><b style="color:' . $c . ';font-size:12pt">' . e($def['id']) . '</b><br><span style="color:#444;font-size:8pt">Generated ' . e(fmt_dt(now())) . '<br>by ' . e(user()['full_name']) . '</span></td></tr></table>'
+            . '<h2 style="margin:10px 0 4px;color:' . $c . '">' . e($lines[1] ?? '') . '</h2>';
         foreach (array_slice($lines, 2) as $l) $h .= '<p style="margin:1px 0;color:#555;font-size:8pt">' . e($l) . '</p>';
         $h .= '<br><table><thead><tr>';
-        foreach ($t['head'] as $c) $h .= '<th>' . e($c) . '</th>';
+        foreach ($t['head'] as $c2) $h .= '<th>' . e($c2) . '</th>';
         $h .= '</tr></thead><tbody>';
         foreach ($t['rows'] as $r) { $h .= '<tr>'; foreach ($r as $i => $v) $h .= '<td' . (in_array($t['fmt'][$i], ['money', 'num'], true) ? ' class="r"' : '') . '>' . e(self::display($v, $t['fmt'][$i])) . '</td>'; $h .= '</tr>'; }
         if ($t['totals']) { $h .= '<tr>'; foreach ($t['totals'] as $v) $h .= '<td class="r"><b>' . e($v === null ? '' : (is_numeric($v) ? number_format((float)$v) : (string)$v)) . '</b></td>'; $h .= '</tr>'; }
@@ -262,7 +299,7 @@ final class ReportRun
     {
         $t = self::table($run['rep']);
         $rows = []; foreach ($t['rows'] as $r) $rows[] = array_combine($t['keys'], $r);
-        return json_encode(['report' => ['id' => $def['id'], 'title' => $def['title'], 'category' => ReportCatalog::CATEGORIES[$def['cat']][0], 'organisation' => business_name(), 'scope' => self::scopeText($p),
+        return json_encode(['report' => ['id' => $def['id'], 'title' => $def['title'], 'category' => ReportCatalog::CATEGORIES[$def['cat']][0], 'organisation' => ['name' => business_name(), 'details' => org_lines()], 'scope' => self::scopeText($p),
             'filters' => self::filterText($def, $p), 'rows_shown' => $run['shown'], 'rows_total' => $run['total'], 'generated_at' => now(), 'generated_by' => user()['full_name'], 'basis' => $run['rep']['note'] ?: $def['note']],
             'columns' => array_combine($t['keys'], $t['head']), 'rows' => $rows, 'totals' => $t['totals'] ? array_combine($t['keys'], $t['totals']) : null], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
     }
