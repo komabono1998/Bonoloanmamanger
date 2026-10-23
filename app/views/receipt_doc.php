@@ -4,11 +4,7 @@ $small = setting('receipt_paper') === '80mm';
 ?>
 <div class="doc<?= $small ? ' receipt80' : '' ?><?= $r['receipt_status'] === 'Void' ? ' voided' : '' ?>">
   <?php if ($isCopy): ?><div class="copy">COPY</div><?php endif; ?>
-  <div class="biz">
-    <?php if (setting('business_logo')): ?><img src="<?= e(attachment_url((int)setting('business_logo'))) ?>" alt="" style="height:50px"><?php endif; ?>
-    <h1><?= e(business_name()) ?></h1>
-    <small><?= e(setting('business_address')) ?> <?= e(setting('business_phone')) ?> <?= e(setting('business_email')) ?></small>
-  </div>
+  <?= letterhead() ?>
   <h2 style="text-align:center;border:0">PAYMENT RECEIPT</h2>
   <div class="kv2">
     <div><b>Receipt No.</b> <?= e($r['receipt_no']) ?></div>

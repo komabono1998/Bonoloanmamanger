@@ -27,6 +27,26 @@ function seed_reference_data(): void
     }
 }
 
+/** Institution code used in staff IDs, e.g. EMG. Set once from the institution name; editable in the profile. */
+function institution_code(): string
+{
+    $c = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', setting('institution_code')));
+    return $c !== '' ? $c : institution_code_from(business_name());
+}
+
+/** Give a user the next unique staff ID, e.g. EMG-S-0001. IDs are never reused. */
+function assign_staff_no(int $userId): string
+{
+    $no = institution_code() . '-' . setting('staff_prefix') . '-' . str_pad((string)next_seq('staff'), 4, '0', STR_PAD_LEFT);
+    q('UPDATE users SET staff_no = ? WHERE id = ? AND staff_no IS NULL', [$no, $userId]);
+    return (string)val('SELECT staff_no FROM users WHERE id = ?', [$userId]);
+}
+
+function backfill_staff_numbers(): void
+{
+    foreach (rows('SELECT id FROM users WHERE staff_no IS NULL ORDER BY id') as $u) assign_staff_no((int)$u['id']);
+}
+
 function create_branch(string $code, string $name, string $location = '', string $phone = ''): int
 {
     $code = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $code));
@@ -37,21 +57,31 @@ function create_branch(string $code, string $name, string $location = '', string
     return $id;
 }
 
-function install_system(string $businessName, string $fullName, string $username, string $password, string $branchName = 'Head Office', string $branchCode = 'HQ'): int
+function install_system(string $businessName, string $fullName, string $username, string $password, string $branchName = 'Head Office', string $branchCode = 'HQ', array $profile = []): int
 {
     must(!is_installed(), 'The system is already installed.');
     password_policy_check($password);
     must(preg_match('/^[A-Za-z0-9_.-]{3,30}$/', $username) === 1, 'Username must be 3-30 letters, numbers, dots, dashes or underscores.');
     must($fullName !== '', 'Full name is required.');
     migrate();
-    return tx(function () use ($businessName, $fullName, $username, $password, $branchName, $branchCode) {
+    return tx(function () use ($businessName, $fullName, $username, $password, $branchName, $branchCode, $profile) {
         seed_reference_data();
         if ($businessName !== '') set_setting('business_name', $businessName, null, false);
+        $code = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($profile['institution_code'] ?? '')));
+        must($code === '' || (strlen($code) >= 2 && strlen($code) <= 6), 'Institution code must be 2-6 letters or numbers.');
+        set_setting('institution_code', $code ?: institution_code_from($businessName ?: 'Bono'), null, false);
+        foreach (['business_address', 'business_city', 'business_phone', 'business_email', 'registration_no', 'tax_id'] as $k) if (!empty($profile[$k])) set_setting($k, trim((string)$profile[$k]), null, false);
+        foreach (['interest_rate_pct', 'processing_fee_pct'] as $k) if (isset($profile[$k]) && $profile[$k] !== '') {
+            must(is_numeric($profile[$k]) && (float)$profile[$k] >= 0 && (float)$profile[$k] <= 1000, 'Rates must be percentages.');
+            set_setting($k, (string)$profile[$k], null, false);
+        }
+        if (!empty($profile['interest_rate_pct'])) set_setting('setup_lending_confirmed', '1', null, false);
         $bid = create_branch($branchCode, $branchName ?: 'Head Office');
         $id = insert('users', [
             'full_name' => $fullName, 'username' => strtolower($username), 'password_hash' => password_hash($password, PASSWORD_DEFAULT),
             'role' => 'System Administrator', 'status' => 'active', 'created_at' => now(), 'password_changed_at' => now(),
         ]);
+        assign_staff_no($id);
         audit('System installed', 'Administration', 'user', $id, null, $username, '', '', $id, $username, $bid);
         return $id;
     });

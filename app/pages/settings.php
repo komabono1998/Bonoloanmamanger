@@ -2,16 +2,28 @@
 $title = 'Settings & limits';
 $a = get('a');
 
+/** Lending / penalty / payment / EOD policy belongs to the COO. Until a COO exists the System Administrator may do the initial configuration. */
+function policy_bootstrap_open(): bool { return can('settings.manage') && !(int)val("SELECT COUNT(*) FROM users WHERE role = 'COO' AND status = 'active'"); }
+function group_allowed(string $perm): bool
+{
+    if (str_contains($perm, 'settings.policy') && policy_bootstrap_open()) return true;
+    return can_any($perm);
+}
+
 /** tab => [label, required permission(s) 'a|b', fields key => [label, type, options|help]] */
 $GROUPS = [
-    'business' => ['Organization', 'settings.manage', [
-        'business_name' => ['Institution name', 'text'], 'business_address' => ['Address', 'text'], 'business_phone' => ['Telephone', 'text'], 'business_email' => ['Email', 'text'],
-        'currency' => ['Currency', 'text', 'Display label only (amounts are whole UGX).'], 'receipt_footer' => ['Receipt footer', 'text'],
+    'business' => ['Institution profile', 'settings.manage', [
+        'business_name' => ['Institution name', 'text'], 'business_tagline' => ['Tagline (optional)', 'text', 'Shown under the name on documents.'],
+        'institution_code' => ['Institution code', 'text', 'Short code used in staff IDs, e.g. EMG-S-0001 (2–6 letters/numbers).'], 'registration_no' => ['Registration number', 'text'], 'tax_id' => ['Tax ID (TIN)', 'text'],
+        'business_address' => ['Street / address', 'text'], 'business_city' => ['Town / district', 'text'], 'business_country' => ['Country', 'text'],
+        'business_phone' => ['Telephone', 'text'], 'business_phone2' => ['Alternative telephone', 'text'], 'business_email' => ['Email', 'text'], 'business_website' => ['Website', 'text'],
+        'brand_color' => ['Brand colour', 'color', 'Used for the letterhead line and headings on documents.'],
+        'currency' => ['Currency', 'text', 'Display label only (amounts are whole UGX).'], 'receipt_footer' => ['Receipt / document footer', 'text'],
         'receipt_paper' => ['Receipt paper size', 'select', ['A4' => 'A4', '80mm' => '80 mm roll']],
     ]],
     'numbering' => ['Numbering', 'settings.manage', [
         'loan_prefix' => ['Loan number prefix', 'text', 'e.g. BLM → BLM-2026-000001'], 'client_prefix' => ['Client number prefix', 'text'], 'receipt_prefix' => ['Receipt number prefix', 'text'],
-        'guarantor_prefix' => ['Guarantor prefix', 'text'], 'security_prefix' => ['Security prefix', 'text'],
+        'staff_prefix' => ['Staff ID letter(s)', 'text', 'Staff IDs look like CODE-S-0001.'], 'guarantor_prefix' => ['Guarantor prefix', 'text'], 'security_prefix' => ['Security prefix', 'text'],
     ]],
     'lending' => ['Lending terms', 'settings.policy', [
         'interest_rate_pct' => ['Interest rate (% per month)', 'text', 'Applies to loans approved from now on; approved loans keep their own rate.'], 'interest_method' => ['Interest calculation', 'select', ['flat' => 'Flat (principal × rate × months)']],
@@ -52,18 +64,18 @@ $GROUPS = [
     ]],
 ];
 $tabs = [];
-foreach ($GROUPS as $k => [$label, $perm]) if (can_any($perm)) $tabs[$k] = $label;
-if (can('limits.manage')) $tabs['limits'] = 'Approval limits';
+foreach ($GROUPS as $k => [$label, $perm]) if (group_allowed($perm)) $tabs[$k] = $label;
+if (can('limits.manage') || policy_bootstrap_open()) $tabs['limits'] = 'Approval limits';
 if (can_any('settings.manage|settings.policy|branch.settings')) $tabs['calendar'] = 'Business calendar';
 if (can('branch.settings')) $tabs['mybranch'] = 'My branch';
 must((bool)$tabs, 'You do not have permission to perform this action.');
-$tab = get('tab', array_key_first($tabs));
-if (!isset($tabs[$tab])) $tab = array_key_first($tabs);
+$tab = get('tab', 'hub');
+if ($tab !== 'hub' && !isset($tabs[$tab])) $tab = 'hub';
 
 if ($a === 'save') post_action(function () use ($GROUPS, $tab) {
     $g = $GROUPS[$tab] ?? null;
     must((bool)$g, 'Unknown settings group.');
-    require_perm($g[1]);
+    must(group_allowed($g[1]), 'You do not have permission to perform this action.');
     tx(function () use ($g) {
         foreach ($g[2] as $key => $def) {
             $type = $def[1];
@@ -78,19 +90,25 @@ if ($a === 'save') post_action(function () use ($GROUPS, $tab) {
                 elseif ($type === 'number') { must(ctype_digit($v) || ($v === '' && in_array($key, ['rto_hours', 'rpo_hours'], true)), $def[0] . ' must be a whole number.'); }
                 elseif (str_ends_with($key, '_pct')) { must(is_numeric($v) && (float)$v >= 0 && (float)$v <= 1000, $def[0] . ' must be a percentage.'); }
                 elseif ($type === 'select') { must(array_key_exists($v, $def[2]), $def[0] . ': invalid choice.'); }
-                elseif (str_ends_with($key, '_prefix')) { $v = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $v)); must($v !== '', $def[0] . ' is required.'); }
+                elseif (str_ends_with($key, '_prefix')) { $v = strtoupper(preg_replace('/[^A-Za-z0-9-]/', '', $v)); must($v !== '', $def[0] . ' is required.'); }
             }
             if ($key === 'inspection_fee_max') must((int)$v >= (int)(($_POST['inspection_fee_min'] ?? '') !== '' ? parse_money($_POST['inspection_fee_min'], 'x', true) : 0), 'Inspection fee maximum must be at least the minimum.');
             if ($key === 'working_days') { $v = implode(',', array_filter(array_map('trim', explode(',', $v)), fn($d) => preg_match('/^[1-7]$/', $d))); must($v !== '', 'Choose at least one working day.'); }
+            if ($key === 'institution_code') { $v = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $v)); must(strlen($v) >= 2 && strlen($v) <= 6, 'Institution code must be 2-6 letters or numbers.'); }
+            if ($key === 'brand_color') must(preg_match('/^#[0-9A-Fa-f]{6}$/', $v) === 1, 'Brand colour must look like #0B5C4D.');
+            if ($key === 'business_email') must($v === '' || filter_var($v, FILTER_VALIDATE_EMAIL), 'Enter a valid email address.');
+            if ($key === 'business_website') $v = preg_replace('~^https?://~i', '', $v);
+            if ($key === 'business_name') must($v !== '', 'Institution name is required.');
             if ($key === 'session_timeout_min') must((int)$v >= 1 && (int)$v <= 480, 'Session timeout must be between 1 and 480 minutes.');
             if ($key === 'password_min_length') must((int)$v >= 8 && (int)$v <= 64, 'Minimum password length must be between 8 and 64.');
             set_setting($key, $v, uid());
         }
     });
+    if ($tab === 'lending') set_setting('setup_lending_confirmed', '1', uid());
     return 'Settings saved. Existing approved loans keep their original terms.';
 });
 if ($a === 'limits') post_action(function () {
-    require_perm('limits.manage');
+    must(can('limits.manage') || policy_bootstrap_open(), 'You do not have permission to perform this action.');
     tx(function () {
         foreach (Approvals::CATEGORIES as $cat => $_) {
             foreach ((array)($_POST['limit'][$cat] ?? []) as $bid => $raw) {
@@ -144,7 +162,49 @@ if ($a === 'logo') post_action(function () {
     return ['Logo updated.', url('settings', ['tab' => 'business'])];
 });
 
-page_head('Settings & limits', '', 'Changes are logged and apply to new loans only — they never rewrite the terms of loans already approved.');
+page_head('Settings & limits', $tab !== 'hub' ? '<a class="btn" href="' . e(url('settings')) . '">‹ All settings</a>' : '', 'Changes are logged and apply to new loans only — they never rewrite the terms of loans already approved.');
+if ($tab === 'hub') {
+    $HUB = [
+        'business' => ['building', 'Institution profile', 'Name, address, contacts, registration & tax numbers, logo and colour — printed on every receipt, report, form and statement.'],
+        'numbering' => ['hash', 'IDs & numbering', 'Prefixes for client, loan, receipt, guarantor and staff IDs.'],
+        'lending' => ['percent', 'Interest & fees', 'Interest rate, processing / application / inspection fees, loan period, maturity and offer rules.'],
+        'penalty' => ['alert', 'Penalties', 'Overdue penalty rate, basis, grace days and cap.'],
+        'payments' => ['card', 'Payments & clients', 'Payment allocation order, reversal approval, duplicate phone policy.'],
+        'eod' => ['clock', 'Cash & End of Day', 'Working days, closing rules, expense limit, reopening authority.'],
+        'security' => ['lock', 'Security & recovery', 'Sessions, passwords, MFA roles, backups, RTO / RPO.'],
+        'limits' => ['check', 'Approval limits', 'Who can approve how much; anything above goes to the COO.'],
+        'calendar' => ['calendar', 'Business calendar', 'Holidays and special working days.'],
+        'mybranch' => ['building', 'My branch', 'Working days and closing time for your branch.'],
+    ];
+    $unconf = Approvals::unconfigured();
+    $pg = profile_gaps();
+    $status = [
+        'business' => $pg ? 'Missing: ' . implode(', ', $pg) : 'Complete',
+        'lending' => setting('interest_rate_pct') . '% per month · processing ' . setting('processing_fee_pct') . '% · application ' . number_format(setting_int('application_fee')),
+        'penalty' => setting('penalty_enabled') === '1' ? 'Active · ' . setting('penalty_rate_pct') . '% per day' : 'Off (awaiting management decision)',
+        'limits' => $unconf ? count($unconf) . ' of ' . count(Approvals::CATEGORIES) . ' not configured' : 'Configured',
+        'security' => 'Timeout ' . setting('session_timeout_min') . ' min',
+        'numbering' => 'e.g. ' . setting('loan_prefix') . '-' . date('Y') . '-000001 · ' . institution_code() . '-' . setting('staff_prefix') . '-0001',
+    ];
+    if (can('settings.manage')) {
+        $list = System::setupChecklist();
+        $done = count(array_filter($list, fn($s) => $s[1]));
+        echo '<div class="card"><div class="card-h"><h2>Set-up checklist</h2><span class="muted">' . $done . ' of ' . count($list) . ' complete</span></div><div class="steps">';
+        foreach ($list as [$label, $ok, $hint, $link, $ic]) {
+            echo '<a class="step' . ($ok ? ' done' : '') . '" href="' . e(url($link[0], $link[1])) . '"><span class="step-ic">' . icon($ok ? 'check' : $ic, 16) . '</span><span><b>' . e($label) . '</b><small>' . e($hint) . '</small></span></a>';
+        }
+        echo '</div></div>';
+    }
+    if (policy_bootstrap_open() && !can('settings.policy')) echo '<div class="notice info">No COO exists yet, so you may do the <b>initial</b> interest, fee, penalty and limit configuration. Once a COO is appointed, only the COO can change financial policy.</div>';
+    echo '<div class="hub">';
+    foreach ($HUB as $k => [$ic, $name, $desc]) {
+        if (!isset($tabs[$k])) continue;
+        echo '<a class="hub-card" href="' . e(url('settings', ['tab' => $k])) . '"><span class="hub-ic">' . icon($ic, 22) . '</span><span class="hub-body"><b>' . e($name) . '</b><small>' . e($desc) . '</small>'
+            . (isset($status[$k]) ? '<em>' . e($status[$k]) . '</em>' : '') . '</span></a>';
+    }
+    echo '</div>';
+    return;
+}
 tabs($tabs, $tab);
 
 if ($tab === 'limits') {
@@ -216,13 +276,19 @@ foreach ($g[2] as $key => $def) {
     elseif ($type === 'money') $opts['type'] = 'money';
     elseif ($type === 'number') { $opts['type'] = 'number'; $opts['attrs'] = 'min="0"'; }
     elseif ($type === 'time') $opts['type'] = 'time';
+    elseif ($type === 'color') { $opts['type'] = 'text'; $opts['attrs'] = 'maxlength="7" placeholder="#0B5C4D"'; }
     field($key, $label, $opts);
 }
 echo '<div class="form-actions">'; submit_btn('Save settings'); echo '</div>'; form_close();
 if ($tab === 'business') {
-    echo '<h3>Logo</h3>';
+    echo '<h3>Logo</h3><div class="logo-row">';
+    echo logo_url() ? '<img class="logo-prev" src="' . e(logo_url()) . '" alt="Current logo">' : '<div class="logo-prev ph">No logo yet</div>';
+    echo '<div style="flex:1">';
     form_open(url('settings', ['a' => 'logo', 'tab' => 'business']), ['upload' => true]);
-    field('logo', 'Institution logo (PNG / JPG)', ['type' => 'file', 'span' => 2, 'accept' => 'accept="image/*"']);
+    field('logo', 'Upload logo (PNG or JPG; a square or wide logo works best)', ['type' => 'file', 'span' => 2, 'accept' => 'accept="image/*"']);
     echo '<div class="form-actions">'; submit_btn('Upload logo', 'default'); echo '</div>'; form_close();
+    echo '</div></div>';
+    echo '<h3>Preview — how it appears on documents</h3><div class="doc-prev">' . letterhead('SAMPLE DOCUMENT', 'Loan no. ' . setting('loan_prefix') . '-' . date('Y') . '-000001') . '<p class="muted" style="font-size:12px;margin:.5rem 0 0">' . e(setting('receipt_footer')) . '</p></div>';
+    echo '<p class="muted">These details appear automatically on receipts, loan offers and forms, guarantor forms, schedules, statements, vouchers, End-of-Day summaries, reports (screen, print and Excel) and the sign-in page.</p>';
 }
 echo '</div>';

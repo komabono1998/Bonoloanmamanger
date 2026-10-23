@@ -30,7 +30,8 @@ if ($a === 'create') post_action(function () use ($roles) {
         $nid = insert('users', ['full_name' => clean(post('full_name')), 'username' => $un, 'password_hash' => password_hash($pw, PASSWORD_DEFAULT), 'role' => post('role'), 'phone' => clean(post('phone')) ?: null,
             'email' => clean(post('email')) ?: null, 'status' => 'active', 'created_at' => now(), 'created_by' => uid(), 'password_changed_at' => now(), 'must_change_password' => post('must_change') ? 1 : 0]);
         save_user_branches($nid, $branches, (int)post('primary_branch'));
-        audit('User created', 'Users', 'user', $nid, null, $un . ' (' . post('role') . ')');
+        $staffNo = assign_staff_no($nid);
+        audit('User created', 'Users', 'user', $nid, null, $staffNo . ' ' . $un . ' (' . post('role') . ')');
         return $nid;
     });
     return ['User created.', url('users', ['a' => 'edit', 'id' => $nid])];
@@ -155,7 +156,7 @@ if ($tab === 'users' && $a === 'new') {
     echo '</div></div>';
     field('primary_branch', 'Primary branch', ['type' => 'select', 'options' => all_branch_options(false), 'blank' => '—', 'value' => $prim ?: '', 'span' => 2]);
     echo '<div class="form-actions">'; submit_btn('Save'); echo btn('Back', url('users')); echo '</div>'; form_close();
-    desc_list(['Created' => e(fmt_dt($u['created_at'])), 'Last login' => e(fmt_dt($u['last_login'])), 'Last IP' => e($u['last_ip']), 'Password changed' => e(fmt_dt($u['password_changed_at'])),
+    desc_list(['Staff ID' => '<b>' . e($u['staff_no']) . '</b>', 'Created' => e(fmt_dt($u['created_at'])), 'Last login' => e(fmt_dt($u['last_login'])), 'Last IP' => e($u['last_ip']), 'Password changed' => e(fmt_dt($u['password_changed_at'])),
         'Failed attempts' => e($u['failed_attempts']), 'MFA' => $u['mfa_enabled'] ? badge('Active') : (mfa_required_for($u) ? badge('Pending') . ' required' : 'off')], 2);
     echo '</div><div class="card"><h2>Reset password</h2>';
     form_open(url('users', ['a' => 'reset', 'id' => $id]), ['attrs' => 'style="grid-template-columns:1fr" data-confirm="Reset this user\'s password?"']);
@@ -182,7 +183,7 @@ if ($tab === 'users' && $a === 'new') {
     foreach (rows('SELECT ub.user_id, b.name FROM user_branches ub JOIN branches b ON b.id = ub.branch_id ORDER BY b.name') as $r) $ub[$r['user_id']][] = $r['name'];
     foreach ($us as &$r) $r['branches'] = $r['role'] === 'COO' ? 'All (COO)' : implode(', ', $ub[$r['id']] ?? []);
     unset($r);
-    data_table(['full_name' => 'Name', 'username' => 'Username', 'role' => 'Role', 'branches' => 'Branches', 'phone' => 'Phone', 'mfa_enabled' => ['MFA', fn($r) => $r['mfa_enabled'] ? badge('Active') : (mfa_required_for($r) ? badge('Pending') : '<span class="muted">off</span>')],
+    data_table(['staff_no' => 'Staff ID', 'full_name' => 'Name', 'username' => 'Username', 'role' => 'Role', 'branches' => 'Branches', 'phone' => 'Phone', 'mfa_enabled' => ['MFA', fn($r) => $r['mfa_enabled'] ? badge('Active') : (mfa_required_for($r) ? badge('Pending') : '<span class="muted">off</span>')],
         'status' => ['Status', 'badge'], 'last_login' => ['Last login', 'dt']], $us, ['link' => fn($r) => url('users', ['a' => 'edit', 'id' => $r['id']])]);
 }
 

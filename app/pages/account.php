@@ -18,7 +18,7 @@ page_head('My account & security');
 <div class="grid g2">
   <div class="card">
     <h2>Profile</h2>
-    <?php desc_list(['Name' => e($u['full_name']), 'Username' => e($u['username']), 'Role' => e($u['role']), 'Phone' => e($u['phone']), 'Branches' => e(implode(', ', branch_options()) ?: '—'),
+    <?php desc_list(['Name' => e($u['full_name']), 'Staff ID' => '<b>' . e($u['staff_no']) . '</b>', 'Username' => e($u['username']), 'Role' => e($u['role']), 'Phone' => e($u['phone']), 'Branches' => e(implode(', ', branch_options()) ?: '—'),
         'Last login' => e(fmt_dt($u['last_login'])), 'Password changed' => e(fmt_dt($u['password_changed_at'])),
         'Multi-factor' => $u['mfa_enabled'] ? badge('Active') : (mfa_required_for($u) ? badge('Pending') . ' required for your role' : badge('Archived') . ' off')], 2); ?>
     <p><?= btn('Manage multi-factor authentication', url('mfa')) ?></p>

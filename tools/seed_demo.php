@@ -20,21 +20,29 @@ if (is_installed() && (int)val('SELECT COUNT(*) FROM clients') > 0) { exit("This
 
 function wd(string $date, int $dir = -1): string { while (!is_working_day($date, 0)) $date = Calc::addDays($date, $dir); return $date; }
 function nu(string $user): int { return (int)val('SELECT id FROM users WHERE username = ?', [$user]); }
-function as_(string $user, ?int $branch = null): void { login_as(nu($user)); if ($branch) set_branch_context($branch); }
+function as_(string $user, ?int $branch = null): void
+{
+    $id = $user === 'admin' && !nu('admin') ? (int)val("SELECT MIN(id) FROM users WHERE role = 'System Administrator'") : nu($user);
+    login_as($id);
+    if ($branch) set_branch_context($branch);
+}
 function safe(int $b): int { return (int)val("SELECT id FROM cash_accounts WHERE branch_id = ? AND name = 'Main Safe'", [$b]); }
 
 if (!is_installed()) {
     install_system('Bono Loan Manager', 'System Administrator', 'admin', DEMO_PASSWORD, 'Kampala Main', 'KLA');
     echo "Installed. System Administrator: admin\n";
 }
-$A = (int)val("SELECT id FROM branches WHERE code = 'KLA'");
-$B = create_branch('GLU', 'Gulu Branch', 'Gulu City');
+$A = (int)val("SELECT id FROM branches WHERE code = 'KLA'") ?: (int)val('SELECT MIN(id) FROM branches');   // an existing installation keeps its own first branch
+$B = (int)val("SELECT id FROM branches WHERE code = 'GLU'") ?: create_branch('GLU', 'Gulu Branch', 'Gulu City');
 set_setting('mfa_required_roles', '', null, false);   // demo only
 as_('admin');
 foreach ([['coo', 'Dr. Agnes Tumusiime', 'COO', []], ['bm', 'Grace Namukasa', 'Branch Manager', [$A]], ['fo', 'Ruth Achieng', 'Finance Officer', [$A]], ['lo', 'Peter Okello', 'Loan Officer', [$A]],
           ['cashier', 'Sarah Nakato', 'Cashier', [$A]], ['bmg', 'Samuel Opio', 'Branch Manager', [$B]], ['fog', 'Mercy Akena', 'Finance Officer', [$B]], ['log', 'Daniel Okello', 'Loan Officer', [$B]],
           ['cashierg', 'Patrick Odong', 'Cashier', [$B]]] as [$u, $n, $r, $br]) {
-    if (nu($u)) continue;
+    if ($id = nu($u)) {
+        if ($br && !val('SELECT COUNT(*) FROM user_branches WHERE user_id = ?', [$id])) foreach ($br as $i => $b) q('INSERT INTO user_branches(user_id, branch_id, is_primary) VALUES (?,?,?)', [$id, $b, $i === 0 ? 1 : 0]);
+        continue;
+    }
     $id = insert('users', ['full_name' => $n, 'username' => $u, 'password_hash' => password_hash(DEMO_PASSWORD, PASSWORD_DEFAULT), 'role' => $r, 'status' => 'active', 'created_at' => now(), 'created_by' => nu('admin'), 'password_changed_at' => now()]);
     foreach ($br as $i => $b) q('INSERT INTO user_branches(user_id, branch_id, is_primary) VALUES (?,?,?)', [$id, $b, $i === 0 ? 1 : 0]);
 }

@@ -43,7 +43,7 @@ if (in_array('branch', $uses, true) && count(accessible_branch_ids()) > 1) $filt
 if (in_array('client', $uses, true)) $filters['client'] = ['label' => 'Client', 'type' => 'select', 'options' => client_select_options()];
 if ($filters) filter_bar($filters, ['from' => $f['from'], 'to' => $f['to'], 'officer' => $f['officer'] ?: '', 'cashier' => $f['cashier'] ?: '', 'method' => $f['method'], 'client' => $f['client'] ?: '', 'branch' => $f['branch'] ?: ''], 'reports', ['r' => $key]);
 
-echo '<div class="card"><div class="muted" style="margin-bottom:.6rem">' . e(business_name()) . ' · <b>' . e($rtitle) . '</b> · '
+echo '<div class="card report-doc">' . letterhead() . '<div class="muted" style="margin:.6rem 0"><b>' . e($rtitle) . '</b> · '
     . ($periodic ? 'Period ' . e(fmt_date($f['from'])) . ' to ' . e(fmt_date($f['to'])) . ' (business dates)' : 'As at business date ' . e(fmt_date($asOf))) . ' · generated ' . e(fmt_dt(now())) . ' by ' . e(user()['full_name']) . ' · ' . count($rep['rows']) . ' row(s)</div>';
 if ($rep['note']) echo '<div class="notice info">' . e($rep['note']) . '</div>';
 data_table($rep['cols'], $rep['rows'], ['totals' => $rep['totals'], 'empty' => 'No data for these filters.']);

@@ -59,6 +59,15 @@ $layout = 'app';
 $title = '';
 $content = '';
 
+if ($page === 'logo') {   // public: the institution logo (login page, print-outs)
+    $aid = (int)setting('business_logo');
+    $att = $aid ? row('SELECT * FROM attachments WHERE id = ?', [$aid]) : null;
+    if (!$att || !Storage::exists(basename($att['stored_name']))) { http_response_code(404); exit; }
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Content-Type: ' . $att['mime']); header('Cache-Control: public, max-age=86400'); header('X-Content-Type-Options: nosniff');
+    Storage::stream(basename($att['stored_name']));
+    exit;
+}
 if ($page === 'health') { require BASE_PATH . '/app/pages/health.php'; exit; }
 
 try {

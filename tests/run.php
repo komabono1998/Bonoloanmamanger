@@ -485,6 +485,36 @@ ok((int)val("SELECT COUNT(*) FROM backup_history WHERE type = 'Pre-restore'") ==
 eq(Backup::integrityReport(), [], 'integrity clean after restore');
 ok(Storage::writable(), 'private file storage is writable');
 
+section('Institution profile, letterhead and staff IDs');
+as_('admin');
+set_setting('business_name', 'Emglo Finance Ltd', uid());
+set_setting('business_address', 'Plot 7 Kampala Road', uid());
+set_setting('business_phone', '+256700111222', uid());
+set_setting('institution_code', 'EMG', uid());
+$GLOBALS['__settings_dirty'] = true;
+$lh = letterhead('RECEIPT', 'No. 1');
+ok(str_contains($lh, 'Emglo Finance Ltd') && str_contains($lh, 'Plot 7 Kampala Road') && str_contains($lh, '+256700111222'), 'letterhead carries the saved name, address and phone');
+ok(str_contains($lh, 'RECEIPT'), 'letterhead shows the document title');
+set_setting('business_name', 'Renamed <b>Co</b>', uid());
+$GLOBALS['__settings_dirty'] = true;
+ok(!str_contains(letterhead(), '<b>Co</b>') && str_contains(letterhead(), 'Renamed'), 'letterhead escapes institution text');
+$s1 = mkuser('staffa', 'Loan Officer'); $s2 = mkuser('staffb', 'Cashier');
+$n1 = assign_staff_no($s1); $n2 = assign_staff_no($s2);
+ok(preg_match('/^EMG-S-[0-9]{4,}$/', (string)$n1) === 1, 'staff ID uses institution code and prefix: ' . $n1);
+ok($n1 !== $n2, 'staff IDs are unique');
+eq((int)(find_user_by_name(strtolower((string)$n1))['id'] ?? 0), $s1, 'a user can sign in with their Staff ID (case-insensitive)');
+throws(fn() => q('UPDATE users SET staff_no = ? WHERE id = ?', [$n1, $s2]), '', 'duplicate Staff ID is rejected by the database');
+eq(institution_code_from('Emglo Finance Ltd'), 'EFL', 'institution code derived from initials');
+ok(in_array('logo', profile_gaps(), true), 'profile gaps flag the missing logo');
+$cl = System::setupChecklist();
+ok(count($cl) >= 8 && isset($cl[0][4]), 'set-up checklist is produced');
+q("UPDATE users SET status = 'inactive' WHERE role = 'COO'");
+as_('admin');
+Approvals::setLimit('loan', 0, 5000000);
+eq((int)val("SELECT max_amount FROM approval_limits WHERE category = 'loan' AND branch_id = 0"), 5000000, 'administrator can configure initial limits while no COO exists');
+q("UPDATE users SET status = 'active' WHERE role = 'COO'");
+if ((int)val("SELECT COUNT(*) FROM users WHERE role = 'COO' AND status = 'active'")) throws(fn() => Approvals::setLimit('loan', 0, 1), 'permission', 'once a COO exists, the administrator can no longer change limits');
+
 echo "\n----------------------------------------\n";
 echo "Passed: $pass   Failed: $fail   (" . db_driver() . ")\n";
 db_close();

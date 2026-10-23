@@ -9,6 +9,31 @@ final class System
         return count(array_diff($files, $done));
     }
 
+    /** Guided first-time set-up for the administrator: [label, done, hint, [page, params], icon]. */
+    public static function setupChecklist(): array
+    {
+        $gaps = profile_gaps();
+        $profileGaps = array_values(array_diff($gaps, ['logo']));
+        $coo = (int)val("SELECT COUNT(*) FROM users WHERE role = 'COO' AND status = 'active'");
+        $staff = (int)val("SELECT COUNT(*) FROM users WHERE status = 'active' AND role <> 'System Administrator'");
+        $branches = (int)val("SELECT COUNT(*) FROM branches WHERE status = 'active'");
+        $myMfa = uid() ? (int)val('SELECT mfa_enabled FROM users WHERE id = ?', [uid()]) : 0;
+        $unconf = Approvals::unconfigured();
+        $last = Backup::lastSuccess();
+        return [
+            ['Institution profile', !$profileGaps, $profileGaps ? 'Missing: ' . implode(', ', $profileGaps) : 'Name, address and contacts are set', ['settings', ['tab' => 'business']], 'building'],
+            ['Logo', setting('business_logo') !== '', setting('business_logo') !== '' ? 'Shown on every document' : 'Upload it for receipts, reports and forms', ['settings', ['tab' => 'business']], 'image'],
+            ['Interest rate & fees confirmed', setting('setup_lending_confirmed') === '1', setting('interest_rate_pct') . '% per month · processing ' . setting('processing_fee_pct') . '%', ['settings', ['tab' => 'lending']], 'percent'],
+            ['Branches', $branches >= 1, $branches . ' active branch(es)', ['branches', []], 'building'],
+            ['Staff accounts', $staff >= 1, $staff . ' staff account(s), each with a Staff ID', ['users', []], 'user-plus'],
+            ['COO appointed', $coo >= 1, $coo ? 'Policy and limits now belong to the COO' : 'Create a COO account for separation of duties', ['users', []], 'key'],
+            ['Approval limits', !$unconf, !$unconf ? 'All categories configured' : count($unconf) . ' categor' . (count($unconf) === 1 ? 'y' : 'ies') . ' not set', ['settings', ['tab' => 'limits']], 'check'],
+            ['Your multi-factor authentication', (bool)$myMfa, $myMfa ? 'On' : 'Protect this account', ['mfa', []], 'lock'],
+            ['Recovery objectives (RTO / RPO)', setting('rto_hours') !== '' && setting('rpo_hours') !== '', 'Approved by management', ['settings', ['tab' => 'security']], 'clock'],
+            ['First verified backup', $last !== null, $last ? 'Last: ' . fmt_dt($last['at']) : 'Run a backup now', ['backup', []], 'database'],
+        ];
+    }
+
     /** Full health snapshot for administrators / COO. */
     public static function health(): array
     {

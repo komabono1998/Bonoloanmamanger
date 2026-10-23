@@ -31,7 +31,7 @@ $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
   <div class="shell">
     <aside class="side" id="side">
       <div class="brand">
-        <?php if (setting('business_logo')): ?><img src="<?= e(attachment_url((int)setting('business_logo'))) ?>" alt="" class="logo"><?php else: ?><div class="logo-mark">B</div><?php endif; ?>
+        <?php if (logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" class="logo"><?php else: ?><div class="logo-mark">B</div><?php endif; ?>
         <div><b><?= e(business_name()) ?></b><small>Cloud Loan Management</small></div>
       </div>
       <nav>
@@ -45,12 +45,12 @@ $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
           <div class="nav-group"><?= e($g) ?></div>
           <?php foreach ($items as [$key, $label]):
               $on = $page === $key || ($page === 'loan' && $key === 'loans') ? ' on' : ''; ?>
-            <a class="nav-link<?= $on ?>" href="<?= e(url($key)) ?>"><?= e($label) ?><?php if ($key === 'inbox' && $inboxN): ?> <span class="count"><?= (int)$inboxN ?></span><?php endif; ?></a>
+            <a class="nav-link<?= $on ?>" href="<?= e(url($key)) ?>"><?= icon(route_icon($key), 16) ?><span><?= e($label) ?></span><?php if ($key === 'inbox' && $inboxN): ?> <span class="count"><?= (int)$inboxN ?></span><?php endif; ?></a>
           <?php endforeach; ?>
         <?php endforeach; ?>
         <div class="nav-group">Session</div>
-        <a class="nav-link<?= $page === 'account' ? ' on' : '' ?>" href="<?= e(url('account')) ?>">My Account &amp; Security</a>
-        <a class="nav-link" href="<?= e(url('logout')) ?>">Logout</a>
+        <a class="nav-link<?= $page === 'account' ? ' on' : '' ?>" href="<?= e(url('account')) ?>"><?= icon('user', 16) ?><span>My Account &amp; Security</span></a>
+        <a class="nav-link" href="<?= e(url('logout')) ?>"><?= icon('logout', 16) ?><span>Logout</span></a>
       </nav>
     </aside>
     <div class="main">
@@ -77,7 +77,19 @@ $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
             <span class="chip warn">You are not assigned to a branch</span>
           <?php endif; ?>
         </div>
-        <div class="who"><span><?= e(user()['full_name']) ?> <small>· <?= e(user()['role']) ?></small></span></div>
+        <?php
+        $quick = [];
+        foreach ([['client.manage', 'clients', ['a' => 'new'], 'New client', 'user-plus'], ['loan.create', 'loans', ['a' => 'new'], 'New loan application', 'clipboard'], ['payment.record', 'payments', [], 'Receive payment', 'card'],
+                  ['till.use', 'till', [], 'Open / use till', 'clock'], ['expense.create', 'cashbook', [], 'Record expense', 'layers'], ['user.manage', 'users', ['a' => 'new'], 'New user', 'users'],
+                  ['branch.manage', 'branches', ['a' => 'new'], 'New branch', 'building'], ['report.view', 'reports', [], 'Reports', 'bar'], ['settings.manage', 'settings', ['tab' => 'business'], 'Institution profile', 'settings']] as [$qp, $qk, $qa, $ql, $qi])
+            if (can($qp)) $quick[] = [$qk, $qa, $ql, $qi];
+        ?>
+        <?php if ($quick): ?>
+          <details class="quick"><summary class="btn primary sm"><?= icon('plus', 15) ?> New</summary>
+            <div class="quick-menu"><?php foreach ($quick as [$qk, $qa, $ql, $qi]): ?><a href="<?= e(url($qk, $qa)) ?>"><?= icon($qi, 16) ?> <?= e($ql) ?></a><?php endforeach; ?></div>
+          </details>
+        <?php endif; ?>
+        <div class="who"><a href="<?= e(url('account')) ?>" title="My account"><span class="avatar"><?= e(strtoupper(substr(user()['full_name'], 0, 1))) ?></span><span><?= e(user()['full_name']) ?> <small>· <?= e(user()['role']) ?><?= !empty(user()['staff_no']) ? ' · ' . e(user()['staff_no']) : '' ?></small></span></a></div>
       </header>
       <main class="content">
         <?php foreach ($flashes as [$t, $m]): ?><div class="flash <?= e($t) ?>"><?= e($m) ?></div><?php endforeach; ?>

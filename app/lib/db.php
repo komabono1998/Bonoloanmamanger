@@ -205,6 +205,7 @@ function migrate(): array
         }
         $applied[] = $name;
     }
+    if ($applied && function_exists('backfill_staff_numbers')) { try { backfill_staff_numbers(); } catch (Throwable $e) { error_log($e); } }
     $mark = 'triggers:' . TRIGGERS_VERSION;
     if ($applied || !(int)val('SELECT COUNT(*) FROM schema_migrations WHERE name = ?', [$mark])) {
         install_triggers();

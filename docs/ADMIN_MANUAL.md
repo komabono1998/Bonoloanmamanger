@@ -21,6 +21,15 @@ records by default — it cannot approve loans, post payments, approve End-of-Da
 | Security | *Settings → Security & recovery* | session timeout, password length / expiry, MFA roles, backup folder & schedule, restore authorization, **RTO / RPO** (values come from the institution) |
 | Policy (COO) | *Settings & limits* (COO) | lending terms, penalties, payment rules, approval limits — the administrator does not set these |
 
+## 2a. Institution profile, letterhead and Staff IDs
+
+* **Settings & limits** opens on a home page with a set-up checklist and one card per area. Start with **Institution profile**.
+* Name, tagline, address, town, country, telephones, email, website, registration number, TIN, brand colour and **logo** are entered once. They appear automatically on receipts, loan offers and forms, guarantor forms, schedules, statements, vouchers, End-of-Day summaries, reports (screen, print, Excel) and the sign-in page. A live preview is shown on the profile page.
+* Every staff account receives a unique **Staff ID** (`CODE-S-0001`, where CODE is the *Institution code*). Staff can sign in with username, email or Staff ID. Change the code or letter in Settings → Institution profile / IDs & numbering (existing IDs are not renumbered).
+* Until a COO exists, the System Administrator may do the **initial** interest, fee, penalty and approval-limit configuration; afterwards only the COO can change financial policy.
+* The **+ New** menu in the top bar offers role-aware shortcuts (client, loan application, payment, user, branch...).
+* One deployment serves one institution. Each institution runs its own installation and creates its own account through the Setup page.
+
 ## 3. Daily / periodic duties
 
 * **System health** (also on your dashboard): database, storage, backup age, pending migrations, MFA coverage, production-readiness notes.

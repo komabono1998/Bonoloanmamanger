@@ -56,7 +56,8 @@ function reset_user_caches(): void
 
 function find_user_by_name(string $username): ?array
 {
-    return row('SELECT * FROM users WHERE lower(username) = lower(?)', [$username]);
+    // sign in with the username or the e-mail address on the account
+    return row("SELECT * FROM users WHERE lower(username) = lower(?) OR (email IS NOT NULL AND email <> '' AND lower(email) = lower(?)) OR (staff_no IS NOT NULL AND lower(staff_no) = lower(?)) ORDER BY id LIMIT 1", [$username, $username, $username]);
 }
 
 /** Load the logged-in user from the session, applying the inactivity timeout. */

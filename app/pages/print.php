@@ -13,9 +13,7 @@ function doc_head(string $title): void
 function doc_foot(): void { echo (get('autoprint') === '1' ? '<div data-autoprint></div>' : '') . '<script src="' . e(asset('app.js')) . '"></script></body></html>'; }
 function doc_biz(string $heading, string $sub = ''): void
 {
-    echo '<div class="biz">' . (setting('business_logo') ? '<img src="' . e(attachment_url((int)setting('business_logo'))) . '" style="height:54px" alt="">' : '')
-        . '<h1>' . e(business_name()) . '</h1><small>' . e(trim(setting('business_address') . ' · ' . setting('business_phone') . ' · ' . setting('business_email'), ' ·')) . '</small></div>'
-        . '<h2 style="text-align:center;font-size:17px;border:0;margin:10px 0 4px">' . e($heading) . '</h2>' . ($sub ? '<p style="text-align:center;margin:0 0 8px">' . e($sub) . '</p>' : '');
+    echo letterhead($heading, $sub);
 }
 function kv(array $pairs): string
 {

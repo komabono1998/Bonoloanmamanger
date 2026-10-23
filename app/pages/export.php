@@ -70,7 +70,9 @@ if ($format === 'csv') {
     };
     echo '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>'
         . '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="h"><Font ss:Bold="1"/></Style></Styles>'
-        . '<Worksheet ss:Name="' . htmlspecialchars(substr(preg_replace('/[^A-Za-z0-9 ]/', '', $name) ?: 'Data', 0, 30), ENT_XML1) . '"><Table><Row ss:StyleID="h">';
+        . '<Worksheet ss:Name="' . htmlspecialchars(substr(preg_replace('/[^A-Za-z0-9 ]/', '', $name) ?: 'Data', 0, 30), ENT_XML1) . '"><Table>';
+    foreach (letterhead_lines() as $i => $line) echo '<Row' . ($i === 0 ? ' ss:StyleID="h"' : '') . '><Cell><Data ss:Type="String">' . htmlspecialchars($line, ENT_XML1) . '</Data></Cell></Row>';
+    echo '<Row><Cell><Data ss:Type="String">' . htmlspecialchars($name . ' · generated ' . now(), ENT_XML1) . '</Data></Cell></Row><Row/><Row ss:StyleID="h">';
     foreach ($head as $h) echo '<Cell><Data ss:Type="String">' . htmlspecialchars((string)$h, ENT_XML1) . '</Data></Cell>';
     echo '</Row>';
     foreach ($body as $r) { echo '<Row>'; foreach ($r as $v) echo $cell($v); echo '</Row>'; }

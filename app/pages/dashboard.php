@@ -6,6 +6,17 @@ $business = can_any('client.view|loan.view|payment.view|portfolio.view');
 if (!$business) {
     page_head('System dashboard', '', 'Technical health and security. The System Administrator has no access to client or financial records by default.');
     $h = System::health();
+    echo quick_tiles([['settings', ['tab' => 'business'], 'Institution profile & logo', 'building', 'settings.manage'], ['users', ['a' => 'new'], 'Add a user', 'user-plus', 'user.manage'], ['users', [], 'Users & Staff IDs', 'users', 'user.manage'],
+        ['branches', [], 'Branches', 'building', 'branch.manage'], ['settings', [], 'All settings', 'settings', 'settings.manage|limits.manage'], ['backup', [], 'Backups', 'database', 'backup.manage|backup.request'],
+        ['security', [], 'Security monitoring', 'lock', 'security.monitor'], ['audit', [], 'Audit trail', 'eye', null]]);
+    if (can('settings.manage')) {
+        $list = System::setupChecklist(); $done = count(array_filter($list, fn($x) => $x[1]));
+        if ($done < count($list)) {
+            echo '<div class="card"><div class="card-h"><h2>Finish setting up your institution</h2><span class="muted">' . $done . ' of ' . count($list) . ' complete</span></div><div class="steps">';
+            foreach ($list as [$label, $ok, $hint, $link, $ic]) echo '<a class="step' . ($ok ? ' done' : '') . '" href="' . e(url($link[0], $link[1])) . '"><span class="step-ic">' . icon($ok ? 'check' : $ic, 16) . '</span><span><b>' . e($label) . '</b><small>' . e($hint) . '</small></span></a>';
+            echo '</div></div>';
+        }
+    }
     echo '<div class="kpis">'
         . kpi('Database', $h['db']['ok'] ? 'Online' : 'DOWN', $h['db']['engine'], $h['db']['ok'] ? 'ok' : 'bad')
         . kpi('File storage', $h['storage']['ok'] ? 'Writable' : 'PROBLEM', $h['storage']['driver'], $h['storage']['ok'] ? 'ok' : 'bad')
@@ -66,7 +77,11 @@ $lastEod = row("SELECT business_date FROM eod_records WHERE status = 'Closed' AN
 $awaitingEod = (int)val("SELECT COUNT(*) FROM eod_records e WHERE e.status IN ('Awaiting Manager Review','Escalated to COO') AND " . branch_scope('e.branch_id', $only) . ' AND e.version = (SELECT MAX(version) FROM eod_records x WHERE x.branch_id = e.branch_id AND x.business_date = e.business_date)');
 
 $scope = $only ? branch_name($only[0]) : (count(accessible_branch_ids()) > 1 ? 'all your branches' : branch_name(branch_id()));
+$tilesHtml = quick_tiles([['clients', ['a' => 'new'], 'Register client', 'user-plus', 'client.manage'], ['loans', ['a' => 'new'], 'New loan application', 'clipboard', 'loan.create'], ['payments', [], 'Receive payment', 'card', 'payment.record'],
+    ['till', [], 'Cashier & till', 'clock', 'till.use'], ['cashbook', [], 'Record expense', 'layers', 'expense.create'], ['inbox', [], 'My approvals', 'inbox', 'loan.approve|payment.reverse|expense.approve|till.reconcile|eod.approve|backup.authorize'],
+    ['arrears', [], 'Arrears', 'alert', 'portfolio.view'], ['eod', [], 'End of day', 'calendar', 'eod.view'], ['reports', [], 'Reports', 'bar', 'report.view']]);
 page_head('Dashboard', '', 'Scope: ' . $scope . ' · as at ' . fmt_date($asOf) . ' (business date). Accrued amounts are shown separately from cash actually received.');
+echo $tilesHtml;
 $officers = []; foreach (rows("SELECT id, full_name FROM users WHERE role IN ('Loan Officer','Branch Manager','COO') ORDER BY full_name") as $u) $officers[$u['id']] = $u['full_name'];
 $cashiers = []; foreach (rows("SELECT id, full_name FROM users WHERE role IN ('Cashier','Finance Officer','Branch Manager') ORDER BY full_name") as $u) $cashiers[$u['id']] = $u['full_name'];
 $sts = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Active', 'Overdue', 'Closed', 'Rejected'];

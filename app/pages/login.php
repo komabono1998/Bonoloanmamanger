@@ -31,7 +31,7 @@ if (is_post()) {
 }
 ?>
 <div class="card">
-  <div class="logo-mark" style="background:linear-gradient(135deg,#14a085,#0b5c4d);border-radius:12px;display:grid;place-items:center">B</div>
+  <?php if (is_installed() && logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" style="display:block;margin:0 auto 1rem;max-height:70px;max-width:200px"><?php else: ?><div class="logo-mark" style="background:linear-gradient(135deg,#14a085,#0b5c4d);border-radius:12px;display:grid;place-items:center">B</div><?php endif; ?>
   <h1 style="text-align:center"><?= e(business_name()) ?></h1>
   <?php if ($mfaStep): ?>
     <p class="muted" style="text-align:center">Enter the 6-digit code from your authenticator app (or a recovery code).</p>
