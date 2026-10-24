@@ -32,6 +32,14 @@ foreach (['storage', 'storage/db', 'storage/uploads', 'storage/backups', 'storag
     if (is_dir($p)) { $t = $p . '/.write_test'; $ok = @file_put_contents($t, 'x') !== false; @unlink($t); }
     $add('Writable folder ' . $d, $ok, is_dir($p) ? ($ok ? 'ok' : 'not writable: set permissions to 755/775 or ask hosting support') : 'folder missing: upload the storage folder');
 }
+$cfg = is_file($root . '/env.php') ? (array)(include $root . '/env.php') : [];
+foreach (['SQLITE_PATH' => 'database folder', 'STORAGE_PATH' => 'documents folder', 'BACKUP_DIR' => 'backup folder'] as $k => $label) {
+    if (empty($cfg[$k])) continue;
+    $p = $cfg[$k]; if ($k === 'SQLITE_PATH') $p = dirname($p);
+    if (!(str_starts_with($p, '/') || preg_match('~^[A-Za-z]:[\\/]~', $p))) $p = $root . '/' . $p;
+    $ok = false; if (is_dir($p)) { $t = $p . '/.write_test'; $ok = @file_put_contents($t, 'x') !== false; @unlink($t); }
+    $add('Configured ' . $label . ' is writable', $ok, $ok ? 'ok' : 'not found or not writable: ' . $p);
+}
 $add('HTTPS in use', !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off', 'Use the https:// address; turn on the free SSL certificate in the hosting panel', false);
 $ini = fn($k) => ini_get($k);
 $mem = (int)$ini('memory_limit'); $add('Memory limit', $mem === -1 || $mem >= 64, 'memory_limit = ' . $ini('memory_limit') . ' (64M or more recommended)', false);
