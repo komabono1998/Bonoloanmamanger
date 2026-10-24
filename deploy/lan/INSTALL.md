@@ -4,6 +4,9 @@ One computer in the office is the **server**. Everyone else (computers, tablets,
 
 Good for: one office or one building. Not for branches in different places (they cannot reach the office network); use the Hostinger guide or a VPN for those.
 
+## Quick way
+After XAMPP is installed (step 2) and the package is unzipped into `C:\xampp\htdocs\bono`, right-click **`deploy\lan\setup-server.bat` > Run as administrator**. It asks for the drive letter for the data, creates the data folders, writes `env.php` with a fresh secret key, opens the private-network firewall and prints the address to share. Then continue at step 5. (Steps 3 and 4 below describe the same thing done by hand.)
+
 ## 1. Choose and prepare the server computer
 * A reliable Windows PC (8 GB memory is plenty), **always on during working hours**, ideally on a UPS (battery backup) and cabled to the router.
 * Set Windows Update "active hours" so it never restarts in the middle of the working day.
