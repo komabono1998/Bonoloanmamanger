@@ -275,3 +275,14 @@
     }, 200);
   });
 })();
+
+/* Phone menu: tapping outside, a link, or Escape closes the drawer. */
+(function () {
+  var side = document.getElementById('side'); if (!side) return;
+  function close() { side.classList.remove('open'); document.body.classList.remove('nav-open'); }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-nav-toggle]')) { setTimeout(function () { document.body.classList.toggle('nav-open', side.classList.contains('open')); }, 0); return; }
+    if (e.target.closest('[data-nav-close]') || (side.classList.contains('open') && e.target.closest('#side a'))) close();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+})();

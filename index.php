@@ -76,6 +76,16 @@ if ($page === 'logo') {   // public: the institution logo (login page, print-out
     Storage::stream(basename($att['stored_name']));
     exit;
 }
+if ($page === 'manifest') {   // public: lets a phone install the system to its home screen
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Content-Type: application/manifest+json; charset=utf-8'); header('Cache-Control: public, max-age=3600');
+    $b = brand(); $icons = [];
+    if (logo_url()) { $icons[] = ['src' => logo_url(), 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any']; }
+    else { $icons[] = ['src' => asset('bono-mark.png'), 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any']; }
+    echo json_encode(['name' => $b['name'] . ' - Loan Management', 'short_name' => mb_substr($b['name'], 0, 12), 'start_url' => url('dashboard'), 'scope' => base_url() . '/', 'display' => 'standalone',
+        'background_color' => '#f4f6fa', 'theme_color' => $b['color'], 'icons' => $icons], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
 if ($page === 'health') { require BASE_PATH . '/app/pages/health.php'; exit; }
 
 try {

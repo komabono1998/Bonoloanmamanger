@@ -161,7 +161,7 @@ function data_table(array $cols, array $rows, array $opts = []): void
                 $out = '<a href="' . e($opts['link']($r)) . '">' . $out . '</a>';
             }
             $sortv = in_array($f, ['money', 'num'], true) ? ' data-v="' . (int)$v . '"' : '';
-            echo '<td class="' . e(trim($c['class'])) . '"' . $sortv . '>' . $out . '</td>';
+            echo '<td class="' . e(trim($c['class'])) . '"' . $sortv . ' data-label="' . e((string)$c['label']) . '">' . $out . '</td>';
         }
         echo '</tr>';
     }
@@ -170,7 +170,7 @@ function data_table(array $cols, array $rows, array $opts = []): void
         echo '<tfoot><tr>';
         $first = true;
         foreach ($norm as $k => $c) {
-            echo '<td class="' . e(trim($c['class'])) . '">' . (isset($tot[$k]) ? '<b>' . num($tot[$k]) . '</b>' : ($first ? '<b>Total</b>' : '')) . '</td>';
+            echo '<td class="' . e(trim($c['class'])) . '" data-label="' . e((string)$c['label']) . '">' . (isset($tot[$k]) ? '<b>' . num($tot[$k]) . '</b>' : ($first ? '<b>Total</b>' : '')) . '</td>';
             $first = false;
         }
         echo '</tr></tfoot>';

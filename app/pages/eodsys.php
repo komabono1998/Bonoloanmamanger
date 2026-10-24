@@ -149,12 +149,12 @@ foreach ($branches as $bid => $bn) {
         if ($open && can('till.reconcile') && can('eod.run')) {
             echo '<div class="eod-tills"><b>Close the open tills now</b><p class="muted">As administrator you can count and reconcile every open till here. Enter the cash actually counted (it starts at the expected amount); a difference needs a reason.</p>';
             form_open(url('eodsys', ['a' => 'closetills']), ['attrs' => 'style="display:block" data-confirm="Count and reconcile these tills for ' . e($bn) . '?"']);
-            echo '<input type="hidden" name="branch" value="' . (int)$bid . '"><table class="tbl"><thead><tr><th>Till</th><th>Cashier</th><th>Status</th><th class="r">Expected cash</th><th class="r">Counted cash</th><th>Reason if different</th></tr></thead><tbody>';
+            echo '<input type="hidden" name="branch" value="' . (int)$bid . '"><table class="tbl datatable"><thead><tr><th>Till</th><th>Cashier</th><th>Status</th><th class="r">Expected cash</th><th class="r">Counted cash</th><th>Reason if different</th></tr></thead><tbody>';
             foreach ($open as $s2) {
                 $exp = Cash::expected((int)$s2['id']);
-                echo '<tr><td>' . e($s2['session_no']) . '</td><td>' . e($s2['cashier']) . '</td><td>' . badge($s2['status']) . '</td><td class="r">' . num($exp) . '</td>'
-                    . '<td class="r">' . ($s2['status'] === 'Submitted' ? '<span class="muted">' . num((int)$s2['counted_cash']) . '</span>' : '<input type="text" inputmode="numeric" class="money" name="counted[' . (int)$s2['id'] . ']" value="' . $exp . '">') . '</td>'
-                    . '<td>' . ($s2['status'] === 'Submitted' ? '<span class="muted">already counted</span>' : '<input type="text" name="reason[' . (int)$s2['id'] . ']" placeholder="Only if the count differs">') . '</td></tr>';
+                echo '<tr><td data-label="Till">' . e($s2['session_no']) . '</td><td data-label="Cashier">' . e($s2['cashier']) . '</td><td data-label="Status">' . badge($s2['status']) . '</td><td class="r" data-label="Expected cash">' . num($exp) . '</td>'
+                    . '<td class="r" data-label="Counted cash">' . ($s2['status'] === 'Submitted' ? '<span class="muted">' . num((int)$s2['counted_cash']) . '</span>' : '<input type="text" inputmode="numeric" class="money" name="counted[' . (int)$s2['id'] . ']" value="' . $exp . '">') . '</td>'
+                    . '<td data-label="Reason if different">' . ($s2['status'] === 'Submitted' ? '<span class="muted">already counted</span>' : '<input type="text" name="reason[' . (int)$s2['id'] . ']" placeholder="Only if the count differs">') . '</td></tr>';
             }
             echo '</tbody></table><div class="form-actions" style="margin-top:.6rem">'; submit_btn('Count and reconcile these tills'); echo '</div>'; form_close(); echo '</div>';
         }

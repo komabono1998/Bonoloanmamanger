@@ -22,6 +22,10 @@ $pwReminder = is_installed() && user() && !empty(user()['must_change_password'])
 <meta name="robots" content="noindex,nofollow">
 <title><?= e($pageTitle) ?></title>
 <link rel="icon" type="image/png" href="<?= e(asset('favicon.png')) ?>">
+<meta name="theme-color" content="<?= e(brand()['color']) ?>">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="<?= e(url('manifest')) ?>">
 <link rel="stylesheet" href="<?= e(asset('style.css')) ?>">
 <style><?= brand_theme_css() ?></style>
 </head>
@@ -47,6 +51,7 @@ $pwReminder = is_installed() && user() && !empty(user()['must_change_password'])
         <?php if (logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" class="logo"><?php else: ?><img src="<?= e(asset('bono-mark.png')) ?>" alt="" class="logo sys-mark"><?php endif; ?>
         <div><b><?= e(business_name()) ?></b><small><?= e(setting('business_tagline') ?: 'Loan Management System') ?></small></div>
     </a>
+      <form class="side-search" method="get" action="<?= e(base_url() . '/index.php') ?>" role="search"><input type="hidden" name="p" value="search"><input type="search" name="q" placeholder="Search clients, loans, receipts…" aria-label="Search" autocomplete="off"></form>
       <nav>
         <?php
         $groups = [];
@@ -70,6 +75,7 @@ $pwReminder = is_installed() && user() && !empty(user()['must_change_password'])
       <div class="side-date" title="The system date moves on when End of Day is run"><small>System date</small>
         <?php if ($sdRaw): ?><b><?= e(date('j', strtotime($sdRaw))) ?></b><span><?= e(date('M Y', strtotime($sdRaw))) ?></span><?php else: ?><span><?= e(system_date_label()) ?></span><?php endif; ?></div>
     </aside>
+    <div class="side-backdrop" data-nav-close></div>
     <div class="main">
   <header class="topbar">
     <button class="burger" type="button" data-nav-toggle aria-label="Menu"><?= icon('menu', 20) ?></button>
