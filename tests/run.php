@@ -69,6 +69,10 @@ function mkclient(string $name, string $nin, string $phone, int $branch): int
     return $cid;
 }
 function safe(int $branch): int { return (int)val("SELECT id FROM cash_accounts WHERE branch_id = ? AND name = 'Main Safe'", [$branch]); }
+function fund_safe(int $branch, int $amount = 500000000): void
+{
+    insert('cash_movements', ['branch_id' => $branch, 'account_id' => safe($branch), 'business_date' => '2026-01-01', 'created_at' => now(), 'direction' => 1, 'amount' => $amount, 'category' => 'adjustment', 'method' => 'Cash', 'is_cash' => 0, 'ref_type' => 'account_funding', 'reference' => 'opening', 'description' => 'Opening balance (test fixture)']);
+}
 
 // ============================================================ calculation engine
 section('Calculation engine');
@@ -113,6 +117,7 @@ seed_reference_data();
 set_setting('eod_mode', 'workflow', null, false);   // the two-person tests below; the one-step mode has its own section
 $A = create_branch('KLA', 'Kampala Main');
 $B = create_branch('GLU', 'Gulu');
+fund_safe($A); fund_safe($B);
 mkuser('admin', 'System Administrator');
 mkuser('coo', 'COO');
 mkuser('bm', 'Branch Manager', [$A]);
@@ -722,6 +727,7 @@ eq(Tenancy::find('nope-nope'), null, 'unknown organisation codes resolve to noth
 section('End of Day: backup before closing, and the system date');
 set_setting('eod_auto_open_next', '1', uid());
 $C = create_branch('MBL', 'Mbale');
+fund_safe($C);
 mkuser('bmc', 'Branch Manager', [$C]); mkuser('foc', 'Finance Officer', [$C]);
 as_('foc', $C);
 $dC = Eod::suggestNextDate($C);
@@ -1183,6 +1189,24 @@ ok($loaded > 10000 && $cn['villages'] > 60000 && $cn['parishes'] > 9000 && $cn['
 eq(Uganda::ensureBundled(), 0, 'the bundled data is loaded only once');
 ok(in_array('Aswa County', Uganda::children('county', ['district' => 'Gulu']), true) || count(Uganda::children('county', ['district' => 'Gulu'])) >= 1, 'Gulu now has its counties');
 ok(count(Uganda::children('subcounty', ['district' => 'Kampala', 'county' => ''])) >= 0 && in_array('Sembabule', Uganda::children('district', []), true) && !in_array('Ssembabule', Uganda::children('district', []), true), 'district spelling is aligned with the district list (no duplicates)');
+section('Safe, bank and mobile accounts: opening balances and no overdrafts');
+as_('bm');
+$safeA = safe($A); $bankA = (int)val("SELECT id FROM cash_accounts WHERE branch_id = ? AND name = 'Bank Account'", [$A]);
+eq(Cash::accountBalance($bankA), 0, 'a bank account starts at nil');
+$fid = Cash::fundAccount($bankA, 7500000, 'opening', 'Balance per bank statement at go-live');
+eq(Cash::accountBalance($bankA), 7500000, 'the opening balance is recorded');
+throws(fn() => Cash::fundAccount($bankA, 9000000, 'withdrawal', 'too much'), 'holds only', 'a withdrawal cannot exceed the balance');
+Cash::fundAccount($bankA, 2500, 'charge', 'Monthly bank charge');
+eq(Cash::accountBalance($bankA), 7497500, 'a bank charge reduces the balance');
+throws(fn() => Cash::fundAccount($bankA, 0, 'deposit', 'x'), 'greater than zero', 'the amount must be positive');
+throws(fn() => Cash::fundAccount($bankA, 1000, 'deposit', ''), 'reason', 'a reason is required');
+as_('lo');
+throws(fn() => Cash::fundAccount($bankA, 1000, 'deposit', 'x'), 'permission', 'only reconciliation staff can adjust accounts');
+as_('admin');
+Gl::postPending();
+$tbNow = Gl::trialBalance(null, '2099-12-31');
+eq(array_sum(array_column($tbNow, 'closing')), 0, 'the ledger still balances after account funding');
+ok((int)val("SELECT COUNT(*) FROM gl_journals WHERE src_key LIKE 'cm:%' AND memo LIKE 'Opening balance: Balance per bank statement%'") === 1, 'the opening balance is posted to the ledger against capital and funding');
 echo "\n----------------------------------------\n";
 echo "Passed: $pass   Failed: $fail   (" . db_driver() . ")\n";
 db_close();

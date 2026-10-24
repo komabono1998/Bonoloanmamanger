@@ -75,7 +75,7 @@ if (get('a') === 'step' && is_post()) {   // one phase of End of Day, answered a
             must(isset(Eod::PHASES[$ph]), 'Unknown step.');
             if ($ph === 'check') {
                 $al = Eod::alignmentBlock($bid, $date);
-                must(!$al, 'All branches share one system date. ' . $al[0] . ' is still on ' . fmt_date($al[1]) . ' and must close first.');
+                must(!$al, $al ? 'All branches share one system date. ' . $al[0] . ' is still on ' . fmt_date($al[1]) . ' and must close first.' : '');
             }
             $r = Eod::runPhase($ph, $date, clean(post('notes')), $bid);
             echo json_encode(['ok' => (bool)($r['ok'] ?? true), 'message' => (string)($r['message'] ?? '')]);

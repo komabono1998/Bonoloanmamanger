@@ -194,6 +194,37 @@ final class Cash
     /**
      * @param string $type to_account | from_account | to_session
      */
+    /** Money held in a safe, bank or mobile-money account (all movements recorded against it). */
+    public static function accountBalance(int $accountId): int
+    {
+        return (int)val('SELECT COALESCE(SUM(direction * amount),0) FROM cash_movements WHERE account_id = ?', [$accountId]);
+    }
+
+    /**
+     * Put money into (or take it out of) a safe, bank or mobile-money account without involving a till: opening balances at go-live,
+     * capital introduced, deposits and bank charges. Kinds: opening, capital, deposit, withdrawal, charge.
+     */
+    public static function fundAccount(int $accountId, int $amount, string $kind, string $reason): int
+    {
+        require_perm('till.reconcile');
+        $kinds = ['opening' => [1, 'Opening balance'], 'capital' => [1, 'Capital introduced'], 'deposit' => [1, 'Deposit received'], 'withdrawal' => [-1, 'Withdrawal'], 'charge' => [-1, 'Bank / mobile charge']];
+        must(isset($kinds[$kind]), 'Choose what this entry is.');
+        must($amount > 0, 'The amount must be greater than zero.');
+        must(trim($reason) !== '', 'A reason or reference is required.');
+        $acc = row('SELECT * FROM cash_accounts WHERE id = ? AND active = 1', [$accountId]);
+        must((bool)$acc, 'Select a valid account.');
+        assert_active_branch((int)$acc['branch_id']);
+        [$dir, $label] = $kinds[$kind];
+        return tx(function () use ($acc, $amount, $dir, $label, $kind, $reason, $accountId) {
+            if ($dir < 0) must(self::accountBalance($accountId) >= $amount, $acc['name'] . ' holds only ' . ugx(self::accountBalance($accountId)) . ', so ' . ugx($amount) . ' cannot be taken out.');
+            $bd = posting_date((int)$acc['branch_id']);
+            $id = (int)self::record(['session' => null, 'direction' => $dir, 'amount' => $amount, 'category' => 'adjustment', 'method' => $acc['type'] === 'bank' ? 'Bank Transfer' : ($acc['type'] === 'mobile' ? 'Mobile Money' : 'Cash'),
+                'ref_type' => 'account_funding', 'ref_id' => $accountId, 'reference' => $kind, 'description' => $label . ': ' . $reason, 'bd' => $bd, 'branch' => (int)$acc['branch_id'], 'account_id' => $accountId, 'is_cash' => false]);
+            audit('Cash account adjusted', 'Cashier', 'cash_account', $accountId, null, ($dir > 0 ? '+' : '-') . ugx($amount), $label . ': ' . $reason, '', null, null, (int)$acc['branch_id']);
+            return $id;
+        });
+    }
+
     public static function transfer(string $type, int $amount, ?int $accountId, ?int $otherSessionId, string $reason): int
     {
         require_perm('till.use');
@@ -215,6 +246,7 @@ final class Cash
                     self::record($base + ['session' => $me['id'], 'direction' => -1, 'amount' => $amount, 'ref_id' => $tid]);
                     self::record($base + ['session' => null, 'direction' => 1, 'amount' => $amount, 'ref_id' => $tid, 'account_id' => $accountId, 'is_cash' => false]);
                 } else {
+                    must(self::accountBalance((int)$accountId) >= $amount, $acc['name'] . ' holds only ' . ugx(self::accountBalance((int)$accountId)) . '. Record its opening balance or a deposit first (Cashier & Till > Safe, bank & mobile accounts).');
                     $row += ['to_session_id' => $me['id'], 'from_account_id' => $accountId];
                     $tid = insert('cash_transfers', $row);
                     self::record($base + ['session' => null, 'direction' => -1, 'amount' => $amount, 'ref_id' => $tid, 'account_id' => $accountId, 'is_cash' => false]);

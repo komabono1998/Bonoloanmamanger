@@ -34,6 +34,7 @@ if (!is_installed()) {
 }
 $A = (int)val("SELECT id FROM branches WHERE code = 'KLA'") ?: (int)val('SELECT MIN(id) FROM branches');   // an existing installation keeps its own first branch
 $B = (int)val("SELECT id FROM branches WHERE code = 'GLU'") ?: create_branch('GLU', 'Gulu Branch', 'Gulu City');
+foreach ([$A, $B] as $__b) if (!val("SELECT COUNT(*) FROM cash_movements WHERE account_id = ? AND ref_type = 'account_funding'", [safe($__b)])) insert('cash_movements', ['branch_id' => $__b, 'account_id' => safe($__b), 'business_date' => '2026-01-01', 'created_at' => now(), 'direction' => 1, 'amount' => 100000000, 'category' => 'adjustment', 'method' => 'Cash', 'is_cash' => 0, 'ref_type' => 'account_funding', 'reference' => 'opening', 'description' => 'Opening balance (demo data)']);
 set_setting('mfa_required_roles', '', null, false);   // demo only
 set_setting('eod_auto_open_next', '0', null, false);   // the seeder opens each business day itself
 set_setting('eod_mode', 'workflow', null, false);        // the seeder walks the two-person path through the services

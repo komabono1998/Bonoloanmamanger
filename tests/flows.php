@@ -232,6 +232,10 @@ $em[1] = $rd[1] ?? $em[1];
 $allOk2 = true; $trace2 = [];
 foreach (['check', 'backup', 'close', 'ledger', 'closing_backup', 'next', 'done'] as $ph) { $r = $eodStep($ph); if (!$r['ok']) { $allOk2 = false; $trace2[] = $ph . ': ' . $r['message']; } }
 step('End of Day runs again cleanly after the reset', $allOk2, implode(' | ', $trace2));
+$bmk->get($bmk->url('till', ['tab' => 'accounts']));
+step('the Branch Manager sees the safe, bank and mobile account balances', $bmk->code === 200 && str_contains($bmk->body, 'Balances held outside the tills') && str_contains($bmk->body, 'Record an entry'), info($bmk));
+$bmk->submit('a=fund', ['account_id' => (string)$bmk->optionValue('Bank Account'), 'kind' => 'opening', 'amount' => '5,000,000', 'reason' => 'Opening balance per statement']);
+step('the Branch Manager records an opening bank balance', flashOk($bmk, 'Recorded') || str_contains($bmk->flashText(), 'ok'), info($bmk));
 $bm->get($bm->url('eod'));
 step('the branch manager sees the new system date and no approval step', $bm->code === 200 && !str_contains($bm->body, 'a=approve'), info($bm));
 $bm->get($bm->url('dashboard'));

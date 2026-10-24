@@ -3,6 +3,10 @@ $title = 'Cashier & till';
 $a = get('a');
 $tab = get('tab', can('till.use') ? 'my' : 'sessions');
 
+if ($a === 'fund') post_action(function () {
+    Cash::fundAccount((int)post('account_id'), parse_money(post('amount'), 'Amount'), post('kind'), clean(post('reason')));
+    return ['Recorded.', url('till', ['tab' => 'accounts'])];
+});
 if ($a === 'open') post_action(function () {
     $sid = Cash::openSession(parse_money(post('opening_float') ?: '0', 'Opening float', true), (bool)post('confirmed'), clean(post('note')));
     return 'Till opened for business date ' . fmt_date(current_bd()) . '.';
@@ -35,7 +39,25 @@ page_head('Cashier & till', '', 'Each cashier works from a separately identifiab
 $tabs = [];
 if (can('till.use')) $tabs['my'] = 'My till';
 if (can('till.reconcile') || can('eod.view')) $tabs['sessions'] = 'All sessions & reconciliation';
+if (can('till.reconcile')) $tabs['accounts'] = 'Safe, bank & mobile accounts';
 tabs($tabs, $tab);
+if ($tab === 'accounts' && can('till.reconcile')) {
+    $accs = rows("SELECT a.*, b.name AS branch FROM cash_accounts a JOIN branches b ON b.id = a.branch_id WHERE a.active = 1 AND " . branch_scope('a.branch_id') . ' ORDER BY b.name, a.id');
+    foreach ($accs as &$r) $r['bal'] = Cash::accountBalance((int)$r['id']);
+    unset($r);
+    echo '<div class="card"><h2>Balances held outside the tills</h2>';
+    data_table(['branch' => 'Branch', 'name' => 'Account', 'type' => 'Type', 'bal' => ['Balance (UGX)', 'money']], $accs, ['class' => 'nofilter', 'empty' => 'No accounts.']);
+    echo '<p class="muted">A safe or bank account starts at nil. Record its opening balance when you go live, and any capital introduced, deposits, withdrawals or bank charges here, so transfers to and from the tills never overdraw it.</p></div>';
+    $opts = []; foreach ($accs as $r) $opts[$r['id']] = $r['branch'] . ' · ' . $r['name'] . ' (' . num($r['bal']) . ')';
+    echo '<div class="card"><h2>Record an entry</h2>';
+    form_open(url('till', ['a' => 'fund']));
+    field('account_id', 'Account', ['type' => 'select', 'options' => $opts, 'required' => true, 'span' => 2]);
+    field('kind', 'What is it?', ['type' => 'select', 'options' => ['opening' => 'Opening balance (go-live)', 'capital' => 'Capital introduced', 'deposit' => 'Deposit received', 'withdrawal' => 'Withdrawal', 'charge' => 'Bank / mobile charge'], 'required' => true]);
+    field('amount', 'Amount (UGX)', ['type' => 'money', 'required' => true]);
+    field('reason', 'Reason / reference', ['required' => true, 'span' => 2]);
+    echo '<div class="form-actions">'; submit_btn('Record entry'); echo '</div>'; form_close(); echo '</div>';
+    return;
+}
 $bd = current_bd();
 
 if ($tab === 'my' && can('till.use')) {

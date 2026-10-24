@@ -178,13 +178,14 @@ final class ReportRun
         if ($t['totals']) { $line = []; foreach ($t['totals'] as $i => $v) $line[] = $v === null ? '' : (is_numeric($v) ? number_format((float)$v) : (string)$v); $cells[] = $line; }
         $nat = [];
         foreach ($t['head'] as $i => $h) {
-            $w = SimplePdf::width($h, $size, true);
-            foreach (array_slice($cells, 0, 150) as $r) $w = max($w, SimplePdf::width($r[$i] ?? '', $size));
+            $w = SimplePdf::width(mb_strtoupper($h), 6.8, true) + 4;
+            $lastRow = count($cells) - 1;
+            foreach ($cells as $ri => $r) { if ($ri >= 150 && $ri !== $lastRow) continue; $w = max($w, SimplePdf::width($r[$i] ?? '', $size, $t['totals'] && $ri === $lastRow)); }
             $nat[$i] = min(230, $w + $pad * 2);
         }
         $sum = array_sum($nat); $cw = $nat;
         if ($sum > $avail) { $f = $avail / $sum; foreach ($cw as $i => $w) $cw[$i] = max(36, $w * $f); $s2 = array_sum($cw); if ($s2 > $avail) foreach ($cw as $i => $w) $cw[$i] = $w * $avail / $s2; }
-        elseif ($sum < $avail * 0.7) { /* narrow tables stay narrow */ }
+        elseif ($sum < $avail) { $f = $avail / $sum; foreach ($cw as $i => $w) $cw[$i] = $w * $f; }   // use the full page width
         $brand = brand(); $bc = brand_rgb(); $meta = array_slice($lines, 2); $orgL = org_lines();
         $logo = null; if ($lf = brand_logo_file()) { $logo = $pdf->addImage($lf[0]); }
         $brandH = 56;

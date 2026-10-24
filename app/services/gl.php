@@ -172,6 +172,7 @@ class Gl
                     $m['ref_type'] === 'payment' => self::acct('1950'),
                     $m['ref_type'] === 'disbursement' => self::acct('1900'),
                     $m['ref_type'] === 'customer_credit' => self::acct('2200'),
+                    $m['ref_type'] === 'account_funding' => self::acct(in_array($m['reference'], ['charge'], true) ? '5910' : '3100'),
                     $m['category'] === 'float' => self::acct('3100'),
                     $m['category'] === 'transfer' => self::acct('1960'),
                     $m['category'] === 'collection' || $m['category'] === 'reversal' => self::acct('1950'),
