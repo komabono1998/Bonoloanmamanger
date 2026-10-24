@@ -20,7 +20,9 @@ function db_is_pg(): bool { return db_driver() === 'pgsql'; }
 function primary_db_path(): string
 {
     if (defined('DB_FILE')) return DB_FILE;
-    return env('SQLITE_PATH') ?: BASE_PATH . '/storage/db/bono.sqlite';
+    $p = env('SQLITE_PATH');
+    if (!$p) return BASE_PATH . '/storage/db/bono.sqlite';
+    return (str_starts_with($p, '/') || preg_match('~^[A-Za-z]:[\\\\/]~', $p)) ? $p : BASE_PATH . '/' . $p;   // a relative path is inside the application folder
 }
 
 function db_path(): string

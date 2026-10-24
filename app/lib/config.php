@@ -9,6 +9,9 @@ function env(string $key, $default = null)
     if ($file === null) {
         $file = [];
         $path = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)) . '/.env';
+        // env.php (returns an array) works on shared hosts that cannot hide dot-files: the web server runs it instead of showing it
+        $php = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)) . '/env.php';
+        if (is_file($php)) { $arr = include $php; if (is_array($arr)) foreach ($arr as $k => $v) $file[(string)$k] = (string)$v; }
         if (is_file($path)) {
             foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
                 $line = trim($line);
