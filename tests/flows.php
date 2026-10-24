@@ -149,6 +149,20 @@ $bm->submitByField('approved_principal', ['approved_principal' => '1,000,000', '
 step('approve the loan', flashOk($bm), info($bm));
 $bm->get($bm->url('loan', ['id' => $loanId]));
 step('the approved loan shows status Approved', str_contains($bm->body, 'Approved'), info($bm));
+function schedFiles(Web $w, int $loanId, string $kind): void
+{
+    $sigs = ['pdf' => '%PDF', 'xlsx' => 'PK', 'xls' => '<', 'doc' => '<', 'csv' => '', 'json' => '{'];
+    foreach ($sigs as $f => $sig) {
+        $ch = curl_init($w->url('export', ['kind' => 'schedule', 'id' => $loanId, 'format' => $f]));
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_COOKIEFILE => $w->jar, CURLOPT_FOLLOWLOCATION => true]);
+        $resp = (string)curl_exec($ch); $hs = curl_getinfo($ch, CURLINFO_HEADER_SIZE); curl_close($ch);
+        $body = substr($resp, $hs);
+        step("$kind schedule downloads as $f", preg_match('~Content-Disposition: attachment; filename="Repayment_Schedule_BLM[^"]*' . $kind . '_[^"]+\.' . $f . '"~i', $resp) === 1 && ($sig === '' ? strlen($body) > 50 : str_starts_with(ltrim($body, "ï»¿"), $sig)) && ($f === 'xlsx' || $f === 'pdf' || str_contains($body, '1,000,000') || str_contains($body, '1000000') || str_contains($body, '1 000 000')), $f . ' ' . substr($body, 0, 80));
+    }
+}
+schedFiles($bm, $loanId, 'projected');
+$bm->get($bm->url('loan', ['id' => $loanId, 'tab' => 'schedule']));
+step('the approved loan already has a Projected repayment schedule with a download menu', str_contains($bm->body, 'Projected') && str_contains($bm->body, 'Download'), info($bm));
 echo '       loan forms (manager): ' . implode(' | ', array_map(fn($f) => $f['action'] . ' {' . implode(',', $f['names']) . '}', $bm->forms())) . "\n";
 $cash = $W['fcash' . $sfx];
 $cash->get($cash->url('till'));
@@ -172,6 +186,7 @@ $cash->submitByField('authorized_by', ['authorized_by' => (string)$cash->optionV
 step('the cashier releases the approved loan (voucher issued)', str_contains($cash->lastUrl, 'doc=voucher') || flashOk($cash, 'disbursed'), info($cash));
 $bm->get($bm->url('loan', ['id' => $loanId]));
 step('the loan is now Active with a repayment schedule', str_contains($bm->body, 'Active') && str_contains($bm->body, 'Repayment schedule'), info($bm));
+schedFiles($bm, $loanId, 'final');
 $admin->get($admin->url('process'));
 $admin->submitWhere('a=preset', ['preset' => 'two_role']);
 step('the administrator returns to the two-role process', flashOk($admin, 'Profile applied'), info($admin));

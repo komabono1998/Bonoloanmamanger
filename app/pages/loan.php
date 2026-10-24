@@ -250,14 +250,21 @@ if ($tab === 'overview') {
 
 // ------------------------------------------------------------------ schedule
 if ($tab === 'schedule') {
-    if (!$loan['disbursed_at']) echo '<div class="notice info">The repayment schedule is generated at disbursement using the approved terms.</div>';
+    if (!(int)$loan['approved_principal']) echo '<div class="notice info">The repayment schedule is created automatically as soon as the loan is approved.</div>';
     else {
-        $s = Loans::scheduleWithPaid($loan);
-        echo '<div class="card"><div class="card-h"><h2>Repayment schedule</h2>' . btn('Print / PDF', url('print', ['doc' => 'schedule', 'id' => $id]), 'sm') . '</div>';
-        data_table(['installment_no' => ['#', 'num'], 'due_date' => ['Due date', 'date'], 'principal_due' => ['Principal', 'money'], 'interest_due' => ['Interest', 'money'], 'total_due' => ['Expected', 'money'],
-            'paid' => ['Paid', 'money'], 'remaining' => ['Remaining', 'money'], 'st' => ['Status', fn($r) => $r['remaining'] == 0 ? badge('Paid') : ($r['due_date'] < reporting_date() ? badge('Overdue') : badge('Pending'))]],
-            $s, ['class' => 'nofilter', 'totals' => ['principal_due', 'interest_due', 'total_due', 'paid', 'remaining']]);
-        echo '<p class="muted" style="margin-top:.6rem">Maturity date ' . e(fmt_date($loan['due_date'])) . ' (' . e(setting('maturity_basis')) . ' date + ' . (int)$loan['period_months'] . ' calendar month(s)). Penalties are tracked separately.</p></div>';
+        $sd = Loans::scheduleDoc($loan);
+        $dl = '<details class="dl"><summary class="btn sm primary">' . icon('download', 14) . ' Download</summary><div class="dl-menu">';
+        foreach (ReportRun::FORMATS as $fk => [$fl, $fi]) $dl .= '<a href="' . e(url('export', ['kind' => 'schedule', 'id' => $id, 'format' => $fk])) . '">' . icon($fi, 15) . ' ' . e($fl) . '</a>';
+        $dl .= '</div></details>';
+        $s = $sd['rows'];
+        $final = $sd['kind'] === 'Final';
+        echo '<div class="card"><div class="card-h"><h2>Repayment schedule ' . badge($final ? 'Final' : 'Projected') . '</h2><span>' . btn('Print / PDF', url('print', ['doc' => 'schedule', 'id' => $id]), 'sm') . ' ' . $dl . '</span></div>';
+        if (!$final) echo '<div class="notice info">' . e($sd['note']) . '</div>';
+        $cols = ['installment_no' => ['#', 'num'], 'due_date' => ['Due date', 'date'], 'principal_due' => ['Principal', 'money'], 'interest_due' => ['Interest', 'money'], 'total_due' => ['Expected', 'money']];
+        $tot = ['principal_due', 'interest_due', 'total_due'];
+        if ($final) { $cols += ['paid' => ['Paid', 'money'], 'remaining' => ['Remaining', 'money'], 'st' => ['Status', fn($r) => badge($r['state'])]]; $tot = array_merge($tot, ['paid', 'remaining']); }
+        data_table($cols, $s, ['class' => 'nofilter', 'totals' => $tot]);
+        echo '<p class="muted" style="margin-top:.6rem">Maturity date ' . e(fmt_date($sd['due'])) . ' (' . e(setting('maturity_basis')) . ' date + ' . (int)$loan['period_months'] . ' calendar month(s)). Penalties are tracked separately.</p></div>';
     }
 }
 

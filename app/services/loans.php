@@ -257,6 +257,7 @@ final class Loans
             ]);
             audit($isAdjust ? 'Approved loan terms adjusted' : 'Loan approved', 'Loans', 'loan', $id, $isAdjust ? ugx($l['approved_principal']) : null,
                 ugx($t['principal']) . ' @' . bp_to_pct($t['rate_bp']) . '%', $reason ?: $comments);
+            self::createProjection($id);   // the repayment schedule is created automatically with the approval
         });
     }
 
@@ -419,6 +420,53 @@ final class Loans
     }
 
     // ---------------------------------------------------------------- tracking
+    // ---------------------------------------------------------------- schedule generated at approval and at disbursement
+    /** Dates and instalments the approved terms produce if the loan were released on $basis (default: the requested date, or today's business date). */
+    public static function projectSchedule(array $loan, ?string $basis = null): array
+    {
+        $today = reporting_date((int)$loan['branch_id']);
+        $disb = $basis ?: (!empty($loan['requested_disb_date']) && $loan['requested_disb_date'] >= $today ? $loan['requested_disb_date'] : $today);
+        $due = self::maturityDate($loan, $disb);
+        return ['basis' => $disb, 'due' => $due, 'rows' => Calc::schedule((int)$loan['approved_principal'], (int)$loan['interest_amount'], $disb, $due, $loan['frequency'], setting('freq_mode'))];
+    }
+
+    /** Create (or re-create after an adjustment) the repayment schedule that goes with the approved offer. */
+    public static function createProjection(int $loanId): void
+    {
+        $l = self::get($loanId);
+        if (!$l['approved_principal']) return;
+        $p = self::projectSchedule($l);
+        q('DELETE FROM loan_schedule_projection WHERE loan_id = ?', [$loanId]);
+        foreach ($p['rows'] as $r) {
+            insert('loan_schedule_projection', ['loan_id' => $loanId, 'installment_no' => $r['no'], 'due_date' => $r['due_date'], 'principal_due' => $r['principal'], 'interest_due' => $r['interest'],
+                'total_due' => $r['total'], 'basis_date' => $p['basis'], 'created_at' => now()]);
+        }
+    }
+
+    public static function projection(int $loanId): array
+    {
+        $rows = rows('SELECT * FROM loan_schedule_projection WHERE loan_id = ? ORDER BY installment_no', [$loanId]);
+        if (!$rows && (int)val('SELECT approved_principal FROM loans WHERE id = ?', [$loanId]) > 0) { self::createProjection($loanId); $rows = rows('SELECT * FROM loan_schedule_projection WHERE loan_id = ? ORDER BY installment_no', [$loanId]); }
+        return $rows;
+    }
+
+    /** The schedule to show or download: the final one once disbursed, otherwise the projection from the approved terms. */
+    public static function scheduleDoc(array $loan): array
+    {
+        must((int)$loan['approved_principal'] > 0, 'A repayment schedule is created as soon as the loan is approved.');
+        if ($loan['disbursed_at']) {
+            $rows = self::scheduleWithPaid($loan);
+            foreach ($rows as &$r) $r['state'] = (int)$r['remaining'] === 0 ? 'Paid' : ($r['due_date'] < reporting_date((int)$loan['branch_id']) ? 'Overdue' : 'Pending');
+            unset($r);
+            return ['kind' => 'Final', 'rows' => $rows, 'basis' => $loan['disbursement_date'], 'due' => $loan['due_date'],
+                'note' => 'Final schedule from the disbursement date ' . fmt_date($loan['disbursement_date']) . '; "Paid" and "Remaining" are as at ' . fmt_date(reporting_date((int)$loan['branch_id'])) . '.'];
+        }
+        $p = self::projection((int)$loan['id']);
+        $basis = $p ? $p[0]['basis_date'] : '';
+        return ['kind' => 'Projected', 'rows' => $p, 'basis' => $basis, 'due' => $p ? $p[count($p) - 1]['due_date'] : null,
+            'note' => 'Projected from the approved terms as if the loan were released on ' . fmt_date($basis) . '. The final dates are fixed on the day of disbursement.'];
+    }
+
     public static function schedule(int $loanId): array
     {
         return rows("SELECT * FROM repayment_schedules WHERE loan_id = ? AND status = 'Current' ORDER BY installment_no", [$loanId]);

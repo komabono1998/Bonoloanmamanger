@@ -30,6 +30,39 @@ if ($kind === 'report') {
         default: header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.csv"'); echo ReportRun::csv($def, $run, $lines);
     }
     exit;
+} elseif ($kind === 'schedule') {   // one loan's repayment schedule in any format (projected from the approved terms, or final once disbursed)
+    require_perm('loan.view');
+    $l = Loans::get((int)get('id'));
+    assert_portfolio_loan($l);
+    $doc = Loans::scheduleDoc($l);
+    $final = $doc['kind'] === 'Final';
+    $cols = ['installment_no' => ['#', 'num'], 'due_date' => ['Due date', 'date'], 'principal_due' => ['Principal', 'money'], 'interest_due' => ['Interest', 'money'], 'total_due' => ['Expected payment', 'money']];
+    $sum = ['principal_due', 'interest_due', 'total_due'];
+    if ($final) { $cols += ['paid' => ['Paid', 'money'], 'remaining' => ['Remaining', 'money'], 'state' => 'Status']; $sum = array_merge($sum, ['paid', 'remaining']); }
+    $def = ['id' => $l['loan_no'], 'title' => 'Repayment Schedule', 'cat' => 'D', 'filters' => '', 'note' => $doc['note'], 'available' => true, 'info' => ''];
+    $run = ['rep' => ['cols' => $cols, 'rows' => $doc['rows'], 'totals' => $sum, 'note' => $doc['note']], 'total' => count($doc['rows']), 'shown' => count($doc['rows']), 'applicable' => []];
+    $lines = [business_name(), $l['loan_no'] . ' · Repayment schedule (' . strtolower($doc['kind']) . ')',
+        'Client: ' . $l['client_name'] . ' (' . $l['client_no'] . ') · Officer: ' . $l['officer_name'],
+        'Principal ' . ugx($l['approved_principal']) . ' · Interest ' . ugx($l['interest_amount']) . ' (' . bp_to_pct((int)$l['rate_bp']) . '% per month, ' . $l['interest_method'] . ') · Total ' . ugx($l['approved_principal'] + $l['interest_amount']) . ' · ' . ucfirst($l['frequency']) . ' repayment',
+        ($final ? 'Disbursed ' : 'Expected release ') . fmt_date($doc['basis']) . ' · Maturity ' . fmt_date($doc['due']),
+        $doc['note'], 'Generated on ' . fmt_dt(now()) . ' by ' . user()['full_name'] . ' (' . user()['role'] . ')'];
+    $fmt = (string)get('format', 'pdf');
+    must(in_array($fmt, ['pdf', 'xlsx', 'xls', 'csv', 'doc', 'json'], true), 'Unknown download format.');
+    insert('export_history', ['at' => now(), 'user_id' => uid(), 'kind' => 'schedule:' . $l['loan_no'], 'format' => $fmt, 'rows_total' => count($doc['rows'])]);
+    audit('Data exported', 'Export', 'export', 'schedule:' . $l['loan_no'], null, count($doc['rows']) . ' instalments (' . $fmt . ')');
+    while (ob_get_level() > 0) ob_end_clean();
+    $file = 'Repayment_Schedule_' . preg_replace('/[^A-Za-z0-9-]+/', '_', $l['loan_no']) . '_' . strtolower($doc['kind']) . '_' . date('Ymd');
+    header('X-Content-Type-Options: nosniff');
+    $p = ReportRun::params([]);
+    switch ($fmt) {
+        case 'pdf': header('Content-Type: application/pdf'); header('Content-Disposition: attachment; filename="' . $file . '.pdf"'); echo ReportRun::pdf($def, $run, $lines); break;
+        case 'xlsx': header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); header('Content-Disposition: attachment; filename="' . $file . '.xlsx"'); echo ReportRun::xlsx($def, $run, $lines); break;
+        case 'xls': header('Content-Type: application/vnd.ms-excel; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.xls"'); echo ReportRun::xls($def, $run, $lines); break;
+        case 'doc': header('Content-Type: application/msword; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.doc"'); echo ReportRun::doc($def, $run, $lines); break;
+        case 'json': header('Content-Type: application/json; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.json"'); echo ReportRun::json($def, $p, $run, $lines); break;
+        default: header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="' . $file . '.csv"'); echo ReportRun::csv($def, $run, $lines);
+    }
+    exit;
 } elseif ($kind === 'audit') {
     require_perm('audit.all'); require_perm('report.export');
     $w = ['substr(at,1,10) BETWEEN ? AND ?']; $p = [is_date(get('from')) ? get('from') : '2000-01-01', is_date(get('to')) ? get('to') : today()];

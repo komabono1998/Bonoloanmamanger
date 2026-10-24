@@ -45,6 +45,10 @@ switch ($doc) {
             . ($l['other_fees'] ? '<tr><td>Other authorized deductions</td><td class="r">' . num($l['other_fees']) . '</td></tr>' : '')
             . '<tr><th>Total fees (' . ($l['fees_deducted'] ? 'deducted from the loan' : 'payable separately') . ')</th><th class="r">' . num($l['total_fees']) . '</th></tr>'
             . '<tr><th>Net amount to be released</th><th class="r">' . num($l['net_disbursement']) . '</th></tr></table>';
+        $sd = Loans::scheduleDoc($l);
+        echo '<h2>Repayment schedule (' . e(strtolower($sd['kind'])) . ')</h2><table><tr><th>#</th><th>Due date</th><th class="r">Principal</th><th class="r">Interest</th><th class="r">Expected payment</th></tr>';
+        foreach ($sd['rows'] as $r) echo '<tr><td>' . (int)$r['installment_no'] . '</td><td>' . e(fmt_date($r['due_date'])) . '</td><td class="r">' . num($r['principal_due']) . '</td><td class="r">' . num($r['interest_due']) . '</td><td class="r">' . num($r['total_due']) . '</td></tr>';
+        echo '</table><p class="muted">' . e($sd['note']) . '</p>';
         $pen = Penalty::termsFor($l);
         echo '<p>The loan is repayable in full by <b>' . ($l['due_date'] ? fmt_date($l['due_date']) : '1 calendar month after disbursement') . '</b>. '
             . (!empty($pen['enabled']) ? 'Overdue amounts attract a penalty of ' . e(bp_to_pct((int)$pen['rate_bp'])) . '% per day on the ' . e(str_replace('_', ' ', $pen['basis'])) . '. ' : '')
@@ -79,12 +83,12 @@ switch ($doc) {
     case 'schedule': {
         require_perm('loan.view');
         $l = Loans::get($id);
-        must((bool)$l['disbursed_at'], 'The schedule is generated at disbursement.');
-        $s = Loans::scheduleWithPaid($l);
+        $sd = Loans::scheduleDoc($l);
+        $s = array_map(fn($r) => $r + ['paid' => 0, 'remaining' => (int)$r['total_due']], $sd['rows']);
         doc_head('Repayment schedule ' . $l['loan_no']);
         echo '<div class="doc">'; doc_biz('LOAN REPAYMENT SCHEDULE', 'Loan ' . $l['loan_no']);
         echo kv(['Client' => $l['client_name'] . ' (' . $l['client_no'] . ')', 'Principal' => ugx($l['approved_principal']), 'Interest rate' => bp_to_pct((int)$l['rate_bp']) . '% per month flat', 'Interest amount' => ugx($l['interest_amount']),
-            'Total principal + interest' => ugx($l['approved_principal'] + $l['interest_amount']), 'Loan period' => $l['period_months'] . ' month(s)', 'Disbursement date' => fmt_date($l['disbursement_date']), 'Due date' => fmt_date($l['due_date'])]);
+            'Total principal + interest' => ugx($l['approved_principal'] + $l['interest_amount']), 'Loan period' => $l['period_months'] . ' month(s)', ($sd['kind'] === 'Final' ? 'Disbursement date' : 'Expected disbursement date') => fmt_date($sd['basis']), 'Due date' => fmt_date($sd['due']), 'Schedule' => $sd['kind']]);
         echo '<table><tr><th>#</th><th>Due date</th><th class="r">Principal</th><th class="r">Interest</th><th class="r">Expected payment</th><th class="r">Amount paid</th><th class="r">Remaining</th></tr>';
         foreach ($s as $r) echo '<tr><td>' . (int)$r['installment_no'] . '</td><td>' . e(fmt_date($r['due_date'])) . '</td><td class="r">' . num($r['principal_due']) . '</td><td class="r">' . num($r['interest_due']) . '</td><td class="r">' . num($r['total_due']) . '</td><td class="r">' . num($r['paid']) . '</td><td class="r">' . num($r['remaining']) . '</td></tr>';
         echo '</table>';

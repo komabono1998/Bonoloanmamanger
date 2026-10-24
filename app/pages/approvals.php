@@ -15,7 +15,7 @@ if ($id) {
         return [$ok ? 'Verified.' : 'Rejected.', url('approvals', ['id' => $id, 'rtab' => get('rtab', 'documents')])];
     });
     post_action(function () use ($id, $dec) {
-        if ($dec === 'approve') { Loans::approve($id, $_POST); return ['Loan approved. Offer terms are now locked.', url('loan', ['id' => $id])]; }
+        if ($dec === 'approve') { Loans::approve($id, $_POST); return ['Loan approved. Offer terms are now locked and the repayment schedule has been created (download it from the loan page).', url('loan', ['id' => $id])]; }
         if ($dec === 'reject') { Loans::reject($id, clean(post('reason'))); return ['Application rejected.', url('approvals')]; }
         if ($dec === 'escalate') { Loans::escalate($id, clean(post('reason'))); return ['Escalated to the COO.', url('approvals')]; }
         if ($dec === 'return') { Loans::returnForCorrection($id, clean(post('reason')), post('stage')); return ['Returned to the loan officer for correction.', url('approvals')]; }
