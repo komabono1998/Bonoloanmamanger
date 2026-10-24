@@ -90,7 +90,7 @@ if ($page === 'health') { require BASE_PATH . '/app/pages/health.php'; exit; }
 
 try {
     if (!is_installed()) {
-        $page = 'setup';
+        $page = $page === 'setup' ? 'setup' : 'login';   // nothing is configured yet: a plain sign-in page whose only way forward is "Set up a new organisation"
         $layout = 'bare';
     } else {
         migrate();                         // applies any new migration files on upgrade

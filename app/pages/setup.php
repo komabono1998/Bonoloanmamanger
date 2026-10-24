@@ -12,15 +12,15 @@ post_action(function () {
 ?>
 <div class="card">
   <img class="sys-logo" src="<?= e(asset('bono-logo.png')) ?>" alt="Bono Loan Management System">
-  <h1 style="text-align:center">Welcome to Bono Loan Manager</h1>
+  <h1 style="text-align:center">Set up a new organisation</h1>
   <p class="muted" style="text-align:center">First-time setup of the cloud system. This creates the first branch and the <b>System Administrator</b> (holds every user right, all reports and all settings).</p>
   <?php form_open(null) ?>
-    <?php field('business_name', 'Institution name', ['value' => 'Bono Loan Manager', 'required' => true]); ?>
+    <?php field('business_name', 'Institution name', ['required' => true, 'placeholder' => 'Your organisation\'s name', 'attrs' => 'autofocus']); ?>
     <?php field('institution_code', 'Institution code (for staff IDs)', ['help' => 'Optional 2–6 letters, e.g. EMG → staff IDs like EMG-S-0001. Defaults to the initials of your name.']); ?>
     <?php field('business_address', 'Address'); field('business_city', 'Town / district'); field('business_phone', 'Telephone'); field('business_email', 'Email'); field('registration_no', 'Registration number'); field('tax_id', 'Tax ID (TIN)'); ?>
-    <?php field('interest_rate_pct', 'Interest rate (% per month)', ['value' => setting('interest_rate_pct'), 'help' => 'You can change this later in Settings → Interest & fees.']); field('processing_fee_pct', 'Processing fee (%)', ['value' => setting('processing_fee_pct')]); ?>
-    <?php field('branch_name', 'First branch name', ['value' => 'Head Office', 'required' => true]); ?>
-    <?php field('branch_code', 'Branch code', ['value' => 'HQ', 'required' => true, 'help' => 'Short code used in till session numbers, e.g. HQ, KLA, GLU.']); ?>
+    <?php field('interest_rate_pct', 'Interest rate (% per month)', ['placeholder' => 'e.g. 20', 'help' => 'You can change this later in Settings → Interest & fees.']); field('processing_fee_pct', 'Processing fee (%)', ['value' => setting('processing_fee_pct')]); ?>
+    <?php field('branch_name', 'First branch name', ['required' => true, 'placeholder' => 'e.g. Head Office']); ?>
+    <?php field('branch_code', 'Branch code', ['required' => true, 'placeholder' => 'e.g. HQ', 'help' => 'Short code used in till session numbers, e.g. HQ, KLA, GLU.']); ?>
     <?php field('full_name', 'Administrator full name', ['required' => true]); ?>
     <?php field('username', 'Username', ['required' => true, 'help' => 'Letters, numbers, dot, dash or underscore.', 'attrs' => 'autocomplete="username"']); ?>
     <?php field('password', 'Password', ['type' => 'password', 'required' => true, 'help' => 'At least ' . max(8, setting_int('password_min_length')) . ' characters with letters and numbers.', 'attrs' => 'autocomplete="new-password"']); ?>

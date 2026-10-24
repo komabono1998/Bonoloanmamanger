@@ -9,7 +9,7 @@ if (is_installed() && user()) {
         if (can_any('loan.approve|payment.reverse|expense.approve|till.reconcile|eod.approve|backup.authorize')) $inboxN = count(Approvals::inbox());
     } catch (Throwable $e) {}
 }
-$pageTitle = ($title ? $title . ' · ' : '') . business_name();
+$pageTitle = ($title ? $title . ' · ' : '') . (is_installed() ? business_name() : 'Bono Loan Management System');
 $curBranch = (is_installed() && user()) ? branch_id() : 0;
 $business = can_any('client.view|loan.view|payment.view|eod.view|till.use');
 $locked = is_installed() && user() && password_change_locked();   // only when the grace period is over, the password expired or the policy is "lock"

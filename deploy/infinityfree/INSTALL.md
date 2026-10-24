@@ -27,7 +27,7 @@ Create a file called **`env.php`** in `htdocs` with the content of `deploy/infin
 If the site loops on redirects after enabling HTTPS, add `'TRUST_PROXY' => '1',`. (A `.env` file works too, but `env.php` is safer on shared hosting.)
 
 ## 5. First start
-1. Open `https://YOUR-SITE/` - the first-run page creates the institution, its first branch and the System Administrator. Use a strong password.
+1. Open `https://YOUR-SITE/`. A fresh installation shows a plain sign-in page with nothing configured and a single button, **Set up a new organisation**. Click it and fill in the organisation, its first branch and the System Administrator (use a strong password). Afterwards the sign-in page carries your organisation's name and logo.
 2. Sign in and set up multi-factor authentication when asked (an authenticator app on your phone).
 3. Follow `docs/UAT_GUIDE.md` section 1 (institution profile, branches, users, policy, opening balances, start the business day).
 

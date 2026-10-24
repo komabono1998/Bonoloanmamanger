@@ -28,9 +28,9 @@ if ($enabled) post_action(function () {
     <?php field('slug', 'Organisation code', ['help' => 'Staff type this when signing in. 3-24 lowercase letters, numbers or dashes. Leave blank to use the name.', 'attrs' => 'data-slug-target autocapitalize="none" spellcheck="false"']); ?>
     <?php field('registration_no', 'Registration number'); field('tax_id', 'Tax ID (TIN)'); field('business_phone', 'Telephone'); field('business_email', 'Organisation email'); ?>
     <?php field('business_address', 'Address', ['span' => 2]); field('business_city', 'Town / district'); ?>
-    <?php field('interest_rate_pct', 'Interest rate (% per month)', ['value' => '20', 'help' => 'Changeable later in Settings.']); field('processing_fee_pct', 'Processing fee (%)', ['value' => '3']); ?>
+    <?php field('interest_rate_pct', 'Interest rate (% per month)', ['placeholder' => 'e.g. 20', 'help' => 'Optional; changeable later in Settings.']); field('processing_fee_pct', 'Processing fee (%)', ['placeholder' => 'e.g. 3']); ?>
     <h3 class="full">First branch</h3>
-    <?php field('branch_name', 'Branch name', ['value' => 'Head Office']); field('branch_code', 'Branch code', ['value' => 'HQ']); ?>
+    <?php field('branch_name', 'Branch name', ['placeholder' => 'e.g. Head Office']); field('branch_code', 'Branch code', ['placeholder' => 'e.g. HQ']); ?>
     <h3 class="full">Administrator account</h3>
     <?php field('full_name', 'Your full name', ['required' => true, 'span' => 2]); field('email', 'Your email (for password reset)', ['type' => 'email']); ?>
     <?php field('username', 'Username', ['required' => true, 'help' => 'Letters, numbers, dot, dash or underscore.', 'attrs' => 'autocomplete="username"']); ?>

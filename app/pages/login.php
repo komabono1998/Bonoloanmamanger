@@ -11,9 +11,11 @@ function finish_login(): void
 }
 
 $mfaStep = !empty($_SESSION['mfa_uid']) && time() - (int)($_SESSION['mfa_started'] ?? 0) <= 300;
+$fresh = !is_installed();   // first installation: no organisation exists yet
 if (is_post()) {
     try {
         csrf_check();
+        if ($fresh) throw new AppError('No organisation has been set up on this system yet. Choose "Set up a new organisation" below.');
         if (post('step') === 'mfa') {
             if (verify_mfa_login((string)post('code'))) finish_login();
             flash('error', 'That code is not valid. Check the time on your phone or use a recovery code.');
@@ -32,7 +34,8 @@ if (is_post()) {
 ?>
 <div class="card login-card">
   <img class="sys-logo" src="<?= e(asset('bono-logo.png')) ?>" alt="Bono Loan Management System">
-  <h1 style="text-align:center"><?php if (logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" class="inst-logo"><?php endif; ?><?= e(business_name()) ?></h1>
+  <?php if ($fresh): ?><h1 style="text-align:center">Sign in</h1>
+  <?php else: ?><h1 style="text-align:center"><?php if (logo_url()): ?><img src="<?= e(logo_url()) ?>" alt="" class="inst-logo"><?php endif; ?><?= e(business_name()) ?></h1><?php endif; ?>
   <?php if ($mfaStep): ?>
     <p class="muted" style="text-align:center">Enter the 6-digit code from your authenticator app (or a recovery code).</p>
     <?php form_open(null) ?>
@@ -43,7 +46,7 @@ if (is_post()) {
     <?php if (get('cancel')) { unset($_SESSION['mfa_uid']); redirect(url('login')); } ?>
   <?php else: ?>
     <?php form_open(null, ['attrs' => 'class="login-form"']) ?>
-      <?php if (Tenancy::all() || tenant()): ?>
+      <?php if (!$fresh && (Tenancy::all() || tenant())): ?>
         <label for="lf-org">Organisation code :</label>
         <input id="lf-org" type="text" name="org" value="<?= e(tenant_slug() ?: (string)get('org')) ?>" placeholder="Leave blank for <?= e($GLOBALS['__tenant'] ? 'the main organisation' : business_name()) ?>" autocapitalize="none" spellcheck="false" autocomplete="organization">
       <?php endif; ?>
@@ -51,10 +54,10 @@ if (is_post()) {
       <input id="lf-user" type="text" name="username" placeholder="Username, email or Staff ID" required autofocus autocomplete="username" value="<?= e((string)old('username', '')) ?>">
       <label for="lf-pass">Password :</label>
       <div class="pw-wrap"><input id="lf-pass" type="password" name="password" placeholder="Password" required autocomplete="current-password"><button type="button" class="pw-toggle" data-toggle-pw aria-label="Show or hide the password"><?= icon('eye', 18) ?></button></div>
-      <div class="login-links"><a href="<?= e(url('forgot')) ?>">Forgot Password ?</a></div>
+      <?php if (!$fresh): ?><div class="login-links"><a href="<?= e(url('forgot')) ?>">Forgot Password ?</a></div><?php endif; ?>
       <div class="login-go"><button class="btn-navy" type="submit">Sign In</button></div>
     <?php form_close() ?>
-    <?php if (Tenancy::enabled()): ?><div class="org-cta"><span>New here?</span><a class="btn" href="<?= e(url('register')) ?>"><?= icon('building', 16) ?> Set up a new organisation</a></div><?php endif; ?>
+    <?php if ($fresh || Tenancy::enabled()): ?><div class="org-cta"><span>New here?</span><a class="btn<?= $fresh ? ' primary' : '' ?>" href="<?= e($fresh ? url('setup') : url('register')) ?>"><?= icon('building', 16) ?> Set up a new organisation</a></div><?php endif; ?>
   <?php endif; ?>
   <div class="login-foot"><span><?= icon('lock', 13) ?> <?= request_is_https() ? 'Secure connection' : 'Local connection' ?></span><span class="by">Powered by <img src="<?= e(asset('bono-mark.png')) ?>" alt=""> <b>Bono</b></span></div>
 </div>
